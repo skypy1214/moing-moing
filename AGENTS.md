@@ -11,6 +11,7 @@
 5. `docs/todo.md`: 현재 단계와 완료 조건
 6. `docs/development.md`: 로컬 실행, DB, 환경변수, 검증 명령
 7. `docs/dependencies.md`: 주요 의존성 선택 이유와 라이선스
+8. `docs/home-setup.md`: 새 Windows PC에서의 개발 도구, GitHub, Cursor, Codex 설정
 
 문서와 구현이 달라지면 같은 변경에서 문서도 갱신한다. 중요한 결정은 이유와 함께 관련 문서에 기록한다.
 
