@@ -21,7 +21,7 @@ CouponUsage 0..1 --- 1 Attendance
 MeetingNote N --- 1 MeetingNoteCategory
 
 AttendanceChampionAward N --- 1 Member
-AttendanceChampionAward 1 --- N Coupon (정책에 따라 1개 또는 2개)
+AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수를 가진 쿠폰)
 ```
 
 `Gathering`은 날짜별 출석부의 헤더다. 이를 두지 않고 Attendance에 날짜만 넣으면 모임 취소, 장소/메모와 출석부 상태를 확장하기 어렵고 동일 날짜 모임의 의미도 불명확해진다.
@@ -43,7 +43,7 @@ AttendanceChampionAward 1 --- N Coupon (정책에 따라 1개 또는 2개)
 불변조건:
 
 - `WITHDRAWN`이면 `withdrawnOn`이 필요하고, `ACTIVE`이면 없어야 한다.
-- 탈퇴는 삭제가 아닌 상태 전이다. 재가입을 동일 Member로 복원할지 새 가입 이력으로 볼지는 미확정이다.
+- 탈퇴는 삭제가 아닌 상태 전이다. 재가입은 관리자가 기존 Member 재활성화 또는 새 Member 등록을 명시적으로 선택한다.
 - 이름은 변경 가능하므로 과거 관계의 식별 기준으로 사용하지 않는다.
 
 ### MemberActivityExclusion
@@ -56,6 +56,8 @@ AttendanceChampionAward 1 --- N Coupon (정책에 따라 1개 또는 2개)
 - `note`, `createdBy`, `createdAt`, `updatedAt`.
 
 이 모델은 과거 월의 활동률을 당시 기준으로 재계산하고, 월 일부만 쉰 경우의 정책도 나중에 바꿀 수 있게 한다. 종료일이 없는 기간은 현재도 계속되는 제외 기간이며, 복귀 처리 시 종료일을 기록한다. 기간 중첩은 혼란을 만들므로 같은 회원에 대한 중첩을 application 검증과 통합 테스트로 방지한다. 무기한 기간이 존재하면 새 제외 기간을 시작할 수 없다.
+
+운영자가 입력한 사유·시작일·종료일·메모의 오류는 동일 이력 행을 수정하여 정정한다. 이때 다른 활동 제외 기간과 겹치지 않아야 하며, 기간 행을 물리 삭제하거나 수정 때마다 새 행으로 바꾸지 않는다.
 
 ### Gathering
 
@@ -71,18 +73,20 @@ AttendanceChampionAward 1 --- N Coupon (정책에 따라 1개 또는 2개)
 ### Attendance
 
 - `id`, `gatheringId`, `memberId`.
-- `participationType`: `PAID | FREE`를 우선 제안한다.
+- `participationType`: `NORMAL | COUPON`을 우선 제안한다.
 - `couponUsageId`: 무료 참여가 쿠폰에 의해 발생하면 연결.
 - `recordedBy`, `recordedAt`.
 - 정정 지원 시 `status: RECORDED | CANCELLED`, `cancelledAt`, `cancelledBy`, `cancellationReason`.
+
+Phase 3의 최초 schema에는 `gatheringId`, `memberId`, `participationType`, `status`, `recordedAt`, `cancelledAt`, `cancellationReason`만 둔다. `couponUsageId`는 CouponUsage가 도입되는 Phase 5 migration에서 외래 키로 추가하고, 수행 운영자 ID는 감사 로그 범위와 함께 후속 확장한다.
 
 `NORMAL`, `COUPON`, `ATTENDANCE_KING_COUPON`은 결제 방식과 쿠폰 종류를 한 enum에 섞는다. 출석왕 집계의 본질은 유료/일반 참여인지이므로 Attendance에는 `participationType`을 저장하고, 무료 사유의 상세는 연결된 Coupon의 종류에서 찾는다. 쿠폰 없이 관리자가 무료 처리할 수 있다면 별도 `freeReason`이 필요하다.
 
 불변조건:
 
 - `(gatheringId, memberId)`는 유효 출석 기준으로 하나다.
-- `FREE`이면서 쿠폰 사용이면 유효한 CouponUsage와 연결한다.
-- `PAID`만 출석왕 집계에 포함한다. 향후 명칭이 `COUNTED | NOT_COUNTED`가 더 정확한지 정책 확정 시 검토한다.
+- `COUPON`이면서 쿠폰 사용이면 유효한 CouponUsage와 연결한다.
+- `NORMAL`만 출석왕 집계에 포함한다. 향후 명칭이 `COUNTED | NOT_COUNTED`가 더 정확한지 정책 확정 시 검토한다.
 - 탈퇴 회원도 과거 출석의 참조 대상이 될 수 있으나, 탈퇴일 이후 신규 출석 입력은 기본 차단한다.
 
 ### Coupon
@@ -95,6 +99,8 @@ AttendanceChampionAward 1 --- N Coupon (정책에 따라 1개 또는 2개)
 - `qrTokenHash`: 원본 토큰 대신 해시 저장을 우선 검토.
 - `issuedReason`, `issuedBy`, `issuedAt`, `suspendedAt`, `voidedAt`.
 - 출석왕 보상이라면 `championAwardId`.
+
+출석왕 보상 쿠폰의 `totalUses`는 해당 `AttendanceChampionAward.rewardUses`와 같아야 한다. 쿠폰을 한 장으로 발급할지 여러 장으로 나눌지는 별도 UX 결정이지만, 보상 당시의 총 사용 가능 횟수는 변경하지 않는다.
 
 상태는 가능한 경우 날짜와 사용 이력에서 파생하되, 정지/폐기처럼 명시적 조치가 필요한 상태는 저장한다. `EXPIRED`를 배치로 변경할 필요 없이 `validUntil`로 유효성을 계산할 수도 있다. 표시 상태와 영속 상태를 구분해 상태 불일치를 줄인다.
 
@@ -112,11 +118,11 @@ Coupon 한 장에 2회 잔액을 담는다면 1:N이 필수다. 1회권만 발�
 
 - `id`, `targetMonth` (`YearMonth` 변환 값).
 - `memberId`, `qualifyingAttendanceCount`.
-- `rank`, `policyVersion`.
+- `rank`, `policyVersion`, `rewardUses`.
 - `status`: `CALCULATED | GRANTED | CANCELLED` 후보.
 - `calculatedAt`, `grantedAt`, `grantedBy`.
 
-`(targetMonth, memberId, policyVersion)` 또는 확정 정책에 맞는 unique 제약으로 재실행을 멱등하게 한다. 쿠폰은 이 보상 결과를 참조한다. 집계 대상 월과 쿠폰 유효 월을 구분한다.
+`policyVersion`과 `rewardUses`는 발급 당시의 정책과 실제 보상 횟수를 보존하는 스냅샷이다. `(targetMonth, memberId)`에 unique 제약을 두어 정책이 바뀐 뒤 재실행해도 같은 월·같은 회원에게 중복 보상하지 않는다. 쿠폰은 이 보상 결과를 참조한다. 집계 대상 월과 쿠폰 유효 월을 구분한다.
 
 ### MeetingNoteCategory
 
@@ -134,25 +140,31 @@ Coupon 한 장에 2회 잔액을 담는다면 1:N이 필수다. 1회권만 발�
 
 Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행한다. HTML 결과를 DB에 함께 저장하는 것은 캐시 필요성이 확인되기 전까지 하지 않는다. 수정 이력이 필요하면 향후 `MeetingNoteRevision`을 추가한다.
 
-### AdminUser (인증 채택 시)
+### UserAccount
 
-- `id`, `loginId` 또는 OIDC subject.
-- 로컬 인증이면 `passwordHash`.
-- `role`, `status`, `lastLoginAt`, 감사 시각.
+- `id`, `loginId`.
+- `passwordHash`, `status`, `lastLoginAt`, 감사 시각.
+- Member와는 현재 연결하지 않는다. 실제 회원가입을 도입할 때 선택적 연결을 추가한다.
 
-도메인의 `createdBy`, `usedBy` 등은 이 엔티티를 참조한다. 운영자 삭제 시 감사 참조가 사라지지 않도록 비활성화한다.
+### AccountRole
+
+- `userAccountId`, `roleCode`.
+- 초기 실제 발급 값은 `ADMIN`뿐이다.
+- 이후 `MEMBER`, `SITE_ADMIN`, `GROUP_LEADER`, `STAFF`를 추가할 수 있다. 한 계정은 여러 역할을 가질 수 있다.
+
+도메인의 `createdBy`, `usedBy` 등은 UserAccount를 참조한다. 운영자 삭제 시 감사 참조가 사라지지 않도록 비활성화한다.
 
 ## 4. 주요 유스케이스와 트랜잭션
 
 - 회원 탈퇴: Member 상태/일자 변경. 출석·쿠폰·회의 이력은 변경하거나 삭제하지 않는다.
 - 출석 기록: Gathering과 Member 가능 여부 검증 후 Attendance 생성.
 - 쿠폰 사용 출석: 쿠폰 소유자, 기간, 정지/폐기, 잔여 횟수를 확인하고 CouponUsage와 Attendance를 한 트랜잭션으로 생성.
-- 출석왕 확정: 대상 월의 유효한 `PAID` 출석 집계 → 동률 정책 적용 → Award 저장 → 다음 달 유효 쿠폰 발급. unique 제약으로 중복 방지.
+- 출석왕 확정: 대상 월의 유효한 `NORMAL` 출석이 있는 회원만 집계하고 최다 출석자(탈퇴 상태와 무관)를 선정 → 동률 인원에 맞는 `ChampionRewardPolicy` 적용 → 정책 버전과 `rewardUses`를 가진 Award 저장 → 다음 달 유효 쿠폰 발급. `NORMAL` 출석자가 없으면 Award를 만들지 않는다. unique 제약으로 중복 방지.
 - 활동률 계산: 대상 월의 회원 생명주기와 제외 기간을 조회한 뒤 버전이 있는 정책 함수가 분자/분모 및 상세 내역을 반환.
 
 ## 5. 삭제와 감사 정책
 
-- Member, Attendance, CouponUsage, AttendanceChampionAward, AdminUser: 물리 삭제 금지 원칙.
+- Member, Attendance, CouponUsage, AttendanceChampionAward, UserAccount: 물리 삭제 금지 원칙.
 - Coupon: 미사용 오발급도 `VOIDED` 우선. 생성 직후 테스트 데이터 등 물리 삭제 허용 조건은 별도 결정.
 - MeetingNote/Category: 숨김/비활성화 우선. 개인정보 삭제 요구에 대응할 별도 관리 절차는 배포 전 정한다.
 - 모든 중요한 상태 변경에는 수행자와 시각을 남긴다. 범용 감사 이벤트 테이블은 실제 조회 요구가 확정되기 전에는 도입하지 않는다.
@@ -168,3 +180,5 @@ Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행
 - 정책 버전/설정.
 
 결과에는 출석률/활동률 숫자뿐 아니라 대상자 ID 집합, 출석자 집합, 인정 제외자 집합과 제외 이유를 포함해 관리자가 수치를 설명할 수 있게 한다. 구현은 단일 정책 클래스로 시작하고, 실제 복수 정책을 동시에 운영해야 할 때만 Strategy 형태로 확장한다.
+
+출석왕 보상은 통계 정책과 수명 주기가 다르므로, Phase 5에서는 범용 설정 프레임워크 대신 목적이 분명한 `ChampionRewardPolicy` 설정만 둔다. 정책은 `version`, 적용 시작 월, 동률 인원 구간(`tieCountFrom`, `tieCountTo` nullable), 쿠폰 사용 횟수(`couponUses`), 활성 여부를 가진다. 현재 규칙은 `1~2명 → 2회`, `3명 이상 → 1회`다. 새 정책은 앞으로 적용할 월부터 새 버전으로 추가하고, 기존 Award 및 쿠폰은 당시 스냅샷을 유지한다.

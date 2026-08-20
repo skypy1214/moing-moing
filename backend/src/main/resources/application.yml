@@ -18,3 +18,7 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+app:
+  initial-admin:
+    login: ${INITIAL_ADMIN_LOGIN:}
+    password: ${INITIAL_ADMIN_PASSWORD:}

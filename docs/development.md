@@ -37,6 +37,12 @@ npm run dev
 
 기본 주소는 프론트 `http://localhost:5173`, 백엔드 `http://localhost:8080`이다. API 프록시와 CORS 정책은 실제 API가 추가되는 Phase 2에서 확정한다.
 
+### DB 없이 화면 확인하기 (임시)
+
+DB를 실행할 수 없는 개발 환경에서는 프론트 개발 서버(`npm run dev`)에서만 임시 데모 계정 `admin` / `admin`으로 로그인할 수 있다. 이 모드는 정적 데모 회원 데이터만 사용하며 실제 API나 데이터베이스에 요청하거나 데이터를 저장하지 않는다. 프로덕션 빌드에서는 동작하지 않는다.
+
+이 계정과 데모 모드는 DB 기반 로그인/수동 확인이 가능해지면 제거 대상이다. 제거 여부는 `docs/todo.md`의 Phase 2 항목에서 추적한다.
+
 ## 환경변수
 
 | 변수 | 기본값 | 용도 |
@@ -49,6 +55,8 @@ npm run dev
 | `DB_USERNAME` | `moing_moing` | 백엔드 DB 사용자 |
 | `DB_PASSWORD` | `local_dev_only` | 백엔드 DB 비밀번호 |
 | `SERVER_PORT` | `8080` | 백엔드 HTTP 포트 |
+| `INITIAL_ADMIN_LOGIN` | `admin` | 최초 로컬 관리자 로그인 ID |
+| `INITIAL_ADMIN_PASSWORD` | 예시값 | 최초 로컬 관리자 비밀번호. 운영에서는 안전한 secret으로 설정 |
 
 운영 비밀값은 저장소 파일이 아니라 배포 환경의 secret 기능으로 주입한다.
 
@@ -67,6 +75,8 @@ npm run dev
 ```
 
 전체 검증은 백엔드 clean build/test/Checkstyle, 프론트 npm clean install/ESLint/Prettier/Vitest/build, `git diff --check`, `git status --short`를 실행한다. Docker가 없으면 Testcontainers migration 테스트는 skip된다. CI에는 Docker가 있으므로 해당 테스트가 실행되어야 한다.
+
+회사 PC처럼 Docker/WSL2 실행이 제한된 환경에서는 Docker 없이 가능한 compile, unit test, Checkstyle, ESLint, Prettier, Vitest, frontend build만 실행한다. PostgreSQL/Flyway/Testcontainers 실제 통합 검증은 `docs/todo.md`의 "집 PC에서 검증 필요" 목록으로 관리한다. 제한을 우회하기 위한 별도 로컬 DB, VM, dependency는 도입하지 않는다.
 
 개별 명령:
 
@@ -94,4 +104,3 @@ docker compose down
 ## Git hook
 
 현재 Git hook은 사용하지 않는다. 커밋마다 전체 검증을 강제하는 대신 루트 검증 스크립트와 CI를 기준으로 삼는다. 반복되는 가벼운 실수가 확인될 때만 도입을 재검토한다.
-

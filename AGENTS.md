@@ -12,6 +12,7 @@
 6. `docs/development.md`: 로컬 실행, DB, 환경변수, 검증 명령
 7. `docs/dependencies.md`: 주요 의존성 선택 이유와 라이선스
 8. `docs/home-setup.md`: 새 Windows PC에서의 개발 도구, GitHub, Cursor, Codex 설정
+9. `docs/attendance-champion-policy.md`: 출석왕 보상 규칙과 정책 변경 이력 원칙
 
 문서와 구현이 달라지면 같은 변경에서 문서도 갱신한다. 중요한 결정은 이유와 함께 관련 문서에 기록한다.
 
@@ -21,6 +22,7 @@
 - 단일 배포 가능한 백엔드와 단일 프론트엔드로 시작한다. 마이크로서비스, Kafka, Redis, CQRS/Event Sourcing을 선제 도입하지 않는다.
 - Controller에는 요청 변환과 응답 조립만 둔다. 비즈니스 규칙은 application/service 계층에 둔다.
 - JPA Entity를 API에 직접 노출하지 않고 요청/응답 DTO를 사용한다.
+- 주석은 코드가 수행하는 자명한 동작을 반복하지 않고, 도메인 규칙·불변조건·의도적인 예외 처리처럼 코드만으로 알기 어려운 "왜"를 설명한다. 기존 코드는 기능을 수정할 때 관련 부분부터 점진적으로 보강하며, 형식적인 대량 주석 작업은 하지 않는다.
 - 회원 탈퇴 및 중요한 이력은 물리 삭제하지 않는다. 과거 출석과 쿠폰 사용 이력의 참조 무결성을 보존한다.
 - 스키마 변경은 Flyway migration으로만 관리한다. 적용된 migration을 수정하지 말고 새 파일을 추가한다.
 - 통계 규칙처럼 바뀔 가능성이 큰 정책은 한 곳에 모으되, 필요 이상의 프레임워크나 추상 계층을 만들지 않는다.
@@ -57,6 +59,7 @@ repository: git diff --check, git status --short
 - 포맷터/린터는 자동화 가능하고 팀 부담이 낮은 구성을 택한다. 백엔드는 Checkstyle, 프론트는 ESLint와 Prettier를 사용한다.
 - 기능 변경에는 정상 흐름과 핵심 실패/경계 조건 테스트를 추가한다.
 - DB 의존 통합 테스트에는 필요할 때 Testcontainers PostgreSQL을 사용한다. 단순 단위 테스트까지 컨테이너를 요구하지 않는다.
+- 회사 PC에서 Docker/WSL2가 제한되면 Docker 없는 compile, unit test, lint, frontend build만 실행하고, 실제 PostgreSQL/Flyway/Testcontainers 검증은 `docs/todo.md`의 "집 PC에서 검증 필요"에 기록한다. 제한 우회용 개발 환경이나 dependency는 추가하지 않는다.
 - 로컬에서 실행하지 못한 검증이 있으면 완료 보고에 명시한다.
 
 현재는 애플리케이션이 생성되지 않았으므로 위 명령과 스크립트도 아직 존재하지 않는다. 빈 스크립트를 먼저 만들지 말고 Phase 1에서 실제 프로젝트 명령과 함께 추가한다.

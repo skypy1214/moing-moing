@@ -1,0 +1,51 @@
+package com.moingmoing.attendance.api;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
+
+import com.moingmoing.attendance.domain.Attendance;
+import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendanceStatus;
+import com.moingmoing.attendance.domain.Gathering;
+import com.moingmoing.attendance.domain.GatheringStatus;
+
+record GatheringResponse(
+        UUID id,
+        LocalDate heldOn,
+        String title,
+        Instant startsAt,
+        String location,
+        GatheringStatus gatheringStatus) {
+    static GatheringResponse from(Gathering gathering) {
+        return new GatheringResponse(
+                gathering.getId(),
+                gathering.getHeldOn(),
+                gathering.getTitle(),
+                gathering.getStartsAt(),
+                gathering.getLocation(),
+                gathering.getGatheringStatus());
+    }
+}
+
+record AttendanceResponse(
+        UUID id,
+        UUID gatheringId,
+        UUID memberId,
+        AttendanceParticipationType participationType,
+        AttendanceStatus attendanceStatus,
+        Instant recordedAt,
+        Instant cancelledAt,
+        String cancellationReason) {
+    static AttendanceResponse from(Attendance attendance) {
+        return new AttendanceResponse(
+                attendance.getId(),
+                attendance.getGatheringId(),
+                attendance.getMemberId(),
+                attendance.getParticipationType(),
+                attendance.getAttendanceStatus(),
+                attendance.getRecordedAt(),
+                attendance.getCancelledAt(),
+                attendance.getCancellationReason());
+    }
+}
