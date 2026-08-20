@@ -12,6 +12,7 @@
 6. `docs/development.md`: 로컬 실행, DB, 환경변수, 검증 명령
 7. `docs/dependencies.md`: 주요 의존성 선택 이유와 라이선스
 8. `docs/home-setup.md`: 새 Windows PC에서의 개발 도구, GitHub, Cursor, Codex 설정
+9. `docs/ui-ux.md`: 반응형 관리자 화면의 UI/UX 원칙과 화면 전환 기준
 9. `docs/attendance-champion-policy.md`: 출석왕 보상 규칙과 정책 변경 이력 원칙
 
 문서와 구현이 달라지면 같은 변경에서 문서도 갱신한다. 중요한 결정은 이유와 함께 관련 문서에 기록한다.
