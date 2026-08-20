@@ -19,7 +19,7 @@ class GatheringTest {
     }
 
     @Test
-    void rejectsClosingA draftGathering() {
+    void rejectsClosingADraftGathering() {
         Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
 
         assertThatThrownBy(gathering::close)

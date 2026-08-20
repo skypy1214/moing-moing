@@ -12,6 +12,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 class SecurityConfiguration {
     @Bean
@@ -36,14 +38,19 @@ class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable())
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                        (request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .anyRequest().hasRole("ADMIN"))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
-                        .successHandler((request, response, authentication) -> response.setStatus(204))
-                        .failureHandler((request, response, exception) -> response.sendError(401)))
+                        .successHandler((request, response, authentication) ->
+                                response.setStatus(HttpServletResponse.SC_NO_CONTENT))
+                        .failureHandler((request, response, exception) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .logout(logout -> logout.logoutUrl("/api/v1/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
+                        .logoutSuccessHandler((request, response, authentication) ->
+                                response.setStatus(HttpServletResponse.SC_NO_CONTENT)))
                 .build();
     }
 }

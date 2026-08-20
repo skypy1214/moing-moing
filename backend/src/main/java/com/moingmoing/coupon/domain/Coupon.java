@@ -174,8 +174,9 @@ public class Coupon {
 
     private static String sha256(String value) {
         try {
+            byte[] tokenBytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                    MessageDigest.getInstance("SHA-256").digest(tokenBytes));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 must be available in the Java runtime.", exception);
         }

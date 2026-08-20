@@ -28,7 +28,7 @@
 ### 집 PC에서 검증 필요
 
 - [ ] Docker Compose로 PostgreSQL 컨테이너를 기동하고 healthcheck가 `healthy`인지 확인한다.
-- [ ] 백엔드를 실행해 Flyway `V1`, `V2` migration이 PostgreSQL에 실제 적용되는지 확인한다.
+- [x] 백엔드를 실행해 Flyway `V1`, `V2` migration이 PostgreSQL에 실제 적용되는지 확인한다. (2026-08-21 Neon PostgreSQL 검증)
 - [ ] Docker 사용 가능 환경에서 Testcontainers PostgreSQL migration 테스트가 skip되지 않고 통과하는지 확인한다.
 
 회사 PC에서는 Docker 없이 backend compile/unit test/Checkstyle와 frontend lint/test/build을 실행한다. Docker 제한을 우회하기 위한 별도 개발 환경이나 의존성은 추가하지 않는다.
@@ -40,13 +40,13 @@
 - [~] 회원 목록/상세/등록/수정/탈퇴/재활성화 API와 기본 화면 구현. 필터·정렬·입력 오류 표시는 계속 구현.
 - [~] 활동 제외 기간 등록·수정·종료 API와 UI 구현. 입력 오류 표시와 통합 테스트는 계속 보강.
 - [~] 회원 목록 검색·상태 필터·정렬과 Bean Validation 필드 오류 표시 구현. 실제 API 오류 응답과 통합 테스트는 계속 보강.
-- [ ] DB 기반 로그인과 회원 관리 수동 검증 후 프론트 개발 전용 데모 계정(`admin` / `admin`) 및 데모 데이터를 제거.
+- [~] Neon PostgreSQL 기반 관리자 로그인·로그아웃과 보호된 회원 목록 API 수동 검증 완료. 프론트 개발 전용 데모 계정(`admin` / `admin`) 및 데모 데이터 제거는 계속 진행.
 
 완료 기준: 운영자가 현재/탈퇴/활동 제외 회원을 관리하며 이력 보존을 테스트로 증명한다.
 
 ### 집 PC에서 검증 필요
 
-- [ ] Member 및 MemberActivityExclusion migration이 PostgreSQL에 적용되는지 확인한다.
+- [x] Member 및 MemberActivityExclusion migration이 PostgreSQL에 적용되는지 확인한다. (2026-08-21 Neon PostgreSQL 검증)
 - [ ] PostgreSQL Testcontainers 통합 테스트로 회원 상태 전이와 활동 제외 기간 제약을 검증한다.
 
 ## Phase 3 — 출석 관리
@@ -60,7 +60,7 @@
 
 ### 집 PC에서 검증 필요
 
-- [ ] Gathering 및 Attendance migration이 PostgreSQL에 적용되는지 확인한다.
+- [x] Gathering 및 Attendance migration이 PostgreSQL에 적용되는지 확인한다. (2026-08-21 Neon PostgreSQL 검증)
 
 ## Phase 4 — 월별 통계와 출석왕 계산
 

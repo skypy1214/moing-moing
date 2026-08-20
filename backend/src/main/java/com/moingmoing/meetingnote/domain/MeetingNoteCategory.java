@@ -67,4 +67,3 @@ public class MeetingNoteCategory {
         updatedAt = Instant.now();
     }
 }
-}
