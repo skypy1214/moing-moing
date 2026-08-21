@@ -5,6 +5,8 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { SelectField } from '../../shared/ui/SelectField'
 
 type Category = {
   id: string
@@ -302,47 +304,44 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
             </div>
           </div>
           <div className="meeting-note-list-controls">
-            <label>
-              카테고리 필터
-              <select
-                onChange={(event) => {
-                  setFilterCategoryId(event.target.value)
-                  void loadNotes(event.target.value)
-                }}
-                value={filterCategoryId}
-              >
-                <option value="">전체</option>
-                {activeCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              정렬
-              <select
-                onChange={(event) =>
-                  setNoteSort(event.target.value as NoteSort)
-                }
-                value={noteSort}
-              >
-                <option value="CREATED_DESC">최신 작성순</option>
-                <option value="CREATED_ASC">오래된 작성순</option>
-                <option value="TITLE_ASC">제목 가나다순</option>
-              </select>
-            </label>
+            <SelectField
+              label="카테고리 필터"
+              onChange={(value) => {
+                setFilterCategoryId(value)
+                void loadNotes(value)
+              }}
+              options={[
+                { value: '', label: '전체' },
+                ...activeCategories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                })),
+              ]}
+              value={filterCategoryId}
+            />
+            <SelectField
+              label="정렬"
+              onChange={(value) => setNoteSort(value as NoteSort)}
+              options={[
+                { value: 'CREATED_DESC', label: '최신 작성순' },
+                { value: 'CREATED_ASC', label: '오래된 작성순' },
+                { value: 'TITLE_ASC', label: '제목 가나다순' },
+              ]}
+              value={noteSort}
+            />
           </div>
           {activeCategories.length === 0 ? (
-            <p className="empty-state">
-              먼저 카테고리를 추가해 주세요. 카테고리가 있어야 회의록을 작성할
-              수 있습니다.
-            </p>
+            <EmptyState
+              description="카테고리를 먼저 추가하면 회의록을 작성할 수 있습니다."
+              icon="☰"
+              title="카테고리가 없습니다"
+            />
           ) : visibleNotes.length === 0 ? (
-            <p className="empty-state">
-              선택한 조건에 맞는 회의록이 없습니다. 새 회의록을 작성하거나
-              필터를 변경해 보세요.
-            </p>
+            <EmptyState
+              description="새 회의록을 작성하거나 필터를 변경해 보세요."
+              icon="☰"
+              title="조건에 맞는 회의록이 없습니다"
+            />
           ) : (
             <ul className="meeting-note-list">
               {visibleNotes.map((note) => {
@@ -386,22 +385,17 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
             </button>
           )}
         </div>
-        <label>
-          카테고리
-          <select
-            disabled={readOnly}
-            onChange={(event) => setCategoryId(event.target.value)}
-            required
-            value={categoryId}
-          >
-            <option value="">선택해 주세요</option>
-            {activeCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          disabled={readOnly}
+          label="카테고리"
+          onChange={setCategoryId}
+          options={activeCategories.map((category) => ({
+            value: category.id,
+            label: category.name,
+          }))}
+          placeholder="선택해 주세요"
+          value={categoryId}
+        />
         <label>
           제목
           <input

@@ -1,12 +1,19 @@
 package com.moingmoing.member.application;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.moingmoing.attendance.domain.AttendanceStatus;
+import com.moingmoing.attendance.domain.Gathering;
+import com.moingmoing.attendance.domain.GatheringStatus;
+import com.moingmoing.attendance.infrastructure.AttendanceRepository;
+import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.domain.Member;
 import com.moingmoing.member.domain.MemberRole;
 import com.moingmoing.member.domain.ActivityExclusionReason;
@@ -21,15 +28,52 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final MemberActivityExclusionRepository exclusionRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final GatheringRepository gatheringRepository;
 
-    public MemberService(MemberRepository memberRepository, MemberActivityExclusionRepository exclusionRepository) {
+    public MemberService(
+            MemberRepository memberRepository,
+            MemberActivityExclusionRepository exclusionRepository,
+            AttendanceRepository attendanceRepository,
+            GatheringRepository gatheringRepository) {
         this.memberRepository = memberRepository;
         this.exclusionRepository = exclusionRepository;
+        this.attendanceRepository = attendanceRepository;
+        this.gatheringRepository = gatheringRepository;
     }
 
     @Transactional(readOnly = true)
     public List<Member> findAll() {
         return memberRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MemberAttendanceSummary> findAllWithLastAttendance() {
+        List<Member> members = memberRepository.findAll();
+        Map<UUID, Gathering> gatheringsById = new HashMap<>();
+        for (Gathering gathering : gatheringRepository.findAll()) {
+            gatheringsById.put(gathering.getId(), gathering);
+        }
+
+        LocalDate today = LocalDate.now();
+        Map<UUID, LocalDate> lastAttendanceByMemberId = new HashMap<>();
+        attendanceRepository.findAll().forEach(attendance -> {
+            Gathering gathering = gatheringsById.get(attendance.getGatheringId());
+            if (gathering == null
+                    || attendance.getAttendanceStatus() != AttendanceStatus.RECORDED
+                    || gathering.getGatheringStatus() == GatheringStatus.CANCELLED
+                    || gathering.getHeldOn().isAfter(today)) {
+                return;
+            }
+            lastAttendanceByMemberId.merge(
+                    attendance.getMemberId(), gathering.getHeldOn(),
+                    (current, candidate) -> current.isAfter(candidate) ? current : candidate);
+        });
+
+        return members.stream()
+                .map(member -> new MemberAttendanceSummary(
+                        member, lastAttendanceByMemberId.get(member.getId())))
+                .toList();
     }
 
     @Transactional(readOnly = true)

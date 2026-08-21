@@ -4,6 +4,9 @@ import type { FormEvent, ReactNode } from 'react'
 import type { Member } from '../../App'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { KoreanDateInput } from '../../shared/ui/KoreanDateInput'
+import { SelectField } from '../../shared/ui/SelectField'
 
 type GatheringStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED'
 type ParticipationType = 'NORMAL' | 'COUPON'
@@ -41,6 +44,7 @@ type Attendance = {
 
 const today = new Date().toISOString().slice(0, 10)
 const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토']
+const monthLabels = Array.from({ length: 12 }, (_, index) => `${index + 1}월`)
 
 const gatheringStatusLabels: Record<GatheringStatus, string> = {
   DRAFT: '초안',
@@ -130,6 +134,7 @@ export function AttendancePage({
     const current = new Date()
     return { year: current.getFullYear(), month: current.getMonth() }
   })
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
   const [memberId, setMemberId] = useState('')
@@ -181,21 +186,31 @@ export function AttendancePage({
       calendarMonth.month,
       1,
     ).getDay()
-    const lastDay = new Date(
+    const daysInMonth = new Date(
       calendarMonth.year,
       calendarMonth.month + 1,
       0,
     ).getDate()
+    const numberOfWeeks = Math.ceil((firstDayOfWeek + daysInMonth) / 7)
+    const firstVisibleDate = new Date(
+      calendarMonth.year,
+      calendarMonth.month,
+      1 - firstDayOfWeek,
+    )
 
-    return Array.from({ length: firstDayOfWeek + lastDay }, (_, index) => {
-      if (index < firstDayOfWeek) {
-        return null
-      }
-      const day = index - firstDayOfWeek + 1
-      const date = formatDate(calendarMonth.year, calendarMonth.month, day)
+    return Array.from({ length: numberOfWeeks * 7 }, (_, index) => {
+      const dateValue = new Date(firstVisibleDate)
+      dateValue.setDate(firstVisibleDate.getDate() + index)
+      const year = dateValue.getFullYear()
+      const month = dateValue.getMonth()
+      const day = dateValue.getDate()
+      const date = formatDate(year, month, day)
       return {
         day,
         date,
+        year,
+        month,
+        isOutsideMonth: month !== calendarMonth.month,
         gatherings: gatherings.filter((gathering) => gathering.heldOn === date),
       }
     })
@@ -213,15 +228,20 @@ export function AttendancePage({
     })
   }
 
-  function moveToCurrentMonth() {
-    const current = new Date()
-    setCalendarMonth({ year: current.getFullYear(), month: current.getMonth() })
+  function selectCalendarMonth(month: number) {
+    setCalendarMonth((previous) => ({ ...previous, month }))
+    setIsMonthPickerOpen(false)
   }
 
   function selectCalendarDate(date: string) {
     if (readOnly) {
       return
     }
+    const selectedDate = new Date(`${date}T00:00:00`)
+    setCalendarMonth({
+      year: selectedDate.getFullYear(),
+      month: selectedDate.getMonth(),
+    })
     setHeldOn(date)
     setIsCreateGatheringOpen(true)
     setMessage(`${date} 날짜의 출석부 생성 창을 열었습니다.`)
@@ -538,32 +558,95 @@ export function AttendancePage({
               엽니다.
             </p>
           </div>
-          <div className="calendar-navigation">
+        </div>
+        <div className="calendar-navigation">
+          <button
+            aria-label="이전 달"
+            className="calendar-navigation-button"
+            onClick={() => moveCalendarMonth(-1)}
+            type="button"
+          >
+            ‹
+          </button>
+          <div
+            className="calendar-month-picker"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsMonthPickerOpen(false)
+              }
+            }}
+          >
             <button
-              className="secondary-button"
-              onClick={() => moveCalendarMonth(-1)}
+              aria-expanded={isMonthPickerOpen}
+              aria-haspopup="dialog"
+              className="calendar-month-trigger"
+              onClick={() => setIsMonthPickerOpen((previous) => !previous)}
               type="button"
             >
-              이전 달
+              <span aria-live="polite">
+                {calendarMonth.year}년 {calendarMonth.month + 1}월
+              </span>
+              <span aria-hidden="true">▾</span>
             </button>
-            <strong aria-live="polite">
-              {calendarMonth.year}년 {calendarMonth.month + 1}월
-            </strong>
-            <button
-              className="secondary-button"
-              onClick={() => moveCalendarMonth(1)}
-              type="button"
-            >
-              다음 달
-            </button>
-            <button
-              className="secondary-button"
-              onClick={moveToCurrentMonth}
-              type="button"
-            >
-              이번 달
-            </button>
+            {isMonthPickerOpen && (
+              <div
+                aria-label="연월 선택"
+                className="calendar-month-popover"
+                role="dialog"
+              >
+                <div className="calendar-year-navigation">
+                  <button
+                    aria-label="이전 연도"
+                    onClick={() =>
+                      setCalendarMonth((previous) => ({
+                        ...previous,
+                        year: previous.year - 1,
+                      }))
+                    }
+                    type="button"
+                  >
+                    ‹
+                  </button>
+                  <strong>{calendarMonth.year}년</strong>
+                  <button
+                    aria-label="다음 연도"
+                    onClick={() =>
+                      setCalendarMonth((previous) => ({
+                        ...previous,
+                        year: previous.year + 1,
+                      }))
+                    }
+                    type="button"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="calendar-month-options">
+                  {monthLabels.map((label, month) => (
+                    <button
+                      aria-pressed={calendarMonth.month === month}
+                      className={
+                        calendarMonth.month === month ? 'is-selected' : undefined
+                      }
+                      key={label}
+                      onClick={() => selectCalendarMonth(month)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+          <button
+            aria-label="다음 달"
+            className="calendar-navigation-button"
+            onClick={() => moveCalendarMonth(1)}
+            type="button"
+          >
+            ›
+          </button>
         </div>
         <div className="calendar-weekdays" aria-hidden="true">
           {weekdayLabels.map((weekday) => (
@@ -571,28 +654,22 @@ export function AttendancePage({
           ))}
         </div>
         <div className="calendar-grid">
-          {calendarDays.map((calendarDay, index) =>
-            calendarDay === null ? (
+          {calendarDays.map((calendarDay) =>
               <div
-                aria-hidden="true"
-                className="calendar-empty-cell"
-                key={`empty-${index}`}
-              />
-            ) : (
-              <div
-                className={`calendar-day ${heldOn === calendarDay.date ? 'calendar-day-selected' : ''}`}
+                className={`calendar-day ${heldOn === calendarDay.date ? 'calendar-day-selected' : ''} ${calendarDay.isOutsideMonth ? 'calendar-day-outside-month' : ''}`}
                 key={calendarDay.date}
               >
                 <button
-                  aria-label={`${formatCalendarDateLabel(calendarMonth.year, calendarMonth.month, calendarDay.day)} 선택`}
+                  aria-label={`${formatCalendarDateLabel(calendarDay.year, calendarDay.month, calendarDay.day)} 선택`}
                   aria-pressed={heldOn === calendarDay.date}
-                  className="calendar-date-button"
-                  disabled={readOnly && calendarDay.gatherings.length === 0}
+                  className="calendar-day-select-target"
+                  disabled={readOnly}
                   onClick={() => selectCalendarDate(calendarDay.date)}
                   type="button"
-                >
+                />
+                <span aria-hidden="true" className="calendar-day-number">
                   {calendarDay.day}
-                </button>
+                </span>
                 <div className="calendar-gatherings">
                   {calendarDay.gatherings.map((gathering) => (
                     <button
@@ -607,7 +684,6 @@ export function AttendancePage({
                   ))}
                 </div>
               </div>
-            ),
           )}
         </div>
       </section>
@@ -628,10 +704,14 @@ export function AttendancePage({
           </section>
         )}
 
-        <section className="panel">
+        <section className="panel gathering-list-panel">
           <h3>출석부 목록</h3>
           {gatherings.length === 0 ? (
-            <p className="empty-state">아직 만든 출석부가 없습니다.</p>
+            <EmptyState
+              description="캘린더에서 날짜를 선택해 첫 출석부를 만들어 보세요."
+              icon="□"
+              title="아직 만든 출석부가 없습니다"
+            />
           ) : (
             <ul className="gathering-list">
               {gatherings.map((gathering) => (
@@ -670,12 +750,7 @@ export function AttendancePage({
           <form className="form" onSubmit={createGathering}>
             <label>
               모임 날짜
-              <input
-                onChange={(event) => setHeldOn(event.target.value)}
-                required
-                type="date"
-                value={heldOn}
-              />
+              <KoreanDateInput onChange={setHeldOn} required value={heldOn} />
             </label>
             <label>
               제목 <span className="optional">(선택)</span>
@@ -727,7 +802,11 @@ export function AttendancePage({
           </button>
         </div>
         {historyMemberId !== '' && historyAttendances.length === 0 ? (
-          <p className="empty-state">조회된 출석 이력이 없습니다.</p>
+          <EmptyState
+            description="이 회원의 출석 기록이 생기면 여기에 표시됩니다."
+            icon="✓"
+            title="조회된 출석 이력이 없습니다"
+          />
         ) : (
           <ul className="attendance-list">
             {historyAttendances.map((attendance) => {
@@ -820,31 +899,26 @@ export function AttendancePage({
                   required
                   value={memberId}
                 />
-                <label>
-                  참여 방식
-                  <select
-                    onChange={(event) =>
-                      setParticipationType(
-                        event.target.value as ParticipationType,
-                      )
-                    }
-                    value={participationType}
-                  >
-                    {Object.entries(participationLabels).map(
-                      ([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
+                <SelectField
+                  label="참여 방식"
+                  onChange={(value) =>
+                    setParticipationType(value as ParticipationType)
+                  }
+                  options={Object.entries(participationLabels).map(
+                    ([value, label]) => ({ value, label }),
+                  )}
+                  value={participationType}
+                />
                 <button type="submit">출석 기록</button>
               </form>
             )}
 
             {selectedAttendances.length === 0 ? (
-              <p className="empty-state">기록된 출석이 없습니다.</p>
+              <EmptyState
+                description="출석을 기록하면 회원별 참여 내역을 확인할 수 있습니다."
+                icon="✓"
+                title="기록된 출석이 없습니다"
+              />
             ) : (
               <ul className="attendance-list">
                 {selectedAttendances.map((attendance) => {
@@ -979,7 +1053,11 @@ export function AttendancePage({
               {cancellationHistoryError}
             </p>
           ) : cancelledGatherings.length === 0 ? (
-            <p className="empty-state">취소된 정모가 없습니다.</p>
+            <EmptyState
+              description="취소된 정모와 사유가 생기면 이곳에 보관됩니다."
+              icon="○"
+              title="취소된 정모가 없습니다"
+            />
           ) : (
             <ul className="cancellation-history-list">
               {cancelledGatherings.map((gathering) => (

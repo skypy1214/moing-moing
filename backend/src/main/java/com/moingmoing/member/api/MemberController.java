@@ -28,7 +28,9 @@ class MemberController {
 
     @GetMapping
     List<MemberResponse> list() {
-        return memberService.findAll().stream().map(MemberResponse::from).toList();
+        return memberService.findAllWithLastAttendance().stream()
+                .map(summary -> MemberResponse.from(summary.member(), summary.lastAttendanceOn()))
+                .toList();
     }
 
     @GetMapping("/{id}")

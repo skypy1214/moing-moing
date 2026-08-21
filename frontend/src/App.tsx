@@ -5,7 +5,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { CouponPage } from './features/coupon/CouponPage'
@@ -17,6 +18,11 @@ import {
   isApiLoading,
 } from './shared/api/apiFetch'
 import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
+import { BottomNav } from './shared/ui/BottomNav'
+import { EmptyState } from './shared/ui/EmptyState'
+import { KoreanDateInput, formatKoreanDate } from './shared/ui/KoreanDateInput'
+import { Button, Card, Chip } from './shared/ui/ui'
+import { SelectField } from './shared/ui/SelectField'
 import './App.css'
 
 export type Member = {
@@ -28,6 +34,7 @@ export type Member = {
   joinedOn: string
   withdrawnOn: string | null
   memo: string | null
+  lastAttendanceOn?: string | null
 }
 
 type ActivityExclusionReason =
@@ -55,6 +62,12 @@ type MemberStatusFilter = 'ALL' | Member['membershipStatus']
 type MemberRoleFilter = 'ALL' | Member['memberRole']
 type MemberSort = 'ROLE_PRIORITY' | 'NAME_ASC' | 'JOINED_ON_DESC'
 type MemberRole = Member['memberRole']
+type PageKey =
+  'MEMBERS' | 'ATTENDANCE' | 'COUPONS' | 'STATISTICS' | 'MEETING_NOTES'
+
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (update: () => void) => void
+}
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -83,6 +96,56 @@ const memberRolePriority: Record<MemberRole, number> = {
   MEMBER: 2,
 }
 
+type InactivityBadge = {
+  label: string
+  tone: 'new-member' | 'inactive' | '1' | '2' | '3'
+}
+
+function getInactivityBadge(member: Member): InactivityBadge | null {
+  if (
+    member.membershipStatus !== 'ACTIVE' ||
+    member.lastAttendanceOn === undefined
+  ) {
+    return null
+  }
+
+  const now = new Date()
+  const referenceDate = new Date(
+    `${member.lastAttendanceOn ?? member.joinedOn}T00:00:00`,
+  )
+  if (Number.isNaN(referenceDate.getTime()) || referenceDate > now) {
+    return null
+  }
+
+  if (member.lastAttendanceOn === null) {
+    const threeMonthsAfterJoining = new Date(referenceDate)
+    threeMonthsAfterJoining.setMonth(threeMonthsAfterJoining.getMonth() + 3)
+    return threeMonthsAfterJoining > now
+      ? { label: '🌱 새싹 회원', tone: 'new-member' }
+      : { label: '미활동자', tone: 'inactive' }
+  }
+
+  const oneMonthLater = new Date(referenceDate)
+  oneMonthLater.setMonth(oneMonthLater.getMonth() + 1)
+  if (oneMonthLater > now) {
+    return null
+  }
+
+  const twoMonthsLater = new Date(referenceDate)
+  twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2)
+  if (twoMonthsLater > now) {
+    return { label: '1개월 미출석', tone: '1' }
+  }
+
+  const threeMonthsLater = new Date(referenceDate)
+  threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3)
+  if (threeMonthsLater > now) {
+    return { label: '2개월 미출석', tone: '2' }
+  }
+
+  return { label: '3개월 이상 미출석', tone: '3' }
+}
+
 function subscribeToApiLoading(listener: () => void) {
   window.addEventListener(apiLoadingChangeEvent, listener)
   return () => window.removeEventListener(apiLoadingChangeEvent, listener)
@@ -102,6 +165,7 @@ function App() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [isMemberSheetOpen, setIsMemberSheetOpen] = useState(false)
   const [isMemberDetailPage, setIsMemberDetailPage] = useState(false)
+  const [isMemberCreatePage, setIsMemberCreatePage] = useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
   const [editingExclusion, setEditingExclusion] =
     useState<ActivityExclusion | null>(null)
@@ -125,9 +189,32 @@ function App() {
   const [memberRoleFilter, setMemberRoleFilter] =
     useState<MemberRoleFilter>('ALL')
   const [memberSort, setMemberSort] = useState<MemberSort>('ROLE_PRIORITY')
-  const [currentPage, setCurrentPage] = useState<
-    'MEMBERS' | 'ATTENDANCE' | 'COUPONS' | 'STATISTICS' | 'MEETING_NOTES'
-  >('MEMBERS')
+  const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
+
+  const navigationItems = [
+    { value: 'MEMBERS', label: '회원', icon: '♙' },
+    { value: 'ATTENDANCE', label: '출석', icon: '✓' },
+    { value: 'COUPONS', label: '쿠폰', icon: '◇' },
+    { value: 'STATISTICS', label: '통계', icon: '▥' },
+    { value: 'MEETING_NOTES', label: '회의록', icon: '☰' },
+  ] satisfies { value: PageKey; label: string; icon: string }[]
+
+  function navigateToPage(nextPage: PageKey) {
+    if (nextPage === currentPage) {
+      return
+    }
+
+    const documentWithViewTransition = document as DocumentWithViewTransition
+    if (documentWithViewTransition.startViewTransition) {
+      documentWithViewTransition.startViewTransition(() => {
+        flushSync(() => {
+          setCurrentPage(nextPage)
+        })
+      })
+      return
+    }
+    setCurrentPage(nextPage)
+  }
 
   const visibleMembers = useMemo(() => {
     const normalizedSearch = memberSearch.trim().toLocaleLowerCase()
@@ -313,11 +400,25 @@ function App() {
     setExternalNickname('')
     setMemo('')
     setMemberRole('MEMBER')
+    setIsMemberCreatePage(false)
     setMessage('회원을 등록했습니다.')
     showFeedbackDialog({
       title: '회원 등록 완료',
       message: `${createdMember.displayName}님을 ${memberRoleLabels[createdMember.memberRole]}으로 등록했습니다.`,
     })
+  }
+
+  function openMemberCreatePage() {
+    setSelectedMember(null)
+    setIsMemberDetailPage(false)
+    setDisplayName('')
+    setExternalNickname('')
+    setJoinedOn(today)
+    setMemo('')
+    setMemberRole('MEMBER')
+    setFieldErrors({})
+    setMessage('')
+    setIsMemberCreatePage(true)
   }
 
   async function selectMember(member: Member) {
@@ -618,7 +719,7 @@ function App() {
             처리 중입니다…
           </div>
         )}
-        <section className="login-card" aria-labelledby="login-heading">
+        <Card className="login-card" aria-labelledby="login-heading">
           <p className="eyebrow">MOING MOING</p>
           <h1 id="login-heading">운영진 관리</h1>
           <p className="description">회원과 모임 운영 기록을 관리합니다.</p>
@@ -659,7 +760,7 @@ function App() {
               {message}
             </p>
           )}
-        </section>
+        </Card>
       </main>
     )
   }
@@ -679,23 +780,34 @@ function App() {
         </div>
         <div className="account-actions">
           <span>{isReadOnly ? '게스트' : currentLoginId}</span>
-          {isReadOnly && <span className="read-only-badge">읽기 전용</span>}
-          <button
-            className="secondary-button"
-            onClick={handleLogout}
-            type="button"
-          >
+          {isReadOnly && (
+            <Chip className="read-only-badge" tone="primary">
+              읽기 전용
+            </Chip>
+          )}
+          <Button onClick={handleLogout} type="button" variant="secondary">
             로그아웃
-          </button>
+          </Button>
         </div>
       </header>
 
-      <nav className="primary-navigation" aria-label="주요 메뉴">
+      <nav
+        aria-label="주요 메뉴"
+        className="primary-navigation"
+        style={
+          {
+            '--active-index': navigationItems.findIndex(
+              (item) => item.value === currentPage,
+            ),
+          } as CSSProperties
+        }
+      >
+        <span aria-hidden="true" className="primary-navigation-indicator" />
         <button
           className={
             currentPage === 'MEMBERS' ? 'navigation-active' : 'secondary-button'
           }
-          onClick={() => setCurrentPage('MEMBERS')}
+          onClick={() => navigateToPage('MEMBERS')}
           type="button"
         >
           회원 관리
@@ -706,7 +818,7 @@ function App() {
               ? 'navigation-active'
               : 'secondary-button'
           }
-          onClick={() => setCurrentPage('ATTENDANCE')}
+          onClick={() => navigateToPage('ATTENDANCE')}
           type="button"
         >
           출석 관리
@@ -715,7 +827,7 @@ function App() {
           className={
             currentPage === 'COUPONS' ? 'navigation-active' : 'secondary-button'
           }
-          onClick={() => setCurrentPage('COUPONS')}
+          onClick={() => navigateToPage('COUPONS')}
           type="button"
         >
           쿠폰 관리
@@ -726,7 +838,7 @@ function App() {
               ? 'navigation-active'
               : 'secondary-button'
           }
-          onClick={() => setCurrentPage('STATISTICS')}
+          onClick={() => navigateToPage('STATISTICS')}
           type="button"
         >
           월별 통계
@@ -737,7 +849,7 @@ function App() {
               ? 'navigation-active'
               : 'secondary-button'
           }
-          onClick={() => setCurrentPage('MEETING_NOTES')}
+          onClick={() => navigateToPage('MEETING_NOTES')}
           type="button"
         >
           회의록
@@ -753,16 +865,32 @@ function App() {
 
       {currentPage === 'MEMBERS' && (
         <section
-          className={isMemberDetailPage ? 'member-page' : 'content-grid'}
+          className={
+            isMemberDetailPage || isMemberCreatePage
+              ? 'member-page'
+              : 'member-list-page'
+          }
         >
           {!isMemberDetailPage && (
             <>
-              {!isReadOnly && (
+              {!isReadOnly && isMemberCreatePage && (
                 <section
-                  className="panel"
+                  className="panel member-create-page"
                   aria-labelledby="member-create-heading"
                 >
-                  <h2 id="member-create-heading">새 회원 등록</h2>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="eyebrow">NEW MEMBER</p>
+                      <h2 id="member-create-heading">새 회원 등록</h2>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      onClick={() => setIsMemberCreatePage(false)}
+                      type="button"
+                    >
+                      목록으로
+                    </button>
+                  </div>
                   <form className="form" onSubmit={handleCreateMember}>
                     <label>
                       이름
@@ -835,10 +963,9 @@ function App() {
                     </fieldset>
                     <label>
                       가입일
-                      <input
-                        onChange={(event) => setJoinedOn(event.target.value)}
+                      <KoreanDateInput
+                        onChange={setJoinedOn}
                         required
-                        type="date"
                         value={joinedOn}
                       />
                       {fieldErrors.joinedOn && selectedMember === null && (
@@ -864,121 +991,141 @@ function App() {
                 </section>
               )}
 
-              <section className="panel" aria-labelledby="member-list-heading">
-                <div className="panel-heading">
-                  <div>
-                    <h2 id="member-list-heading">현재 회원</h2>
-                    <p>
-                      {visibleMembers.length}명 / 전체 {members.length}명
-                    </p>
-                  </div>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void loadMembers()}
-                    type="button"
-                  >
-                    새로고침
-                  </button>
-                </div>
-                <div className="member-list-controls">
-                  <label>
-                    회원 검색
-                    <input
-                      onChange={(event) => setMemberSearch(event.target.value)}
-                      placeholder="이름 또는 닉네임"
-                      value={memberSearch}
-                    />
-                  </label>
-                  <label>
-                    회원 상태
-                    <select
-                      onChange={(event) =>
-                        setMemberStatusFilter(
-                          event.target.value as MemberStatusFilter,
-                        )
-                      }
-                      value={memberStatusFilter}
-                    >
-                      <option value="ALL">전체</option>
-                      <option value="ACTIVE">활동 중</option>
-                      <option value="WITHDRAWN">탈퇴</option>
-                    </select>
-                  </label>
-                  <label>
-                    회원 역할
-                    <select
-                      onChange={(event) =>
-                        setMemberRoleFilter(
-                          event.target.value as MemberRoleFilter,
-                        )
-                      }
-                      value={memberRoleFilter}
-                    >
-                      <option value="ALL">전체</option>
-                      {Object.entries(memberRoleLabels).map(([role, label]) => (
-                        <option key={role} value={role}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    정렬
-                    <select
-                      onChange={(event) =>
-                        setMemberSort(event.target.value as MemberSort)
-                      }
-                      value={memberSort}
-                    >
-                      <option value="ROLE_PRIORITY">역할 우선</option>
-                      <option value="NAME_ASC">이름순</option>
-                      <option value="JOINED_ON_DESC">가입일 최신순</option>
-                    </select>
-                  </label>
-                </div>
-                {visibleMembers.length === 0 ? (
-                  <p className="empty-state">조건에 맞는 회원이 없습니다.</p>
-                ) : (
-                  <ul className="member-list">
-                    {visibleMembers.map((member) => (
-                      <li key={member.id}>
-                        <button
-                          className="member-row"
-                          onClick={() => void selectMember(member)}
-                          type="button"
-                        >
-                          <div>
-                            <div className="member-name-line">
-                              <strong>{member.displayName}</strong>
-                              <span
-                                aria-label={`직책 ${memberRoleLabels[member.memberRole]}`}
-                                className={`member-role-badge member-role-${member.memberRole.toLowerCase()}`}
-                              >
-                                <span aria-hidden="true">
-                                  {memberRoleIcons[member.memberRole]}
-                                </span>
-                                {memberRoleLabels[member.memberRole]}
-                              </span>
-                            </div>
-                            <span>
-                              {member.externalNickname ?? '소모임 닉네임 없음'}
-                            </span>
-                          </div>
-                          <div className="member-row-badges">
-                            <span
-                              className={`status status-${member.membershipStatus.toLowerCase()}`}
-                            >
-                              {member.membershipStatus === 'ACTIVE'
-                                ? '활동 중'
-                                : '탈퇴'}
-                            </span>
-                          </div>
+              {!isMemberCreatePage && (
+                <section
+                  className="panel member-list-panel"
+                  aria-labelledby="member-list-heading"
+                >
+                  <div className="panel-heading">
+                    <div>
+                      <h2 id="member-list-heading">현재 회원</h2>
+                      <p>
+                        {visibleMembers.length}명 / 전체 {members.length}명
+                      </p>
+                    </div>
+                    <div className="header-actions">
+                      {!isReadOnly && (
+                        <button onClick={openMemberCreatePage} type="button">
+                          회원 추가
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                      )}
+                      <button
+                        className="secondary-button"
+                        onClick={() => void loadMembers()}
+                        type="button"
+                      >
+                        새로고침
+                      </button>
+                    </div>
+                  </div>
+                  <div className="member-list-controls">
+                    <label>
+                      회원 검색
+                      <input
+                        onChange={(event) =>
+                          setMemberSearch(event.target.value)
+                        }
+                        placeholder="이름 또는 닉네임"
+                        value={memberSearch}
+                      />
+                    </label>
+                    <SelectField
+                      label="회원 상태"
+                      onChange={(value) =>
+                        setMemberStatusFilter(value as MemberStatusFilter)
+                      }
+                      options={[
+                        { value: 'ALL', label: '전체' },
+                        { value: 'ACTIVE', label: '활동 중' },
+                        { value: 'WITHDRAWN', label: '탈퇴' },
+                      ]}
+                      value={memberStatusFilter}
+                    />
+                    <SelectField
+                      label="회원 역할"
+                      onChange={(value) =>
+                        setMemberRoleFilter(value as MemberRoleFilter)
+                      }
+                      options={[
+                        { value: 'ALL', label: '전체' },
+                        ...Object.entries(memberRoleLabels).map(([value, label]) => ({
+                          value,
+                          label,
+                        })),
+                      ]}
+                      value={memberRoleFilter}
+                    />
+                    <SelectField
+                      label="정렬"
+                      onChange={(value) => setMemberSort(value as MemberSort)}
+                      options={[
+                        { value: 'ROLE_PRIORITY', label: '역할 우선' },
+                        { value: 'NAME_ASC', label: '이름순' },
+                        { value: 'JOINED_ON_DESC', label: '가입일 최신순' },
+                      ]}
+                      value={memberSort}
+                    />
+                  </div>
+                  {visibleMembers.length === 0 ? (
+                    <EmptyState
+                      description="검색어나 필터를 조정해 다시 확인해 보세요."
+                      icon="⌕"
+                      title="조건에 맞는 회원이 없습니다"
+                    />
+                  ) : (
+                    <ul className="member-list">
+                      {visibleMembers.map((member) => {
+                        const inactivityBadge = getInactivityBadge(member)
+
+                        return (
+                          <li key={member.id}>
+                            <button
+                              className="member-row"
+                              onClick={() => void selectMember(member)}
+                              type="button"
+                            >
+                              <div>
+                                <div className="member-name-line">
+                                  <strong>{member.displayName}</strong>
+                                  <span
+                                    aria-label={`직책 ${memberRoleLabels[member.memberRole]}`}
+                                    className={`member-role-badge member-role-${member.memberRole.toLowerCase()}`}
+                                  >
+                                    <span aria-hidden="true">
+                                      {memberRoleIcons[member.memberRole]}
+                                    </span>
+                                    {memberRoleLabels[member.memberRole]}
+                                  </span>
+                                </div>
+                                <span>
+                                  {member.externalNickname ??
+                                    '소모임 닉네임 없음'}
+                                </span>
+                              </div>
+                              <div className="member-row-badges">
+                                {inactivityBadge && (
+                                  <span
+                                    className={`inactivity-badge inactivity-badge-${inactivityBadge.tone}`}
+                                  >
+                                    {inactivityBadge.label}
+                                  </span>
+                                )}
+                                <span
+                                  className={`status status-${member.membershipStatus.toLowerCase()}`}
+                                >
+                                  {member.membershipStatus === 'ACTIVE'
+                                    ? '활동 중'
+                                    : '탈퇴'}
+                                </span>
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
             </>
           )}
 
@@ -1035,27 +1182,19 @@ function App() {
                     value={externalNickname}
                   />
                 </label>
-                <label>
-                  역할
-                  <select
-                    onChange={(event) =>
-                      setMemberRole(event.target.value as MemberRole)
-                    }
-                    value={memberRole}
-                  >
-                    {Object.entries(memberRoleLabels).map(([role, label]) => (
-                      <option key={role} value={role}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <SelectField
+                  label="역할"
+                  onChange={(value) => setMemberRole(value as MemberRole)}
+                  options={Object.entries(memberRoleLabels).map(
+                    ([value, label]) => ({ value, label }),
+                  )}
+                  value={memberRole}
+                />
                 <label>
                   가입일
-                  <input
-                    onChange={(event) => setJoinedOn(event.target.value)}
+                  <KoreanDateInput
+                    onChange={setJoinedOn}
                     required
-                    type="date"
                     value={joinedOn}
                   />
                   {fieldErrors.joinedOn && (
@@ -1092,11 +1231,8 @@ function App() {
                     {selectedMember.membershipStatus === 'ACTIVE'
                       ? '탈퇴일'
                       : '재활성화일'}
-                    <input
-                      onChange={(event) =>
-                        setMembershipDate(event.target.value)
-                      }
-                      type="date"
+                    <KoreanDateInput
+                      onChange={setMembershipDate}
                       value={membershipDate}
                     />
                   </label>
@@ -1123,33 +1259,21 @@ function App() {
                   기간은 사유·시작일·메모를 수정할 수 있습니다.
                 </p>
                 <form className="form" onSubmit={handleStartExclusion}>
-                  <label>
-                    사유
-                    <select
-                      onChange={(event) =>
-                        setExclusionReason(
-                          event.target.value as ActivityExclusionReason,
-                        )
-                      }
-                      value={exclusionReason}
-                    >
-                      {Object.entries(activityExclusionReasonLabels).map(
-                        ([reason, label]) => (
-                          <option key={reason} value={reason}>
-                            {label}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
+                  <SelectField
+                    label="사유"
+                    onChange={(value) =>
+                      setExclusionReason(value as ActivityExclusionReason)
+                    }
+                    options={Object.entries(activityExclusionReasonLabels).map(
+                      ([value, label]) => ({ value, label }),
+                    )}
+                    value={exclusionReason}
+                  />
                   <label>
                     시작일
-                    <input
-                      onChange={(event) =>
-                        setExclusionStartDate(event.target.value)
-                      }
+                    <KoreanDateInput
+                      onChange={setExclusionStartDate}
                       required
-                      type="date"
                       value={exclusionStartDate}
                     />
                   </label>
@@ -1181,11 +1305,8 @@ function App() {
 
                 <label className="end-date-field">
                   종료 처리일
-                  <input
-                    onChange={(event) =>
-                      setExclusionEndDate(event.target.value)
-                    }
-                    type="date"
+                  <KoreanDateInput
+                    onChange={setExclusionEndDate}
                     value={exclusionEndDate}
                   />
                 </label>
@@ -1291,7 +1412,7 @@ function App() {
                 <dl className="member-sheet-summary">
                   <div>
                     <dt>가입일</dt>
-                    <dd>{selectedMember.joinedOn}</dd>
+                    <dd>{formatKoreanDate(selectedMember.joinedOn)}</dd>
                   </div>
                   <div>
                     <dt>메모</dt>
@@ -1324,6 +1445,11 @@ function App() {
       {currentPage === 'MEETING_NOTES' && (
         <MeetingNotePage readOnly={isReadOnly} />
       )}
+      <BottomNav
+        active={currentPage}
+        items={navigationItems}
+        onChange={navigateToPage}
+      />
     </main>
   )
 }

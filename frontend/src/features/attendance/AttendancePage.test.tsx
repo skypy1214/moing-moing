@@ -128,4 +128,22 @@ describe('AttendancePage', () => {
       { credentials: 'include' },
     )
   })
+
+  it('opens gathering creation when the calendar cell is selected', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<AttendancePage members={[]} />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getAllByRole('button', { name: /선택/ })[0])
+
+    expect(
+      await screen.findByRole('dialog', { name: '새 출석부 만들기' }),
+    ).toBeInTheDocument()
+  })
 })

@@ -197,16 +197,18 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '로그인' }))
 
     await screen.findByText('모임장 회원')
-    const staffRoleRadio = screen.getByRole('radio', { name: /운영진/ })
-    await user.click(staffRoleRadio)
-    expect(staffRoleRadio).toBeChecked()
-
     const memberRows = Array.from(container.querySelectorAll('.member-row'))
     expect(memberRows.map((button) => button.textContent)).toEqual([
       expect.stringContaining('모임장 회원'),
       expect.stringContaining('운영진 회원'),
       expect.stringContaining('일반 회원'),
     ])
+
+    await user.click(screen.getByRole('button', { name: '회원 추가' }))
+    const staffRoleRadio = screen.getByRole('radio', { name: /운영진/ })
+    await user.click(staffRoleRadio)
+    expect(staffRoleRadio).toBeChecked()
+    await user.click(screen.getByRole('button', { name: '목록으로' }))
 
     await user.selectOptions(screen.getByLabelText('회원 역할'), 'STAFF')
 

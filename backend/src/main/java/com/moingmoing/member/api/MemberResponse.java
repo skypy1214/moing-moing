@@ -15,8 +15,13 @@ record MemberResponse(
         MemberRole memberRole,
         LocalDate joinedOn,
         LocalDate withdrawnOn,
-        String memo) {
+        String memo,
+        LocalDate lastAttendanceOn) {
     static MemberResponse from(Member member) {
+        return from(member, null);
+    }
+
+    static MemberResponse from(Member member, LocalDate lastAttendanceOn) {
         return new MemberResponse(
                 member.getId(),
                 member.getDisplayName(),
@@ -25,6 +30,7 @@ record MemberResponse(
                 member.getMemberRole(),
                 member.getJoinedOn(),
                 member.getWithdrawnOn(),
-                member.getMemo());
+                member.getMemo(),
+                lastAttendanceOn);
     }
 }

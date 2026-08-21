@@ -8,6 +8,8 @@ import type { Member } from '../../App'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { SelectField } from '../../shared/ui/SelectField'
 
 type CouponStatus = 'ISSUED' | 'SUSPENDED' | 'EXPIRED' | 'FULLY_USED' | 'VOIDED'
 type CouponType = 'MANUAL_FREE_PASS' | 'ATTENDANCE_CHAMPION'
@@ -571,7 +573,11 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
           </div>
         </div>
         {coupons.length === 0 ? (
-          <p className="empty-state">{'표시할 쿠폰이 없습니다.'}</p>
+          <EmptyState
+            description="쿠폰을 발급하면 회원별 사용 현황을 확인할 수 있습니다."
+            icon="◇"
+            title="표시할 쿠폰이 없습니다"
+          />
         ) : (
           <ul className="coupon-list">
             {coupons.map((coupon) => (
@@ -670,7 +676,11 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
           <section className="subsection">
             <h3>{'쿠폰 사용 이력'}</h3>
             {usageHistory.length === 0 ? (
-              <p className="empty-state">{'사용 이력이 없습니다.'}</p>
+              <EmptyState
+                description="쿠폰을 사용하면 처리 이력이 여기에 표시됩니다."
+                icon="◇"
+                title="사용 이력이 없습니다"
+              />
             ) : (
               <ul className="coupon-list">
                 {usageHistory.map((usage) => (
@@ -706,23 +716,16 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
         <section className="panel">
           <h2>{'쿠폰 사용 처리'}</h2>
           <form className="form" onSubmit={useCoupon}>
-            <label>
-              {'열린 모임'}
-              <select
-                onChange={(event) => setGatheringId(event.target.value)}
-                required
-                value={gatheringId}
-              >
-                <option value="">{'선택'}</option>
-                {gatherings.map((gathering) => (
-                  <option key={gathering.id} value={gathering.id}>
-                    {gathering.heldOn}
-                    {' · '}
-                    {gathering.title ?? '제목 없는 모임'}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="열린 모임"
+              onChange={setGatheringId}
+              options={gatherings.map((gathering) => ({
+                value: gathering.id,
+                label: `${gathering.heldOn} · ${gathering.title ?? '제목 없는 모임'}`,
+              }))}
+              placeholder="선택"
+              value={gatheringId}
+            />
             <div className="form-actions">
               <button type="submit">{'쿠폰 사용 및 출석 기록'}</button>
               <button
@@ -804,23 +807,16 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
                 <span>{`${qrValidatedCoupon.remainingUses}/${qrValidatedCoupon.totalUses}회 · ${qrValidatedCoupon.validUntil}까지`}</span>
               </div>
             )}
-            <label>
-              {'열린 모임'}
-              <select
-                onChange={(event) => setGatheringId(event.target.value)}
-                required
-                value={gatheringId}
-              >
-                <option value="">{'선택'}</option>
-                {gatherings.map((gathering) => (
-                  <option key={gathering.id} value={gathering.id}>
-                    {gathering.heldOn}
-                    {' · '}
-                    {gathering.title ?? '제목 없는 모임'}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="열린 모임"
+              onChange={setGatheringId}
+              options={gatherings.map((gathering) => ({
+                value: gathering.id,
+                label: `${gathering.heldOn} · ${gathering.title ?? '제목 없는 모임'}`,
+              }))}
+              placeholder="선택"
+              value={gatheringId}
+            />
             <div className="form-actions">
               <button disabled={qrValidatedCoupon === null} type="submit">
                 {'QR 쿠폰 사용 및 출석 기록'}
