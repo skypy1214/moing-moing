@@ -19,13 +19,37 @@ docker compose up -d
 docker compose ps
 ```
 
-PostgreSQL이 healthy가 된 뒤 백엔드를 실행한다.
+PostgreSQL이 healthy가 된 뒤 백엔드를 실행한다. `run-backend.ps1`은 저장소 루트의 `.env`를 현재 실행 프로세스 환경변수로만 불러오므로, 비밀값을 Git이나 Windows 사용자 환경변수에 저장하지 않는다.
 
 ```powershell
-Set-Location backend
-$env:SPRING_PROFILES_ACTIVE = 'local'
-.\gradlew.bat bootRun
+.\scripts\run-backend.ps1
 ```
+
+### 공유 Neon 개발 DB
+
+집과 회사에서 같은 개발 데이터를 사용하려면 Neon 접속 정보를 각 PC의 `.env`에 직접 설정한다. `.env`는 Git에 포함하지 않으며, 비밀번호 관리 도구 같은 안전한 경로로만 전달한다.
+
+```dotenv
+DB_URL=jdbc:postgresql://<Neon host>/<database>?sslmode=require
+DB_USERNAME=<Neon role>
+DB_PASSWORD=<Neon password>
+INITIAL_ADMIN_LOGIN=<administrator login>
+INITIAL_ADMIN_PASSWORD=<administrator password>
+```
+
+각 PC에서 다음 명령으로 실행한다. Flyway는 이미 적용된 migration을 다시 실행하지 않고 현재 버전만 검증한다.
+
+```powershell
+.\scripts\run-backend.ps1
+```
+
+회사 네트워크에서 직접 연결이 가능한지는 먼저 확인한다.
+
+```powershell
+Test-NetConnection <Neon host> -Port 5432
+```
+
+`TcpTestSucceeded`가 `False`면 Docker 설치 여부와 무관하게 회사 네트워크가 PostgreSQL 연결을 차단한 것이다. 이 경우 백엔드를 HTTPS로 배포한 뒤 API로 접근하는 방식으로 전환한다.
 
 다른 터미널에서 프론트엔드를 실행한다.
 
@@ -76,7 +100,7 @@ DB를 실행할 수 없는 개발 환경에서는 프론트 개발 서버(`npm r
 
 전체 검증은 백엔드 clean build/test/Checkstyle, 프론트 npm clean install/ESLint/Prettier/Vitest/build, `git diff --check`, `git status --short`를 실행한다. Docker가 없으면 Testcontainers migration 테스트는 skip된다. CI에는 Docker가 있으므로 해당 테스트가 실행되어야 한다.
 
-회사 PC처럼 Docker/WSL2 실행이 제한된 환경에서는 Docker 없이 가능한 compile, unit test, Checkstyle, ESLint, Prettier, Vitest, frontend build만 실행한다. PostgreSQL/Flyway/Testcontainers 실제 통합 검증은 `docs/todo.md`의 "집 PC에서 검증 필요" 목록으로 관리한다. 제한을 우회하기 위한 별도 로컬 DB, VM, dependency는 도입하지 않는다.
+회사 PC처럼 Docker/WSL2 실행이 제한된 환경에서는 Docker 없이 가능한 compile, unit test, Checkstyle, ESLint, Prettier, Vitest, frontend build만 실행한다. Neon 공유 개발 DB를 사용하면 `run-backend.ps1`으로 Flyway와 실제 DB 연결을 검증할 수 있다. Testcontainers 검증은 Docker가 가능한 환경에서만 실행한다. 제한을 우회하기 위한 별도 로컬 DB, VM, dependency는 도입하지 않는다.
 
 개별 명령:
 
