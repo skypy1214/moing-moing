@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('local', 'prod')]
+    [ValidateSet('local', 'dev', 'prod')]
     [string]$SpringProfile = 'local'
 )
 

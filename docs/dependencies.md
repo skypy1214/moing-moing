@@ -18,5 +18,7 @@ Phase 1에서 직접 선택한 런타임 및 품질 도구를 기록한다. 전�
 | Vitest, Testing Library, jsdom | lockfile 기준 | MIT | 사용자 동작 중심 프론트 단위 테스트 |
 | react-markdown | lockfile 기준 | MIT | raw HTML을 렌더링하지 않는 React Markdown 표시 |
 | remark-gfm | lockfile 기준 | MIT | 표와 체크박스를 포함한 GitHub Flavored Markdown 지원 |
+| @yudiel/react-qr-scanner | lockfile 기준 | MIT | React·TypeScript에서 후면 카메라 QR 스캔과 브라우저 호환 보조를 제공한다. 유지보수 모드인 `html5-qrcode` 대신 선택했다. |
+| qrcode.react | lockfile 기준 | ISC | 원본 토큰을 외부 서비스로 보내지 않고 브라우저 안에서 QR SVG를 생성한다. |
 
 모두 무료 오픈소스로 사용할 수 있는 라이선스다. `react-markdown`은 `skipHtml` 설정을 사용하고, `remark-gfm`만 연결해 MVP에서 raw HTML과 임의 스크립트를 렌더링하지 않는다. 배포 전에는 자동화된 라이선스/취약점 보고서 도입 여부를 다시 검토한다.

@@ -2,7 +2,17 @@ spring:
   config:
     activate:
       on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
 server:
   shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: none
+        secure: true
 

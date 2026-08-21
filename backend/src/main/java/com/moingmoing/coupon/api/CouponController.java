@@ -83,6 +83,11 @@ class CouponController {
         return new QrTokenResponse(couponService.issueQrToken(id));
     }
 
+    @PostMapping("/qr/validate")
+    CouponResponse validateQrToken(@Valid @RequestBody ValidateQrCouponRequest request) {
+        return CouponResponse.from(couponService.findByQrToken(request.token()));
+    }
+
     @PostMapping("/qr/use")
     CouponUsageResponse useQrToken(@Valid @RequestBody UseQrCouponRequest request) {
         return CouponUsageResponse.from(couponService.useQrTokenForAttendance(request.token(), request.gatheringId()));
@@ -143,4 +148,7 @@ record QrTokenResponse(String token) {
 }
 
 record UseQrCouponRequest(@NotBlank String token, @NotNull UUID gatheringId) {
+}
+
+record ValidateQrCouponRequest(@NotBlank String token) {
 }

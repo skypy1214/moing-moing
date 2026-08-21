@@ -7,19 +7,22 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import com.moingmoing.member.domain.ActivityExclusionReason;
+import com.moingmoing.member.domain.MemberRole;
 
 record CreateMemberRequest(
         @NotBlank @Size(max = 100) String displayName,
         @Size(max = 100) String externalNickname,
         @NotNull LocalDate joinedOn,
-        @Size(max = 1000) String memo) {
+        @Size(max = 1000) String memo,
+        @NotNull MemberRole memberRole) {
 }
 
 record UpdateMemberRequest(
         @NotBlank @Size(max = 100) String displayName,
         @Size(max = 100) String externalNickname,
         @NotNull LocalDate joinedOn,
-        @Size(max = 1000) String memo) {
+        @Size(max = 1000) String memo,
+        @NotNull MemberRole memberRole) {
 }
 
 record ChangeMembershipDateRequest(@NotNull LocalDate date) {

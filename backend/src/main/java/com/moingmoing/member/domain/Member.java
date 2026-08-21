@@ -19,6 +19,8 @@ public class Member {
     private String externalNickname;
     @Enumerated(EnumType.STRING)
     private MembershipStatus membershipStatus;
+    @Enumerated(EnumType.STRING)
+    private MemberRole memberRole;
     private LocalDate joinedOn;
     private LocalDate withdrawnOn;
     private String memo;
@@ -29,12 +31,22 @@ public class Member {
     }
 
     public Member(String displayName, String externalNickname, LocalDate joinedOn, String memo) {
+        this(displayName, externalNickname, joinedOn, memo, MemberRole.MEMBER);
+    }
+
+    public Member(
+            String displayName,
+            String externalNickname,
+            LocalDate joinedOn,
+            String memo,
+            MemberRole memberRole) {
         this.id = UUID.randomUUID();
         this.displayName = displayName;
         this.externalNickname = externalNickname;
         this.joinedOn = joinedOn;
         this.memo = memo;
         this.membershipStatus = MembershipStatus.ACTIVE;
+        this.memberRole = memberRole;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -47,17 +59,27 @@ public class Member {
         return membershipStatus;
     }
 
+    public MemberRole getMemberRole() {
+        return memberRole;
+    }
+
     public String getDisplayName() { return displayName; }
     public String getExternalNickname() { return externalNickname; }
     public LocalDate getJoinedOn() { return joinedOn; }
     public LocalDate getWithdrawnOn() { return withdrawnOn; }
     public String getMemo() { return memo; }
 
-    public void update(String displayName, String externalNickname, LocalDate joinedOn, String memo) {
+    public void update(
+            String displayName,
+            String externalNickname,
+            LocalDate joinedOn,
+            String memo,
+            MemberRole memberRole) {
         this.displayName = displayName;
         this.externalNickname = externalNickname;
         this.joinedOn = joinedOn;
         this.memo = memo;
+        this.memberRole = memberRole;
         updatedAt = Instant.now();
     }
 

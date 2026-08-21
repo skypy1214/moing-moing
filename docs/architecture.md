@@ -99,7 +99,11 @@ GitHub/Google OIDC 로그인은 비밀번호 운영을 줄일 수 있으나 외�
 
 ## 8. 배포와 운영
 
-초기 배포 단위는 프론트 정적 파일, Spring Boot 실행 파일, PostgreSQL이다. 한 대의 소형 서버에서 Docker Compose로 운영하거나 프론트 정적 호스팅 + 관리형 앱/DB를 쓸 수 있다. 최종 선택 전 다음을 확인한다.
+초기 배포 단위는 프론트 정적 파일, Spring Boot 실행 파일, PostgreSQL이다. 현재는 Cloudflare Pages의 React 정적 호스팅, Render Free Web Service의 Spring Boot 컨테이너, Neon PostgreSQL 조합을 사용한다. 프론트는 빌드 시 `VITE_API_BASE_URL`로 API 주소를 받고, 백엔드는 `CORS_ALLOWED_ORIGINS`의 명시적 origin만 자격 증명 포함 요청을 허용한다.
+
+Cloudflare Pages 기본 도메인과 Render 기본 도메인은 서로 다른 사이트이므로 운영 세션 쿠키는 `Secure; SameSite=None`으로 설정한다. 일부 브라우저의 제3자 쿠키 제한을 피하려면 운영 전용 도메인에서 `admin.example.com`과 `api.example.com`처럼 같은 등록 도메인의 하위 도메인을 사용한다.
+
+다음은 운영 전 확인한다.
 
 - HTTPS와 동일 origin 구성 가능 여부.
 - PostgreSQL 자동 백업, 복원 리허설, 보존 기간.

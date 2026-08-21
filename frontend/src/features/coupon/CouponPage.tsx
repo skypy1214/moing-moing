@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Scanner } from '@yudiel/react-qr-scanner'
+import type { IDetectedBarcode, IScannerError } from '@yudiel/react-qr-scanner'
+import { QRCodeSVG } from 'qrcode.react'
 
 import type { Member } from '../../App'
+import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
+import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 
 type CouponStatus = 'ISSUED' | 'SUSPENDED' | 'EXPIRED' | 'FULLY_USED' | 'VOIDED'
 type CouponType = 'MANUAL_FREE_PASS' | 'ATTENDANCE_CHAMPION'
@@ -64,6 +70,7 @@ type CouponPageProps = {
 }
 
 export function CouponPage({ members }: CouponPageProps) {
+  const { confirm, showFeedbackDialog } = useFeedbackDialog()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [awards, setAwards] = useState<AttendanceChampionAward[]>([])
   const [memberId, setMemberId] = useState('')
@@ -84,6 +91,12 @@ export function CouponPage({ members }: CouponPageProps) {
   const [reversalReason, setReversalReason] = useState('')
   const [qrToken, setQrToken] = useState('')
   const [isQrUseOpen, setIsQrUseOpen] = useState(false)
+  const [qrValidatedCoupon, setQrValidatedCoupon] = useState<Coupon | null>(
+    null,
+  )
+  const [qrScannerError, setQrScannerError] = useState('')
+  const [qrCodeCoupon, setQrCodeCoupon] = useState<Coupon | null>(null)
+  const [qrCodeToken, setQrCodeToken] = useState('')
 
   const memberName = (id: string) =>
     members.find((member) => member.id === id)?.displayName ?? '알 수 없는 회원'
@@ -196,6 +209,9 @@ export function CouponPage({ members }: CouponPageProps) {
   async function openQrUse() {
     setIsQrUseOpen(true)
     setGatheringId('')
+    setQrToken('')
+    setQrValidatedCoupon(null)
+    setQrScannerError('')
     const response = await fetch('/api/v1/gatherings', {
       credentials: 'include',
     })
@@ -210,10 +226,103 @@ export function CouponPage({ members }: CouponPageProps) {
     )
   }
 
+  function closeQrUse() {
+    setIsQrUseOpen(false)
+    setQrToken('')
+    setQrValidatedCoupon(null)
+    setQrScannerError('')
+  }
+
+  async function validateQrToken(token: string) {
+    if (token.trim() === '') {
+      setQrValidatedCoupon(null)
+      return null
+    }
+    const response = await fetch('/api/v1/coupons/qr/validate', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token.trim() }),
+    })
+    if (!response.ok) {
+      setQrValidatedCoupon(null)
+      await showFeedbackDialog({
+        title: 'QR 코드를 확인할 수 없습니다',
+        message: '유효하지 않거나 이미 교체된 QR 코드입니다.',
+      })
+      return null
+    }
+    const coupon = (await response.json()) as Coupon
+    if (coupon.couponStatus !== 'ISSUED' || coupon.remainingUses === 0) {
+      setQrValidatedCoupon(null)
+      await showFeedbackDialog({
+        title: '사용할 수 없는 쿠폰입니다',
+        message: '정지·만료·폐기되었거나 잔여 사용 횟수가 없는 쿠폰입니다.',
+      })
+      return null
+    }
+    setQrValidatedCoupon(coupon)
+    return coupon
+  }
+
+  function handleQrScan(detectedCodes: IDetectedBarcode[]) {
+    const token = detectedCodes[0]?.rawValue?.trim()
+    if (!token || qrToken !== '') {
+      return
+    }
+    setQrToken(token)
+    setQrScannerError('')
+    void validateQrToken(token)
+  }
+
+  function handleQrScannerError(error: IScannerError) {
+    setQrScannerError(error.message)
+  }
+
+  async function issueQrCode(coupon: Coupon) {
+    const confirmed = await confirm({
+      title: '새 QR 코드 발급',
+      message:
+        '새 QR 코드를 발급하면 기존 QR 코드는 즉시 사용할 수 없게 됩니다.',
+      confirmLabel: '새 QR 코드 발급',
+      isDestructive: true,
+    })
+    if (!confirmed) {
+      return
+    }
+    const response = await fetch(`/api/v1/coupons/${coupon.id}/qr-token`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      await showFeedbackDialog({
+        title: 'QR 코드 발급 실패',
+        message: '쿠폰 상태를 확인한 뒤 다시 시도해 주세요.',
+      })
+      return
+    }
+    const result = (await response.json()) as { token: string }
+    setQrCodeCoupon(coupon)
+    setQrCodeToken(result.token)
+  }
+
   async function useQrToken(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (qrToken.trim() === '' || gatheringId === '') {
       setMessage('QR 토큰과 열린 모임을 입력해 주세요.')
+      return
+    }
+    const coupon = qrValidatedCoupon ?? (await validateQrToken(qrToken))
+    if (coupon === null) {
+      return
+    }
+    const confirmed = await confirm({
+      title: '쿠폰 사용 처리',
+      message: `${memberName(coupon.memberId)}님의 쿠폰 ${coupon.remainingUses}회 중 1회를 사용하고 출석을 기록합니다.`,
+      confirmLabel: '쿠폰 사용 및 출석 기록',
+      isDestructive: true,
+    })
+    if (!confirmed) {
       return
     }
     const response = await fetch('/api/v1/coupons/qr/use', {
@@ -228,8 +337,7 @@ export function CouponPage({ members }: CouponPageProps) {
       )
       return
     }
-    setQrToken('')
-    setIsQrUseOpen(false)
+    closeQrUse()
     await loadCoupons()
     setMessage('QR 쿠폰 사용과 출석 기록을 처리했습니다.')
   }
@@ -347,23 +455,13 @@ export function CouponPage({ members }: CouponPageProps) {
         <section className="panel">
           <h2>{'수동 쿠폰 발급'}</h2>
           <form className="form" onSubmit={issueCoupon}>
-            <label>
-              {'회원'}
-              <select
-                onChange={(event) => setMemberId(event.target.value)}
-                required
-                value={memberId}
-              >
-                <option value="">{'선택'}</option>
-                {members
-                  .filter((member) => member.membershipStatus === 'ACTIVE')
-                  .map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.displayName}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            <SearchableMemberSelect
+              label="회원"
+              members={members}
+              onChange={setMemberId}
+              required
+              value={memberId}
+            />
             <label>
               {'사용 시작일'}
               <input
@@ -495,6 +593,15 @@ export function CouponPage({ members }: CouponPageProps) {
                   {coupon.couponStatus === 'ISSUED' && (
                     <button
                       className="secondary-button"
+                      onClick={() => void issueQrCode(coupon)}
+                      type="button"
+                    >
+                      {'QR 코드 발급'}
+                    </button>
+                  )}
+                  {coupon.couponStatus === 'ISSUED' && (
+                    <button
+                      className="secondary-button"
                       onClick={() => void changeCoupon(coupon, 'suspend')}
                       type="button"
                     >
@@ -621,22 +728,73 @@ export function CouponPage({ members }: CouponPageProps) {
         </section>
       )}
       {isQrUseOpen && (
-        <section className="panel">
-          <h2>{'QR 토큰 사용 처리'}</h2>
+        <section
+          aria-labelledby="qr-scanner-heading"
+          aria-modal="true"
+          className="qr-fullscreen"
+          role="dialog"
+        >
+          <header className="qr-fullscreen-header">
+            <div>
+              <p className="eyebrow">QR SCANNER</p>
+              <h2 id="qr-scanner-heading">{'쿠폰 QR 스캔'}</h2>
+            </div>
+            <button
+              aria-label="QR 스캔 닫기"
+              className="modal-close-button"
+              onClick={closeQrUse}
+              type="button"
+            >
+              ×
+            </button>
+          </header>
           <p className="description">
             {
-              '카메라 스캔 기능이 준비되기 전에는 QR 안의 토큰을 붙여 넣어 사용할 수 있습니다.'
+              'QR 코드를 카메라 중앙에 맞춰 주세요. 스캔 후 사용 여부를 확인합니다.'
             }
           </p>
-          <form className="form" onSubmit={useQrToken}>
+          {qrToken === '' && (
+            <div className="qr-scanner-viewfinder">
+              <Scanner
+                constraints={{ facingMode: 'environment' }}
+                formats={['qr_code']}
+                onError={handleQrScannerError}
+                onScan={handleQrScan}
+              />
+            </div>
+          )}
+          {qrScannerError && (
+            <p className="message" role="alert">
+              {`카메라를 시작하지 못했습니다: ${qrScannerError}`}
+            </p>
+          )}
+          <form className="form qr-use-form" onSubmit={useQrToken}>
             <label>
-              {'QR 토큰'}
+              {'QR 토큰 (카메라 사용이 어려운 경우 직접 입력)'}
               <textarea
-                onChange={(event) => setQrToken(event.target.value)}
+                onChange={(event) => {
+                  setQrToken(event.target.value)
+                  setQrValidatedCoupon(null)
+                }}
                 required
                 value={qrToken}
               />
             </label>
+            {qrToken !== '' && qrValidatedCoupon === null && (
+              <button
+                className="secondary-button"
+                onClick={() => void validateQrToken(qrToken)}
+                type="button"
+              >
+                {'QR 코드 확인'}
+              </button>
+            )}
+            {qrValidatedCoupon && (
+              <div className="qr-validated-coupon">
+                <strong>{`${memberName(qrValidatedCoupon.memberId)}님의 쿠폰`}</strong>
+                <span>{`${qrValidatedCoupon.remainingUses}/${qrValidatedCoupon.totalUses}회 · ${qrValidatedCoupon.validUntil}까지`}</span>
+              </div>
+            )}
             <label>
               {'열린 모임'}
               <select
@@ -655,16 +813,56 @@ export function CouponPage({ members }: CouponPageProps) {
               </select>
             </label>
             <div className="form-actions">
-              <button type="submit">{'QR 쿠폰 사용 및 출석 기록'}</button>
+              <button disabled={qrValidatedCoupon === null} type="submit">
+                {'QR 쿠폰 사용 및 출석 기록'}
+              </button>
               <button
                 className="secondary-button"
-                onClick={() => setIsQrUseOpen(false)}
+                onClick={closeQrUse}
                 type="button"
               >
                 {'취소'}
               </button>
             </div>
           </form>
+        </section>
+      )}
+      {qrCodeCoupon !== null && qrCodeToken !== '' && (
+        <section
+          aria-labelledby="qr-code-heading"
+          aria-modal="true"
+          className="qr-fullscreen"
+          role="dialog"
+        >
+          <header className="qr-fullscreen-header">
+            <div>
+              <p className="eyebrow">COUPON QR</p>
+              <h2 id="qr-code-heading">{'쿠폰 QR 코드'}</h2>
+            </div>
+            <button
+              aria-label="QR 코드 닫기"
+              className="modal-close-button"
+              onClick={() => {
+                setQrCodeCoupon(null)
+                setQrCodeToken('')
+              }}
+              type="button"
+            >
+              ×
+            </button>
+          </header>
+          <div className="qr-code-display">
+            <QRCodeSVG
+              level="M"
+              marginSize={4}
+              size={280}
+              title={`${memberName(qrCodeCoupon.memberId)}님의 쿠폰 QR 코드`}
+              value={qrCodeToken}
+            />
+            <strong>{`${memberName(qrCodeCoupon.memberId)}님의 쿠폰`}</strong>
+            <span>{`${qrCodeCoupon.remainingUses}/${qrCodeCoupon.totalUses}회 사용 가능`}</span>
+            <p>{'이 QR 코드는 운영진의 스캔·확인 후에만 사용 처리됩니다.'}</p>
+          </div>
         </section>
       )}
       {message && (

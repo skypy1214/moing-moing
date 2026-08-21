@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
+import { FeedbackDialogProvider } from '../../shared/feedback-dialog/FeedbackDialogProvider'
 import { CouponPage } from './CouponPage'
 
 describe('CouponPage', () => {
@@ -29,22 +30,25 @@ describe('CouponPage', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(
-      <CouponPage
-        members={[
-          {
-            id: 'member-1',
-            displayName: '회원 한 명',
-            externalNickname: null,
-            membershipStatus: 'ACTIVE',
-            joinedOn: '2026-08-21',
-            withdrawnOn: null,
-            memo: null,
-          },
-        ]}
-      />,
+      <FeedbackDialogProvider>
+        <CouponPage
+          members={[
+            {
+              id: 'member-1',
+              displayName: '회원 한 명',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+          ]}
+        />
+      </FeedbackDialogProvider>,
     )
 
-    await user.selectOptions(screen.getByLabelText('회원'), 'member-1')
+    await user.selectOptions(screen.getByLabelText('회원 선택'), 'member-1')
     await user.click(screen.getByRole('button', { name: '쿠폰 발급' }))
 
     await waitFor(() =>
@@ -61,5 +65,45 @@ describe('CouponPage', () => {
         }),
       }),
     )
+  })
+
+  it('filters members by a typed name before selecting a coupon recipient', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <FeedbackDialogProvider>
+        <CouponPage
+          members={[
+            {
+              id: 'member-1',
+              displayName: '가나다',
+              externalNickname: 'first',
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+            {
+              id: 'member-2',
+              displayName: '라마바',
+              externalNickname: 'second',
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+          ]}
+        />
+      </FeedbackDialogProvider>,
+    )
+
+    await user.type(screen.getByLabelText('회원 검색'), '라마')
+
+    expect(screen.getByRole('option', { name: /라마바/ })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: /가나다/ }),
+    ).not.toBeInTheDocument()
   })
 })

@@ -95,6 +95,13 @@ public class CouponService {
         return token;
     }
 
+    /** Looks up a scanned token without consuming the coupon; use remains an explicit follow-up action. */
+    @Transactional(readOnly = true)
+    public Coupon findByQrToken(String token) {
+        return couponRepository.findByQrTokenHash(Coupon.hashQrToken(token))
+                .orElseThrow(() -> new IllegalArgumentException("QR coupon token is invalid."));
+    }
+
     public CouponUsage useForAttendance(UUID couponId, UUID gatheringId) {
         Coupon coupon = findById(couponId);
         LocalDate heldOn = gatheringRepository.findById(gatheringId)
@@ -107,8 +114,7 @@ public class CouponService {
     }
 
     public CouponUsage useQrTokenForAttendance(String token, UUID gatheringId) {
-        Coupon coupon = couponRepository.findByQrTokenHash(Coupon.hashQrToken(token))
-                .orElseThrow(() -> new IllegalArgumentException("QR coupon token is invalid."));
+        Coupon coupon = findByQrToken(token);
         return useForAttendance(coupon.getId(), gatheringId);
     }
 

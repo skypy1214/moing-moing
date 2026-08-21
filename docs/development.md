@@ -61,6 +61,12 @@ npm run dev
 
 기본 주소는 프론트 `http://localhost:5173`, 백엔드 `http://localhost:8080`이다. API 프록시와 CORS 정책은 실제 API가 추가되는 Phase 2에서 확정한다.
 
+Windows PowerShell 실행 정책에서 `npm.ps1` 또는 프로젝트의 `.ps1` 스크립트가 차단될 수 있다. 이 경우 프로젝트 명령은 `npm.cmd`로 실행하고, 전체 검증은 시스템 정책을 바꾸지 않는 다음 명령으로 실행한다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+```
+
 ### 프론트 개발 서버
 
 프론트 로그인과 회원 관리 화면은 항상 백엔드 API를 사용한다. 먼저 `run-backend.ps1`으로 백엔드를 실행한 뒤 프론트 개발 서버를 시작한다. API 프록시를 통해 인증 쿠키를 포함한 요청이 백엔드로 전달된다.
@@ -77,10 +83,18 @@ npm run dev
 | `DB_USERNAME` | `moing_moing` | 백엔드 DB 사용자 |
 | `DB_PASSWORD` | `local_dev_only` | 백엔드 DB 비밀번호 |
 | `SERVER_PORT` | `8080` | 백엔드 HTTP 포트 |
+| `PORT` | 배포 플랫폼 값 | Render가 주입하는 HTTP 포트. 설정 시 `SERVER_PORT`보다 우선한다. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` (local/dev) | 쉼표로 구분한 프론트 origin 목록. production에서는 Cloudflare Pages 운영 URL을 정확히 입력한다. |
 | `INITIAL_ADMIN_LOGIN` | `admin` | 최초 로컬 관리자 로그인 ID |
 | `INITIAL_ADMIN_PASSWORD` | 예시값 | 최초 로컬 관리자 비밀번호. 운영에서는 안전한 secret으로 설정 |
 
 운영 비밀값은 저장소 파일이 아니라 배포 환경의 secret 기능으로 주입한다.
+
+공유 Neon 개발 DB를 사용할 때는 `-SpringProfile dev`를 사용한다. `dev`와 `prod` 프로필은 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`가 없으면 시작하지 않는다.
+
+```powershell
+.\scripts\run-backend.ps1 -SpringProfile dev
+```
 
 ## 검증 명령
 

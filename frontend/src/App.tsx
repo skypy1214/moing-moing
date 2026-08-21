@@ -5,6 +5,8 @@ import { AttendancePage } from './features/attendance/AttendancePage'
 import { CouponPage } from './features/coupon/CouponPage'
 import { MeetingNotePage } from './features/meetingnote/MeetingNotePage'
 import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPage'
+import { apiFetch as fetch } from './shared/api/apiFetch'
+import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
 import './App.css'
 
 export type Member = {
@@ -12,6 +14,7 @@ export type Member = {
   displayName: string
   externalNickname: string | null
   membershipStatus: 'ACTIVE' | 'WITHDRAWN'
+  memberRole: 'MEMBER' | 'STAFF' | 'LEADER'
   joinedOn: string
   withdrawnOn: string | null
   memo: string | null
@@ -35,6 +38,7 @@ type ApiErrorResponse = {
 
 type MemberFilter = 'ALL' | Member['membershipStatus']
 type MemberSort = 'NAME_ASC' | 'JOINED_ON_DESC'
+type MemberRole = Member['memberRole']
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -45,12 +49,20 @@ const activityExclusionReasonLabels: Record<ActivityExclusionReason, string> = {
   OTHER: '기타',
 }
 
+const memberRoleLabels: Record<MemberRole, string> = {
+  MEMBER: '회원',
+  STAFF: '운영진',
+  LEADER: '모임장',
+}
+
 function App() {
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  const [isMemberSheetOpen, setIsMemberSheetOpen] = useState(false)
+  const [isMemberDetailPage, setIsMemberDetailPage] = useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
   const [editingExclusion, setEditingExclusion] =
     useState<ActivityExclusion | null>(null)
@@ -58,6 +70,7 @@ function App() {
   const [externalNickname, setExternalNickname] = useState('')
   const [joinedOn, setJoinedOn] = useState(today)
   const [memo, setMemo] = useState('')
+  const [memberRole, setMemberRole] = useState<MemberRole>('MEMBER')
   const [membershipDate, setMembershipDate] = useState(today)
   const [exclusionReason, setExclusionReason] =
     useState<ActivityExclusionReason>('PERSONAL_BREAK')
@@ -65,6 +78,7 @@ function App() {
   const [exclusionNote, setExclusionNote] = useState('')
   const [exclusionEndDate, setExclusionEndDate] = useState(today)
   const [message, setMessage] = useState('')
+  const { showFeedbackDialog } = useFeedbackDialog()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [memberSearch, setMemberSearch] = useState('')
   const [memberFilter, setMemberFilter] = useState<MemberFilter>('ALL')
@@ -126,7 +140,9 @@ function App() {
       .json()
       .catch(() => null)) as ApiErrorResponse | null
     setFieldErrors(error?.fieldErrors ?? {})
-    setMessage(error?.message ?? fallbackMessage)
+    const errorMessage = error?.message ?? fallbackMessage
+    setMessage(errorMessage)
+    return errorMessage
   }
 
   useEffect(() => {
@@ -134,6 +150,26 @@ function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void restoreSession()
   }, [restoreSession])
+
+  useEffect(() => {
+    if (!isMemberSheetOpen) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMemberSheetOpen(false)
+      }
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isMemberSheetOpen])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -171,31 +207,49 @@ function App() {
         externalNickname: externalNickname || null,
         joinedOn,
         memo: memo || null,
+        memberRole,
       }),
     })
 
     if (!response.ok) {
-      await applyApiError(
+      const errorMessage = await applyApiError(
         response,
         '회원 등록에 실패했습니다. 입력값을 확인해 주세요.',
       )
+      showFeedbackDialog({ title: '회원 등록 실패', message: errorMessage })
       return
     }
 
     const createdMember = (await response.json()) as Member
+    if (createdMember.memberRole !== memberRole) {
+      showFeedbackDialog({
+        title: '회원 등록 확인 필요',
+        message:
+          '서버 응답에 역할 정보가 없습니다. 백엔드를 재시작하고 Flyway V6 적용 여부를 확인해 주세요.',
+      })
+      return
+    }
     setMembers((previousMembers) => [createdMember, ...previousMembers])
     setDisplayName('')
     setExternalNickname('')
     setMemo('')
+    setMemberRole('MEMBER')
     setMessage('회원을 등록했습니다.')
+    showFeedbackDialog({
+      title: '회원 등록 완료',
+      message: `${createdMember.displayName}님을 ${memberRoleLabels[createdMember.memberRole]}으로 등록했습니다.`,
+    })
   }
 
   async function selectMember(member: Member) {
     setSelectedMember(member)
+    setIsMemberSheetOpen(true)
+    setIsMemberDetailPage(false)
     setDisplayName(member.displayName)
     setExternalNickname(member.externalNickname ?? '')
     setJoinedOn(member.joinedOn)
     setMemo(member.memo ?? '')
+    setMemberRole(member.memberRole)
     setMembershipDate(today)
     setExclusions([])
     setEditingExclusion(null)
@@ -229,7 +283,17 @@ function App() {
       externalNickname: externalNickname || null,
       joinedOn,
       memo: memo || null,
+      memberRole,
     }
+    const changedFields = [
+      selectedMember.displayName !== payload.displayName ? '이름' : null,
+      selectedMember.externalNickname !== payload.externalNickname
+        ? '소모임 닉네임'
+        : null,
+      selectedMember.memberRole !== payload.memberRole ? '역할' : null,
+      selectedMember.joinedOn !== payload.joinedOn ? '가입일' : null,
+      selectedMember.memo !== payload.memo ? '메모' : null,
+    ].filter((field): field is string => field !== null)
 
     const response = await fetch(`/api/v1/members/${selectedMember.id}`, {
       method: 'PUT',
@@ -238,11 +302,33 @@ function App() {
       body: JSON.stringify(payload),
     })
     if (!response.ok) {
-      await applyApiError(response, '회원 정보 수정에 실패했습니다.')
+      const errorMessage = await applyApiError(
+        response,
+        '회원 정보 수정에 실패했습니다.',
+      )
+      showFeedbackDialog({
+        title: '회원 정보 저장 실패',
+        message: errorMessage,
+      })
       return
     }
 
-    const updatedMember = (await response.json()) as Member
+    const responseMember = (await response.json()) as Partial<Member>
+    if (
+      selectedMember.memberRole !== memberRole &&
+      responseMember.memberRole !== memberRole
+    ) {
+      showFeedbackDialog({
+        title: '역할 저장 실패',
+        message:
+          '서버가 변경한 역할을 반환하지 않았습니다. 백엔드를 재시작하고 Flyway V6 적용 여부를 확인해 주세요.',
+      })
+      return
+    }
+    const updatedMember = {
+      ...responseMember,
+      memberRole: responseMember.memberRole ?? selectedMember.memberRole,
+    } as Member
     setMembers((previousMembers) =>
       previousMembers.map((member) =>
         member.id === updatedMember.id ? updatedMember : member,
@@ -250,6 +336,13 @@ function App() {
     )
     setSelectedMember(updatedMember)
     setMessage('회원 정보를 수정했습니다.')
+    showFeedbackDialog({
+      title: '회원 정보 저장 완료',
+      message:
+        changedFields.length === 0
+          ? '변경된 정보가 없습니다.'
+          : `${changedFields.join(', ')} 정보를 저장했습니다.`,
+    })
   }
 
   async function handleMembershipStatusChange() {
@@ -412,6 +505,8 @@ function App() {
     setCurrentLoginId(null)
     setMembers([])
     setSelectedMember(null)
+    setIsMemberSheetOpen(false)
+    setIsMemberDetailPage(false)
     setEditingExclusion(null)
     setMessage('로그아웃했습니다.')
   }
@@ -529,139 +624,171 @@ function App() {
       </nav>
 
       {currentPage === 'MEMBERS' && (
-        <section className="content-grid">
-          <section className="panel" aria-labelledby="member-create-heading">
-            <h2 id="member-create-heading">새 회원 등록</h2>
-            <form className="form" onSubmit={handleCreateMember}>
-              <label>
-                이름
-                <input
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  required
-                  value={displayName}
-                />
-                {fieldErrors.displayName && selectedMember === null && (
-                  <span className="field-error">{fieldErrors.displayName}</span>
-                )}
-              </label>
-              <label>
-                소모임 닉네임 <span className="optional">(선택)</span>
-                <input
-                  onChange={(event) => setExternalNickname(event.target.value)}
-                  value={externalNickname}
-                />
-              </label>
-              <label>
-                가입일
-                <input
-                  onChange={(event) => setJoinedOn(event.target.value)}
-                  required
-                  type="date"
-                  value={joinedOn}
-                />
-                {fieldErrors.joinedOn && selectedMember === null && (
-                  <span className="field-error">{fieldErrors.joinedOn}</span>
-                )}
-              </label>
-              <label>
-                메모 <span className="optional">(선택)</span>
-                <textarea
-                  onChange={(event) => setMemo(event.target.value)}
-                  value={memo}
-                />
-              </label>
-              <button type="submit">회원 등록</button>
-            </form>
-            {message && selectedMember === null && (
-              <p className="message" role="status">
-                {message}
-              </p>
-            )}
-          </section>
-
-          <section className="panel" aria-labelledby="member-list-heading">
-            <div className="panel-heading">
-              <div>
-                <h2 id="member-list-heading">현재 회원</h2>
-                <p>
-                  {visibleMembers.length}명 / 전체 {members.length}명
-                </p>
-              </div>
-              <button
-                className="secondary-button"
-                onClick={() => void loadMembers()}
-                type="button"
+        <section
+          className={isMemberDetailPage ? 'member-page' : 'content-grid'}
+        >
+          {!isMemberDetailPage && (
+            <>
+              <section
+                className="panel"
+                aria-labelledby="member-create-heading"
               >
-                새로고침
-              </button>
-            </div>
-            <div className="member-list-controls">
-              <label>
-                회원 검색
-                <input
-                  onChange={(event) => setMemberSearch(event.target.value)}
-                  placeholder="이름 또는 닉네임"
-                  value={memberSearch}
-                />
-              </label>
-              <label>
-                회원 상태
-                <select
-                  onChange={(event) =>
-                    setMemberFilter(event.target.value as MemberFilter)
-                  }
-                  value={memberFilter}
-                >
-                  <option value="ALL">전체</option>
-                  <option value="ACTIVE">활동 중</option>
-                  <option value="WITHDRAWN">탈퇴</option>
-                </select>
-              </label>
-              <label>
-                정렬
-                <select
-                  onChange={(event) =>
-                    setMemberSort(event.target.value as MemberSort)
-                  }
-                  value={memberSort}
-                >
-                  <option value="NAME_ASC">이름순</option>
-                  <option value="JOINED_ON_DESC">가입일 최신순</option>
-                </select>
-              </label>
-            </div>
-            {visibleMembers.length === 0 ? (
-              <p className="empty-state">조건에 맞는 회원이 없습니다.</p>
-            ) : (
-              <ul className="member-list">
-                {visibleMembers.map((member) => (
-                  <li key={member.id}>
-                    <button
-                      className="member-row"
-                      onClick={() => void selectMember(member)}
-                      type="button"
-                    >
-                      <div>
-                        <strong>{member.displayName}</strong>
-                        {member.externalNickname && (
-                          <span>{member.externalNickname}</span>
-                        )}
-                      </div>
-                      <span
-                        className={`status status-${member.membershipStatus.toLowerCase()}`}
-                      >
-                        {member.membershipStatus === 'ACTIVE'
-                          ? '활동 중'
-                          : '탈퇴'}
+                <h2 id="member-create-heading">새 회원 등록</h2>
+                <form className="form" onSubmit={handleCreateMember}>
+                  <label>
+                    이름
+                    <input
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      required
+                      value={displayName}
+                    />
+                    {fieldErrors.displayName && selectedMember === null && (
+                      <span className="field-error">
+                        {fieldErrors.displayName}
                       </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                    )}
+                  </label>
+                  <label>
+                    소모임 닉네임 <span className="optional">(선택)</span>
+                    <input
+                      onChange={(event) =>
+                        setExternalNickname(event.target.value)
+                      }
+                      value={externalNickname}
+                    />
+                  </label>
+                  <label>
+                    역할
+                    <select
+                      onChange={(event) =>
+                        setMemberRole(event.target.value as MemberRole)
+                      }
+                      value={memberRole}
+                    >
+                      {Object.entries(memberRoleLabels).map(([role, label]) => (
+                        <option key={role} value={role}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    가입일
+                    <input
+                      onChange={(event) => setJoinedOn(event.target.value)}
+                      required
+                      type="date"
+                      value={joinedOn}
+                    />
+                    {fieldErrors.joinedOn && selectedMember === null && (
+                      <span className="field-error">
+                        {fieldErrors.joinedOn}
+                      </span>
+                    )}
+                  </label>
+                  <label>
+                    메모 <span className="optional">(선택)</span>
+                    <textarea
+                      onChange={(event) => setMemo(event.target.value)}
+                      value={memo}
+                    />
+                  </label>
+                  <button type="submit">회원 등록</button>
+                </form>
+                {message && selectedMember === null && (
+                  <p className="message" role="status">
+                    {message}
+                  </p>
+                )}
+              </section>
 
-          {selectedMember && (
+              <section className="panel" aria-labelledby="member-list-heading">
+                <div className="panel-heading">
+                  <div>
+                    <h2 id="member-list-heading">현재 회원</h2>
+                    <p>
+                      {visibleMembers.length}명 / 전체 {members.length}명
+                    </p>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void loadMembers()}
+                    type="button"
+                  >
+                    새로고침
+                  </button>
+                </div>
+                <div className="member-list-controls">
+                  <label>
+                    회원 검색
+                    <input
+                      onChange={(event) => setMemberSearch(event.target.value)}
+                      placeholder="이름 또는 닉네임"
+                      value={memberSearch}
+                    />
+                  </label>
+                  <label>
+                    회원 상태
+                    <select
+                      onChange={(event) =>
+                        setMemberFilter(event.target.value as MemberFilter)
+                      }
+                      value={memberFilter}
+                    >
+                      <option value="ALL">전체</option>
+                      <option value="ACTIVE">활동 중</option>
+                      <option value="WITHDRAWN">탈퇴</option>
+                    </select>
+                  </label>
+                  <label>
+                    정렬
+                    <select
+                      onChange={(event) =>
+                        setMemberSort(event.target.value as MemberSort)
+                      }
+                      value={memberSort}
+                    >
+                      <option value="NAME_ASC">이름순</option>
+                      <option value="JOINED_ON_DESC">가입일 최신순</option>
+                    </select>
+                  </label>
+                </div>
+                {visibleMembers.length === 0 ? (
+                  <p className="empty-state">조건에 맞는 회원이 없습니다.</p>
+                ) : (
+                  <ul className="member-list">
+                    {visibleMembers.map((member) => (
+                      <li key={member.id}>
+                        <button
+                          className="member-row"
+                          onClick={() => void selectMember(member)}
+                          type="button"
+                        >
+                          <div>
+                            <strong>{member.displayName}</strong>
+                            <span>
+                              {memberRoleLabels[member.memberRole]}
+                              {member.externalNickname &&
+                                ` · ${member.externalNickname}`}
+                            </span>
+                          </div>
+                          <span
+                            className={`status status-${member.membershipStatus.toLowerCase()}`}
+                          >
+                            {member.membershipStatus === 'ACTIVE'
+                              ? '활동 중'
+                              : '탈퇴'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+
+          {selectedMember && !isMemberSheetOpen && isMemberDetailPage && (
             <section
               className="panel member-detail"
               aria-labelledby="member-detail-heading"
@@ -673,10 +800,10 @@ function App() {
                 </div>
                 <button
                   className="secondary-button"
-                  onClick={() => setSelectedMember(null)}
+                  onClick={() => setIsMemberDetailPage(false)}
                   type="button"
                 >
-                  닫기
+                  목록으로
                 </button>
               </div>
 
@@ -702,6 +829,21 @@ function App() {
                     }
                     value={externalNickname}
                   />
+                </label>
+                <label>
+                  역할
+                  <select
+                    onChange={(event) =>
+                      setMemberRole(event.target.value as MemberRole)
+                    }
+                    value={memberRole}
+                  >
+                    {Object.entries(memberRoleLabels).map(([role, label]) => (
+                      <option key={role} value={role}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   가입일
@@ -885,6 +1027,72 @@ function App() {
                 </p>
               )}
             </section>
+          )}
+
+          {isMemberSheetOpen && selectedMember && (
+            <div
+              className="bottom-sheet-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  setIsMemberSheetOpen(false)
+                }
+              }}
+            >
+              <section
+                aria-labelledby="member-sheet-heading"
+                aria-modal="true"
+                className="bottom-sheet"
+                role="dialog"
+              >
+                <div className="bottom-sheet-handle" />
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">MEMBER</p>
+                    <h2 id="member-sheet-heading">
+                      {selectedMember.displayName}
+                    </h2>
+                    <p>
+                      {memberRoleLabels[selectedMember.memberRole]}
+                      {' · '}
+                      {selectedMember.membershipStatus === 'ACTIVE'
+                        ? '활동 중'
+                        : '탈퇴'}
+                      {selectedMember.externalNickname &&
+                        ` · ${selectedMember.externalNickname}`}
+                    </p>
+                  </div>
+                  <button
+                    aria-label="회원 빠른 정보 닫기"
+                    className="secondary-button"
+                    onClick={() => setIsMemberSheetOpen(false)}
+                    type="button"
+                  >
+                    닫기
+                  </button>
+                </div>
+                <dl className="member-sheet-summary">
+                  <div>
+                    <dt>가입일</dt>
+                    <dd>{selectedMember.joinedOn}</dd>
+                  </div>
+                  <div>
+                    <dt>메모</dt>
+                    <dd>{selectedMember.memo ?? '등록된 메모 없음'}</dd>
+                  </div>
+                </dl>
+                <div className="bottom-sheet-actions">
+                  <button
+                    onClick={() => {
+                      setIsMemberSheetOpen(false)
+                      setIsMemberDetailPage(true)
+                    }}
+                    type="button"
+                  >
+                    상세 보기
+                  </button>
+                </div>
+              </section>
+            </div>
           )}
         </section>
       )}

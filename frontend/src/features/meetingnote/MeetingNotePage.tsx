@@ -4,6 +4,8 @@ import type { FormEvent } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { apiFetch as fetch } from '../../shared/api/apiFetch'
+
 type Category = {
   id: string
   name: string

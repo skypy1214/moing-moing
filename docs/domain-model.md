@@ -36,6 +36,7 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 - `displayName`: 운영 화면 표시 이름.
 - `externalNickname` 또는 `externalMemberKey`: 외부 소모임 명부 비교용 값. 실제 안정적인 외부 ID가 없으면 nickname의 유일성을 가정하지 않는다.
 - `membershipStatus`: `ACTIVE | WITHDRAWN`.
+- `memberRole`: 모임 내 직책 `MEMBER | STAFF | LEADER`. 기본값은 `MEMBER`이며 로그인 계정 권한과 분리한다.
 - `joinedOn`, `withdrawnOn`: 생명주기 날짜.
 - `memo`: 운영 메모(민감정보 최소화).
 - `createdAt`, `updatedAt`.
@@ -44,6 +45,7 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 
 - `WITHDRAWN`이면 `withdrawnOn`이 필요하고, `ACTIVE`이면 없어야 한다.
 - 탈퇴는 삭제가 아닌 상태 전이다. 재가입은 관리자가 기존 Member 재활성화 또는 새 Member 등록을 명시적으로 선택한다.
+- 역할은 모임 내 직책이며 `UserAccount`의 로그인·인가 역할을 자동으로 변경하지 않는다.
 - 이름은 변경 가능하므로 과거 관계의 식별 기준으로 사용하지 않는다.
 
 ### MemberActivityExclusion

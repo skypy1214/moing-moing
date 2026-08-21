@@ -2,6 +2,8 @@ import { Fragment, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 
 import type { Member } from '../../App'
+import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 
 type GatheringStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED'
 type ParticipationType = 'NORMAL' | 'COUPON'
@@ -73,14 +75,16 @@ function Modal({ ariaLabelledBy, children, onClose }: ModalProps) {
         className="modal-content"
         role="dialog"
       >
-        <button
-          aria-label="모달 닫기"
-          className="modal-close-button"
-          onClick={onClose}
-          type="button"
-        >
-          ×
-        </button>
+        <div className="modal-header">
+          <button
+            aria-label="모달 닫기"
+            className="modal-close-button"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
         {children}
       </section>
     </div>
@@ -547,21 +551,13 @@ export function AttendancePage({ members }: AttendancePageProps) {
       <section className="panel attendance-history">
         <h3>회원별 출석 이력</h3>
         <div className="attendance-history-controls">
-          <label>
-            회원
-            <select
-              onChange={(event) => setHistoryMemberId(event.target.value)}
-              value={historyMemberId}
-            >
-              <option value="">회원 선택</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.displayName}
-                  {member.membershipStatus === 'WITHDRAWN' ? ' (탈퇴)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableMemberSelect
+            includeWithdrawn
+            label="회원"
+            members={members}
+            onChange={setHistoryMemberId}
+            value={historyMemberId}
+          />
           <button onClick={() => void loadMemberHistory()} type="button">
             이력 조회
           </button>
@@ -646,21 +642,13 @@ export function AttendancePage({ members }: AttendancePageProps) {
                 className="attendance-record-form"
                 onSubmit={recordAttendance}
               >
-                <label>
-                  회원
-                  <select
-                    onChange={(event) => setMemberId(event.target.value)}
-                    required
-                    value={memberId}
-                  >
-                    <option value="">회원 선택</option>
-                    {activeMembers.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <SearchableMemberSelect
+                  label="회원"
+                  members={activeMembers}
+                  onChange={setMemberId}
+                  required
+                  value={memberId}
+                />
                 <label>
                   참여 방식
                   <select

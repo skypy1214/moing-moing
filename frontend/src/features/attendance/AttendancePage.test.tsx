@@ -45,4 +45,21 @@ describe('AttendancePage', () => {
       ),
     )
   })
+
+  it('places the close control in a separate modal header', async () => {
+    const user = userEvent.setup()
+
+    render(<AttendancePage members={[]} />)
+
+    await user.click(screen.getByRole('button', { name: '새 출석부 만들기' }))
+
+    const dialog = screen.getByRole('dialog', { name: '새 출석부 만들기' })
+    expect(dialog.querySelector('.modal-header')).toContainElement(
+      screen.getByRole('button', { name: '모달 닫기' }),
+    )
+
+    await user.click(screen.getByRole('button', { name: '모달 닫기' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })

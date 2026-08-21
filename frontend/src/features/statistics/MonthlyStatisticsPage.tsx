@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { apiFetch as fetch } from '../../shared/api/apiFetch'
+
 type MonthlyStatistics = {
   month: string
   policyVersion: string

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.moingmoing.member.domain.Member;
+import com.moingmoing.member.domain.MemberRole;
 import com.moingmoing.member.domain.ActivityExclusionReason;
 import com.moingmoing.member.domain.MemberActivityExclusion;
 import com.moingmoing.member.infrastructure.MemberActivityExclusionRepository;
@@ -36,13 +37,20 @@ public class MemberService {
         return memberRepository.findById(id).orElseThrow(() -> new MemberNotFoundException(id));
     }
 
-    public Member create(String displayName, String externalNickname, LocalDate joinedOn, String memo) {
-        return memberRepository.save(new Member(displayName, externalNickname, joinedOn, memo));
+    public Member create(
+            String displayName, String externalNickname, LocalDate joinedOn, String memo, MemberRole memberRole) {
+        return memberRepository.save(new Member(displayName, externalNickname, joinedOn, memo, memberRole));
     }
 
-    public Member update(UUID id, String displayName, String externalNickname, LocalDate joinedOn, String memo) {
+    public Member update(
+            UUID id,
+            String displayName,
+            String externalNickname,
+            LocalDate joinedOn,
+            String memo,
+            MemberRole memberRole) {
         Member member = findById(id);
-        member.update(displayName, externalNickname, joinedOn, memo);
+        member.update(displayName, externalNickname, joinedOn, memo, memberRole);
         return member;
     }
 

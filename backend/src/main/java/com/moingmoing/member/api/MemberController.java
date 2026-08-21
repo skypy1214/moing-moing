@@ -39,14 +39,19 @@ class MemberController {
     @PostMapping
     ResponseEntity<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
         MemberResponse response = MemberResponse.from(memberService.create(
-                request.displayName(), request.externalNickname(), request.joinedOn(), request.memo()));
+                request.displayName(), request.externalNickname(), request.joinedOn(), request.memo(), request.memberRole()));
         return ResponseEntity.created(URI.create("/api/v1/members/" + response.id())).body(response);
     }
 
     @PutMapping("/{id}")
     MemberResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateMemberRequest request) {
         return MemberResponse.from(memberService.update(
-                id, request.displayName(), request.externalNickname(), request.joinedOn(), request.memo()));
+                id,
+                request.displayName(),
+                request.externalNickname(),
+                request.joinedOn(),
+                request.memo(),
+                request.memberRole()));
     }
 
     @PostMapping("/{id}/withdraw")

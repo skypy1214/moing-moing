@@ -32,11 +32,11 @@ try {
 Push-Location (Join-Path $repositoryRoot 'frontend')
 try {
     if (-not $SkipInstall) {
-        Invoke-CheckedStep 'Frontend clean dependency install' { npm ci }
+        Invoke-CheckedStep 'Frontend clean dependency install' { npm.cmd ci }
     }
-    Invoke-CheckedStep 'Frontend lint and formatting' { npm run lint }
-    Invoke-CheckedStep 'Frontend tests' { npm test }
-    Invoke-CheckedStep 'Frontend build' { npm run build }
+    Invoke-CheckedStep 'Frontend lint and formatting' { npm.cmd run lint }
+    Invoke-CheckedStep 'Frontend tests' { npm.cmd test }
+    Invoke-CheckedStep 'Frontend build' { npm.cmd run build }
 } finally {
     Pop-Location
 }
