@@ -37,28 +37,6 @@ type MemberFilter = 'ALL' | Member['membershipStatus']
 type MemberSort = 'NAME_ASC' | 'JOINED_ON_DESC'
 
 const today = new Date().toISOString().slice(0, 10)
-const demoLoginId = 'admin'
-const demoPassword = 'admin'
-const demoMembers: Member[] = [
-  {
-    id: 'demo-member-1',
-    displayName: '데모 회원',
-    externalNickname: 'moing-demo',
-    membershipStatus: 'ACTIVE',
-    joinedOn: today,
-    withdrawnOn: null,
-    memo: '개발 화면 확인용 데이터입니다.',
-  },
-  {
-    id: 'demo-member-2',
-    displayName: '탈퇴 회원',
-    externalNickname: null,
-    membershipStatus: 'WITHDRAWN',
-    joinedOn: '2025-12-01',
-    withdrawnOn: '2026-02-01',
-    memo: '상태 필터 확인용 데이터입니다.',
-  },
-]
 
 const activityExclusionReasonLabels: Record<ActivityExclusionReason, string> = {
   PERSONAL_BREAK: '개인 사정',
@@ -71,7 +49,6 @@ function App() {
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
-  const [isDemoMode, setIsDemoMode] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
@@ -162,19 +139,6 @@ function App() {
     event.preventDefault()
     setMessage('')
 
-    if (
-      import.meta.env.DEV &&
-      loginId === demoLoginId &&
-      password === demoPassword
-    ) {
-      setCurrentLoginId(demoLoginId)
-      setIsDemoMode(true)
-      setMembers(demoMembers)
-      setPassword('')
-      setMessage('개발 전용 데모 모드입니다. 실제 데이터는 저장되지 않습니다.')
-      return
-    }
-
     const body = new URLSearchParams({ username: loginId, password })
     const response = await fetch('/api/v1/auth/login', {
       method: 'POST',
@@ -197,24 +161,6 @@ function App() {
     event.preventDefault()
     setMessage('')
     setFieldErrors({})
-
-    if (isDemoMode) {
-      const createdMember: Member = {
-        id: `demo-member-${members.length + 1}`,
-        displayName,
-        externalNickname: externalNickname || null,
-        membershipStatus: 'ACTIVE',
-        joinedOn,
-        withdrawnOn: null,
-        memo: memo || null,
-      }
-      setMembers((previousMembers) => [createdMember, ...previousMembers])
-      setDisplayName('')
-      setExternalNickname('')
-      setMemo('')
-      setMessage('데모 회원을 등록했습니다. 새로고침하면 초기화됩니다.')
-      return
-    }
 
     const response = await fetch('/api/v1/members', {
       method: 'POST',
@@ -254,10 +200,6 @@ function App() {
     setExclusions([])
     setEditingExclusion(null)
 
-    if (isDemoMode) {
-      return
-    }
-
     try {
       const response = await fetch(
         `/api/v1/members/${member.id}/activity-exclusions`,
@@ -289,18 +231,6 @@ function App() {
       memo: memo || null,
     }
 
-    if (isDemoMode) {
-      const updatedMember = { ...selectedMember, ...payload }
-      setMembers((previousMembers) =>
-        previousMembers.map((member) =>
-          member.id === updatedMember.id ? updatedMember : member,
-        ),
-      )
-      setSelectedMember(updatedMember)
-      setMessage('데모 회원 정보를 수정했습니다. 새로고침하면 초기화됩니다.')
-      return
-    }
-
     const response = await fetch(`/api/v1/members/${selectedMember.id}`, {
       method: 'PUT',
       credentials: 'include',
@@ -329,33 +259,6 @@ function App() {
 
     const isWithdrawing = selectedMember.membershipStatus === 'ACTIVE'
     const action = isWithdrawing ? 'withdraw' : 'reactivate'
-
-    if (isDemoMode) {
-      const updatedMember: Member = isWithdrawing
-        ? {
-            ...selectedMember,
-            membershipStatus: 'WITHDRAWN',
-            withdrawnOn: membershipDate,
-          }
-        : {
-            ...selectedMember,
-            membershipStatus: 'ACTIVE',
-            joinedOn: membershipDate,
-            withdrawnOn: null,
-          }
-      setMembers((previousMembers) =>
-        previousMembers.map((member) =>
-          member.id === updatedMember.id ? updatedMember : member,
-        ),
-      )
-      setSelectedMember(updatedMember)
-      setMessage(
-        isWithdrawing
-          ? '데모 회원을 탈퇴 처리했습니다.'
-          : '데모 회원을 재활성화했습니다.',
-      )
-      return
-    }
 
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/${action}`,
@@ -400,18 +303,6 @@ function App() {
       return
     }
 
-    if (isDemoMode) {
-      const exclusion: ActivityExclusion = {
-        id: `demo-exclusion-${exclusions.length + 1}`,
-        ...payload,
-        endDate: null,
-      }
-      setExclusions((previousExclusions) => [exclusion, ...previousExclusions])
-      setExclusionNote('')
-      setMessage('데모 활동 중단 기간을 등록했습니다.')
-      return
-    }
-
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/activity-exclusions`,
       {
@@ -444,19 +335,6 @@ function App() {
     }
 
     const request = { ...payload, endDate: editingExclusion.endDate }
-    if (isDemoMode) {
-      const updatedExclusion = { ...editingExclusion, ...request }
-      setExclusions((previousExclusions) =>
-        previousExclusions.map((item) =>
-          item.id === updatedExclusion.id ? updatedExclusion : item,
-        ),
-      )
-      setEditingExclusion(null)
-      setExclusionNote('')
-      setMessage('데모 활동 중단 기간을 수정했습니다.')
-      return
-    }
-
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/activity-exclusions/${editingExclusion.id}`,
       {
@@ -503,18 +381,6 @@ function App() {
       return
     }
 
-    if (isDemoMode) {
-      setExclusions((previousExclusions) =>
-        previousExclusions.map((item) =>
-          item.id === exclusion.id
-            ? { ...item, endDate: exclusionEndDate }
-            : item,
-        ),
-      )
-      setMessage('데모 활동 중단 기간을 종료했습니다.')
-      return
-    }
-
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/activity-exclusions/${exclusion.id}/end`,
       {
@@ -544,7 +410,6 @@ function App() {
       credentials: 'include',
     })
     setCurrentLoginId(null)
-    setIsDemoMode(false)
     setMembers([])
     setSelectedMember(null)
     setEditingExclusion(null)
@@ -724,11 +589,7 @@ function App() {
               </div>
               <button
                 className="secondary-button"
-                onClick={() => {
-                  if (!isDemoMode) {
-                    void loadMembers()
-                  }
-                }}
+                onClick={() => void loadMembers()}
                 type="button"
               >
                 새로고침
@@ -1027,18 +888,10 @@ function App() {
           )}
         </section>
       )}
-      {currentPage === 'ATTENDANCE' && (
-        <AttendancePage isDemoMode={isDemoMode} members={members} />
-      )}
-      {currentPage === 'COUPONS' && (
-        <CouponPage isDemoMode={isDemoMode} members={members} />
-      )}
-      {currentPage === 'STATISTICS' && (
-        <MonthlyStatisticsPage isDemoMode={isDemoMode} />
-      )}
-      {currentPage === 'MEETING_NOTES' && (
-        <MeetingNotePage isDemoMode={isDemoMode} />
-      )}
+      {currentPage === 'ATTENDANCE' && <AttendancePage members={members} />}
+      {currentPage === 'COUPONS' && <CouponPage members={members} />}
+      {currentPage === 'STATISTICS' && <MonthlyStatisticsPage />}
+      {currentPage === 'MEETING_NOTES' && <MeetingNotePage />}
     </main>
   )
 }

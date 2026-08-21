@@ -55,7 +55,6 @@ function formatCalendarDateLabel(year: number, month: number, day: number) {
 }
 
 type AttendancePageProps = {
-  isDemoMode: boolean
   members: Member[]
 }
 
@@ -88,7 +87,7 @@ function Modal({ ariaLabelledBy, children, onClose }: ModalProps) {
   )
 }
 
-export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
+export function AttendancePage({ members }: AttendancePageProps) {
   const [gatherings, setGatherings] = useState<Gathering[]>([])
   const [attendances, setAttendances] = useState<Attendance[]>([])
   const [selectedGatheringId, setSelectedGatheringId] = useState<string | null>(
@@ -167,13 +166,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
   }
 
   async function refreshGatherings() {
-    if (isDemoMode) {
-      setMessage(
-        '개발용 데모 모드에서는 이 브라우저에서 만든 출석부만 표시합니다.',
-      )
-      return
-    }
-
     try {
       const response = await fetch('/api/v1/gatherings', {
         credentials: 'include',
@@ -191,10 +183,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
   async function selectGathering(gathering: Gathering) {
     setSelectedGatheringId(gathering.id)
     setMessage('')
-    if (isDemoMode) {
-      return
-    }
-
     try {
       const response = await fetch(
         `/api/v1/gatherings/${gathering.id}/attendances`,
@@ -221,21 +209,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
       location: location || null,
     }
 
-    if (isDemoMode) {
-      const gathering: Gathering = {
-        id: `demo-gathering-${gatherings.length + 1}`,
-        ...payload,
-        gatheringStatus: 'DRAFT',
-      }
-      setGatherings((previous) => [gathering, ...previous])
-      setSelectedGatheringId(gathering.id)
-      setIsCreateGatheringOpen(false)
-      setTitle('')
-      setLocation('')
-      setMessage('개발용 출석부 초안을 만들었습니다.')
-      return
-    }
-
     try {
       const response = await fetch('/api/v1/gatherings', {
         method: 'POST',
@@ -260,27 +233,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
 
   async function changeGatheringStatus(action: 'open' | 'close' | 'cancel') {
     if (selectedGathering === null) {
-      return
-    }
-
-    if (isDemoMode) {
-      const statusByAction: Record<typeof action, GatheringStatus> = {
-        open: 'OPEN',
-        close: 'CLOSED',
-        cancel: 'CANCELLED',
-      }
-      const updated = {
-        ...selectedGathering,
-        gatheringStatus: statusByAction[action],
-      }
-      setGatherings((previous) =>
-        previous.map((gathering) =>
-          gathering.id === updated.id ? updated : gathering,
-        ),
-      )
-      setMessage(
-        `출석부 상태를 ${gatheringStatusLabels[updated.gatheringStatus]}(으)로 변경했습니다.`,
-      )
       return
     }
 
@@ -314,32 +266,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
     }
 
     const payload = { memberId, participationType }
-    if (isDemoMode) {
-      if (
-        attendances.some(
-          (attendance) =>
-            attendance.gatheringId === selectedGathering.id &&
-            attendance.memberId === memberId,
-        )
-      ) {
-        setMessage('이미 이 출석부에 기록된 회원입니다.')
-        return
-      }
-      const attendance: Attendance = {
-        id: `demo-attendance-${attendances.length + 1}`,
-        gatheringId: selectedGathering.id,
-        memberId,
-        participationType,
-        attendanceStatus: 'RECORDED',
-        recordedAt: new Date().toISOString(),
-        cancelledAt: null,
-        cancellationReason: null,
-      }
-      setAttendances((previous) => [...previous, attendance])
-      setMessage('개발용 출석 기록을 추가했습니다.')
-      return
-    }
-
     try {
       const response = await fetch(
         `/api/v1/gatherings/${selectedGathering.id}/attendances`,
@@ -364,16 +290,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
   async function loadMemberHistory() {
     if (historyMemberId === '') {
       setMessage('출석 이력을 조회할 회원을 선택해 주세요.')
-      return
-    }
-
-    if (isDemoMode) {
-      setHistoryAttendances(
-        attendances.filter(
-          (attendance) => attendance.memberId === historyMemberId,
-        ),
-      )
-      setMessage('개발용 회원 출석 이력을 조회했습니다.')
       return
     }
 
@@ -402,25 +318,6 @@ export function AttendancePage({ isDemoMode, members }: AttendancePageProps) {
     }
     if (cancellationReason.trim() === '') {
       setMessage('출석 취소 사유를 입력해 주세요.')
-      return
-    }
-
-    if (isDemoMode) {
-      const cancelledAt = new Date().toISOString()
-      const updateAttendance = (attendance: Attendance) =>
-        attendance.id === cancellingAttendanceId
-          ? {
-              ...attendance,
-              attendanceStatus: 'CANCELLED' as const,
-              cancelledAt,
-              cancellationReason: cancellationReason.trim(),
-            }
-          : attendance
-      setAttendances((previous) => previous.map(updateAttendance))
-      setHistoryAttendances((previous) => previous.map(updateAttendance))
-      setCancellingAttendanceId(null)
-      setCancellationReason('')
-      setMessage('개발용 출석 기록을 취소했습니다. 기록은 보존됩니다.')
       return
     }
 

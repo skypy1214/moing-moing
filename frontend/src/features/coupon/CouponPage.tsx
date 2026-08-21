@@ -60,11 +60,10 @@ const couponTypeLabels: Record<CouponType, string> = {
 }
 
 type CouponPageProps = {
-  isDemoMode: boolean
   members: Member[]
 }
 
-export function CouponPage({ isDemoMode, members }: CouponPageProps) {
+export function CouponPage({ members }: CouponPageProps) {
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [awards, setAwards] = useState<AttendanceChampionAward[]>([])
   const [memberId, setMemberId] = useState('')
@@ -90,10 +89,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
     members.find((member) => member.id === id)?.displayName ?? '알 수 없는 회원'
 
   async function loadCoupons() {
-    if (isDemoMode) {
-      setMessage('개발 데모 모드에서는 이 화면에서 발급한 쿠폰만 표시됩니다.')
-      return
-    }
     const response = await fetch('/api/v1/coupons', { credentials: 'include' })
     if (!response.ok) {
       setMessage('쿠폰 목록을 불러오지 못했습니다.')
@@ -116,21 +111,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
       totalUses,
       issuedReason: issuedReason || null,
     }
-    if (isDemoMode) {
-      setCoupons((previous) => [
-        {
-          id: `demo-coupon-${previous.length + 1}`,
-          ...payload,
-          couponType: 'MANUAL_FREE_PASS',
-          couponStatus: 'ISSUED',
-          remainingUses: totalUses,
-        },
-        ...previous,
-      ])
-      setIssuedReason('')
-      setMessage('개발 데모 쿠폰을 발급했습니다. 새로고침하면 초기화됩니다.')
-      return
-    }
     const response = await fetch('/api/v1/coupons', {
       method: 'POST',
       credentials: 'include',
@@ -148,24 +128,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
   }
 
   async function changeCoupon(coupon: Coupon, action: 'suspend' | 'void') {
-    if (isDemoMode) {
-      setCoupons((previous) =>
-        previous.map((item) =>
-          item.id === coupon.id
-            ? {
-                ...item,
-                couponStatus: action === 'suspend' ? 'SUSPENDED' : 'VOIDED',
-              }
-            : item,
-        ),
-      )
-      setMessage(
-        action === 'suspend'
-          ? '데모 쿠폰을 정지했습니다.'
-          : '데모 쿠폰을 폐기했습니다.',
-      )
-      return
-    }
     const response = await fetch(`/api/v1/coupons/${coupon.id}/${action}`, {
       method: 'POST',
       credentials: 'include',
@@ -183,15 +145,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
   async function extendCoupon(coupon: Coupon) {
     if (extensionDate <= coupon.validUntil) {
       setMessage('연장일은 현재 종료일보다 뒤여야 합니다.')
-      return
-    }
-    if (isDemoMode) {
-      setCoupons((previous) =>
-        previous.map((item) =>
-          item.id === coupon.id ? { ...item, validUntil: extensionDate } : item,
-        ),
-      )
-      setMessage('데모 쿠폰의 사용 기간을 연장했습니다.')
       return
     }
     const response = await fetch(`/api/v1/coupons/${coupon.id}/valid-until`, {
@@ -213,11 +166,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
 
   async function loadUsageHistory(coupon: Coupon) {
     setUsageHistoryCouponId(coupon.id)
-    if (isDemoMode) {
-      setUsageHistory([])
-      setMessage('데모 모드에서는 쿠폰 사용 이력이 아직 없습니다.')
-      return
-    }
     const response = await fetch(`/api/v1/coupons/${coupon.id}/usages`, {
       credentials: 'include',
     })
@@ -231,17 +179,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
   async function openCouponUse(coupon: Coupon) {
     setCouponToUse(coupon)
     setGatheringId('')
-    if (isDemoMode) {
-      setGatherings([
-        {
-          id: 'demo-coupon-gathering',
-          heldOn: today,
-          title: '데모 모임',
-          gatheringStatus: 'OPEN',
-        },
-      ])
-      return
-    }
     const response = await fetch('/api/v1/gatherings', {
       credentials: 'include',
     })
@@ -259,17 +196,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
   async function openQrUse() {
     setIsQrUseOpen(true)
     setGatheringId('')
-    if (isDemoMode) {
-      setGatherings([
-        {
-          id: 'demo-qr-gathering',
-          heldOn: today,
-          title: '데모 모임',
-          gatheringStatus: 'OPEN',
-        },
-      ])
-      return
-    }
     const response = await fetch('/api/v1/gatherings', {
       credentials: 'include',
     })
@@ -288,10 +214,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
     event.preventDefault()
     if (qrToken.trim() === '' || gatheringId === '') {
       setMessage('QR 토큰과 열린 모임을 입력해 주세요.')
-      return
-    }
-    if (isDemoMode) {
-      setMessage('데모 모드에서는 발급된 QR 토큰을 검증하지 않습니다.')
       return
     }
     const response = await fetch('/api/v1/coupons/qr/use', {
@@ -318,32 +240,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
       setMessage('열린 모임을 선택해 주세요.')
       return
     }
-    if (isDemoMode) {
-      setCoupons((previous) =>
-        previous.map((item) =>
-          item.id === couponToUse.id
-            ? {
-                ...item,
-                remainingUses: item.remainingUses - 1,
-                couponStatus:
-                  item.remainingUses === 1 ? 'FULLY_USED' : 'ISSUED',
-              }
-            : item,
-        ),
-      )
-      setUsageHistory([
-        {
-          id: 'demo-coupon-usage',
-          couponId: couponToUse.id,
-          attendanceId: 'demo-coupon-attendance',
-          usageStatus: 'USED',
-        },
-      ])
-      setUsageHistoryCouponId(couponToUse.id)
-      setCouponToUse(null)
-      setMessage('데모 쿠폰 사용과 출석 기록을 처리했습니다.')
-      return
-    }
     const response = await fetch(`/api/v1/coupons/${couponToUse.id}/use`, {
       method: 'POST',
       credentials: 'include',
@@ -364,15 +260,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
   async function reverseUsage(usage: CouponUsage) {
     if (usageHistoryCouponId === null || reversalReason.trim() === '') {
       setMessage('사용 취소 사유를 입력해 주세요.')
-      return
-    }
-    if (isDemoMode) {
-      setUsageHistory((previous) =>
-        previous.map((item) =>
-          item.id === usage.id ? { ...item, usageStatus: 'REVERSED' } : item,
-        ),
-      )
-      setMessage('데모 쿠폰 사용을 취소했습니다.')
       return
     }
     const response = await fetch(
@@ -396,12 +283,6 @@ export function CouponPage({ isDemoMode, members }: CouponPageProps) {
 
   async function grantAwards(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isDemoMode) {
-      setMessage(
-        '출석왕 자동 발급은 실제 출석 기록이 필요한 기능이라 데모 모드에서는 실행하지 않습니다.',
-      )
-      return
-    }
     const response = await fetch('/api/v1/attendance-champion-awards', {
       method: 'POST',
       credentials: 'include',

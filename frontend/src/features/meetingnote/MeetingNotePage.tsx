@@ -25,32 +25,9 @@ type NoteSort = 'CREATED_DESC' | 'CREATED_ASC' | 'TITLE_ASC'
 
 const initialMarkdown = `## 안건\n\n- [ ] 논의할 내용\n- [x] 완료한 내용\n\n| 담당 | 할 일 |\n| --- | --- |\n| 운영진 | 다음 모임 준비 |`
 
-const demoCategories: Category[] = [
-  {
-    id: 'demo-category-operations',
-    name: '운영',
-    color: '#2463A5',
-    sortOrder: 0,
-    active: true,
-  },
-]
-
-const demoNotes: MeetingNote[] = [
-  {
-    id: 'demo-note-1',
-    categoryId: 'demo-category-operations',
-    title: '개발용 회의록 예시',
-    markdownContent: initialMarkdown,
-    noteStatus: 'PUBLISHED',
-    createdAt: '2026-08-20T00:00:00Z',
-  },
-]
-
-export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
-  const [categories, setCategories] = useState<Category[]>(
-    isDemoMode ? demoCategories : [],
-  )
-  const [notes, setNotes] = useState<MeetingNote[]>(isDemoMode ? demoNotes : [])
+export function MeetingNotePage() {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [notes, setNotes] = useState<MeetingNote[]>([])
   const [selectedNote, setSelectedNote] = useState<MeetingNote | null>(null)
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [noteSort, setNoteSort] = useState<NoteSort>('CREATED_DESC')
@@ -102,14 +79,12 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
   }
 
   useEffect(() => {
-    if (!isDemoMode) {
-      // Initial server-state synchronization intentionally runs once for this feature page.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void Promise.all([loadCategories(), loadNotes('')])
-    }
+    // Initial server-state synchronization intentionally runs once for this feature page.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void Promise.all([loadCategories(), loadNotes('')])
     // The loaders are deliberately not dependencies: adding them would reload on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemoMode])
+  }, [])
 
   function resetEditor() {
     setSelectedNote(null)
@@ -120,31 +95,6 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
 
   async function submitCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isDemoMode) {
-      const category = editingCategory ?? {
-        id: `demo-category-${categories.length + 1}`,
-        name: categoryName,
-        color: categoryColor,
-        sortOrder: activeCategories.length,
-        active: true,
-      }
-      const savedCategory = {
-        ...category,
-        name: categoryName,
-        color: categoryColor,
-      }
-      setCategories((current) =>
-        editingCategory === null
-          ? [...current, savedCategory]
-          : current.map((item) =>
-              item.id === savedCategory.id ? savedCategory : item,
-            ),
-      )
-      setCategoryName('')
-      setEditingCategory(null)
-      setMessage('개발용 카테고리를 저장했습니다.')
-      return
-    }
     const endpoint =
       editingCategory === null
         ? '/api/v1/meeting-note-categories'
@@ -176,15 +126,6 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
   }
 
   async function deactivateCategory(category: Category) {
-    if (isDemoMode) {
-      setCategories((current) =>
-        current.map((item) =>
-          item.id === category.id ? { ...item, active: false } : item,
-        ),
-      )
-      setMessage('개발용 카테고리를 비활성화했습니다.')
-      return
-    }
     const response = await fetch(
       `/api/v1/meeting-note-categories/${category.id}/deactivate`,
       { method: 'POST', credentials: 'include' },
@@ -205,27 +146,6 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
     event.preventDefault()
     if (categoryId === '') {
       setMessage('카테고리를 먼저 선택해 주세요.')
-      return
-    }
-    if (isDemoMode) {
-      const note: MeetingNote =
-        selectedNote === null
-          ? {
-              id: `demo-note-${notes.length + 1}`,
-              categoryId,
-              title,
-              markdownContent,
-              noteStatus: 'PUBLISHED',
-              createdAt: new Date().toISOString(),
-            }
-          : { ...selectedNote, categoryId, title, markdownContent }
-      setNotes((current) =>
-        selectedNote === null
-          ? [note, ...current]
-          : current.map((item) => (item.id === note.id ? note : item)),
-      )
-      resetEditor()
-      setMessage('개발용 회의록을 저장했습니다.')
       return
     }
     const response = await fetch(
@@ -249,12 +169,6 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
   }
 
   async function hideNote(note: MeetingNote) {
-    if (isDemoMode) {
-      setNotes((current) => current.filter((item) => item.id !== note.id))
-      resetEditor()
-      setMessage('개발용 회의록을 숨겼습니다.')
-      return
-    }
     const response = await fetch(`/api/v1/meeting-notes/${note.id}/hide`, {
       method: 'POST',
       credentials: 'include',
@@ -379,9 +293,7 @@ export function MeetingNotePage({ isDemoMode }: { isDemoMode: boolean }) {
               <select
                 onChange={(event) => {
                   setFilterCategoryId(event.target.value)
-                  if (!isDemoMode) {
-                    void loadNotes(event.target.value)
-                  }
+                  void loadNotes(event.target.value)
                 }}
                 value={filterCategoryId}
               >

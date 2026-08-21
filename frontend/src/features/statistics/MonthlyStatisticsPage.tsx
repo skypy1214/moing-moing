@@ -15,28 +15,12 @@ type MonthlyStatistics = {
 
 const currentMonth = new Date().toISOString().slice(0, 7)
 
-export function MonthlyStatisticsPage({ isDemoMode }: { isDemoMode: boolean }) {
+export function MonthlyStatisticsPage() {
   const [month, setMonth] = useState(currentMonth)
   const [statistics, setStatistics] = useState<MonthlyStatistics | null>(null)
   const [message, setMessage] = useState('')
 
   async function loadStatistics() {
-    if (isDemoMode) {
-      setStatistics({
-        month,
-        policyVersion: 'draft-v1',
-        attendanceNumerator: 1,
-        activityNumerator: 1,
-        denominator: 1,
-        attendanceRate: 1,
-        activityRate: 1,
-        targetMembers: [{ id: 'demo-member-1', displayName: '데모 회원' }],
-        attendedMemberIds: ['demo-member-1'],
-        activityExcludedMemberIds: [],
-      })
-      setMessage('데모 통계 결과입니다.')
-      return
-    }
     const response = await fetch(`/api/v1/statistics/monthly?month=${month}`, {
       credentials: 'include',
     })
