@@ -21,6 +21,8 @@ public class Gathering {
     private String location;
     @Enumerated(EnumType.STRING)
     private GatheringStatus gatheringStatus;
+    private Instant cancelledAt;
+    private String cancellationReason;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -62,6 +64,14 @@ public class Gathering {
         return gatheringStatus;
     }
 
+    public Instant getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
     public void open() {
         if (gatheringStatus != GatheringStatus.DRAFT) {
             throw new IllegalArgumentException("초안 상태의 모임만 열 수 있습니다.");
@@ -78,11 +88,19 @@ public class Gathering {
         updatedAt = Instant.now();
     }
 
-    public void cancel() {
+    public void cancel(String cancellationReason) {
         if (gatheringStatus == GatheringStatus.CLOSED) {
             throw new IllegalArgumentException("마감한 모임은 취소할 수 없습니다.");
         }
+        if (gatheringStatus == GatheringStatus.CANCELLED) {
+            throw new IllegalArgumentException("이미 취소된 모임입니다.");
+        }
+        if (cancellationReason == null || cancellationReason.isBlank()) {
+            throw new IllegalArgumentException("모임 취소 사유를 입력해 주세요.");
+        }
         gatheringStatus = GatheringStatus.CANCELLED;
+        cancelledAt = Instant.now();
+        this.cancellationReason = cancellationReason.trim();
         updatedAt = Instant.now();
     }
 }

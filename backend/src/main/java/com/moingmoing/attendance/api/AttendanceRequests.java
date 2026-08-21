@@ -24,3 +24,6 @@ record RecordAttendanceRequest(
 
 record CancelAttendanceRequest(@NotBlank @Size(max = 1000) String cancellationReason) {
 }
+
+record CancelGatheringRequest(@NotBlank @Size(max = 1000) String cancellationReason) {
+}

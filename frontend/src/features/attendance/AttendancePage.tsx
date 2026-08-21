@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 
 import type { Member } from '../../App'
@@ -16,6 +16,16 @@ type Gathering = {
   startsAt: string | null
   location: string | null
   gatheringStatus: GatheringStatus
+  cancelledAt: string | null
+  cancellationReason: string | null
+}
+
+type CancelledGatheringPage = {
+  items: Gathering[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
 }
 
 type Attendance = {
@@ -48,6 +58,19 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+async function responseError(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as {
+    message?: string
+  } | null
+  if (body?.message) {
+    return new Error(body.message)
+  }
+  if (response.status === 401 || response.status === 403) {
+    return new Error('권한이 없습니다. 관리자 계정으로 다시 로그인해 주세요.')
+  }
+  return new Error(`${fallback} (HTTP ${response.status})`)
+}
+
 function formatDate(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
@@ -58,6 +81,7 @@ function formatCalendarDateLabel(year: number, month: number, day: number) {
 
 type AttendancePageProps = {
   members: Member[]
+  readOnly?: boolean
 }
 
 type ModalProps = {
@@ -91,7 +115,10 @@ function Modal({ ariaLabelledBy, children, onClose }: ModalProps) {
   )
 }
 
-export function AttendancePage({ members }: AttendancePageProps) {
+export function AttendancePage({
+  members,
+  readOnly = false,
+}: AttendancePageProps) {
   const [gatherings, setGatherings] = useState<Gathering[]>([])
   const [attendances, setAttendances] = useState<Attendance[]>([])
   const [selectedGatheringId, setSelectedGatheringId] = useState<string | null>(
@@ -115,6 +142,29 @@ export function AttendancePage({ members }: AttendancePageProps) {
   >(null)
   const [cancellationReason, setCancellationReason] = useState('')
   const [message, setMessage] = useState('')
+  const [createGatheringError, setCreateGatheringError] = useState('')
+  const [isCreatingGathering, setIsCreatingGathering] = useState(false)
+  const [isGatheringCancellationOpen, setIsGatheringCancellationOpen] =
+    useState(false)
+  const [gatheringCancellationReason, setGatheringCancellationReason] =
+    useState('')
+  const [gatheringCancellationError, setGatheringCancellationError] =
+    useState('')
+  const [isCancellationHistoryOpen, setIsCancellationHistoryOpen] =
+    useState(false)
+  const [cancelledGatherings, setCancelledGatherings] = useState<Gathering[]>(
+    [],
+  )
+  const [cancellationHistoryPage, setCancellationHistoryPage] = useState(0)
+  const [cancellationHistoryTotalPages, setCancellationHistoryTotalPages] =
+    useState(0)
+  const [
+    cancellationHistoryTotalElements,
+    setCancellationHistoryTotalElements,
+  ] = useState(0)
+  const [isCancellationHistoryLoading, setIsCancellationHistoryLoading] =
+    useState(false)
+  const [cancellationHistoryError, setCancellationHistoryError] = useState('')
 
   const selectedGathering = useMemo(
     () =>
@@ -151,6 +201,11 @@ export function AttendancePage({ members }: AttendancePageProps) {
     })
   }, [calendarMonth, gatherings])
 
+  useEffect(() => {
+    void refreshGatherings()
+    // The first load is intentionally separate from manual refresh controls.
+  }, [])
+
   function moveCalendarMonth(amount: number) {
     setCalendarMonth((previous) => {
       const next = new Date(previous.year, previous.month + amount, 1)
@@ -164,6 +219,9 @@ export function AttendancePage({ members }: AttendancePageProps) {
   }
 
   function selectCalendarDate(date: string) {
+    if (readOnly) {
+      return
+    }
     setHeldOn(date)
     setIsCreateGatheringOpen(true)
     setMessage(`${date} 날짜의 출석부 생성 창을 열었습니다.`)
@@ -175,13 +233,47 @@ export function AttendancePage({ members }: AttendancePageProps) {
         credentials: 'include',
       })
       if (!response.ok) {
-        throw new Error('출석부 목록을 불러오지 못했습니다.')
+        throw await responseError(
+          response,
+          '출석부 목록을 불러오지 못했습니다.',
+        )
       }
       setGatherings((await response.json()) as Gathering[])
       setMessage('출석부 목록을 새로고침했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '출석부 목록을 불러오지 못했습니다.'))
     }
+  }
+
+  async function loadCancellationHistory(page = 0) {
+    setIsCancellationHistoryLoading(true)
+    setCancellationHistoryError('')
+    try {
+      const response = await fetch(
+        `/api/v1/gatherings/cancellations?page=${page}&size=10`,
+        { credentials: 'include' },
+      )
+      if (!response.ok) {
+        throw await responseError(response, '취소 이력을 불러오지 못했습니다.')
+      }
+      const result = (await response.json()) as CancelledGatheringPage
+      setCancelledGatherings(result.items)
+      setCancellationHistoryPage(result.page)
+      setCancellationHistoryTotalPages(result.totalPages)
+      setCancellationHistoryTotalElements(result.totalElements)
+    } catch (error) {
+      setCancellationHistoryError(
+        errorMessage(error, '취소 이력을 불러오지 못했습니다.'),
+      )
+    } finally {
+      setIsCancellationHistoryLoading(false)
+    }
+  }
+
+  function openCancellationHistory() {
+    setIsCancellationHistoryOpen(true)
+    setCancellationHistoryError('')
+    void loadCancellationHistory()
   }
 
   async function selectGathering(gathering: Gathering) {
@@ -206,6 +298,8 @@ export function AttendancePage({ members }: AttendancePageProps) {
   async function createGathering(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setMessage('')
+    setCreateGatheringError('')
+    setIsCreatingGathering(true)
     const payload = {
       heldOn,
       title: title || null,
@@ -221,7 +315,7 @@ export function AttendancePage({ members }: AttendancePageProps) {
         body: JSON.stringify(payload),
       })
       if (!response.ok) {
-        throw new Error('출석부를 만들지 못했습니다.')
+        throw await responseError(response, '출석부를 만들지 못했습니다.')
       }
       const gathering = (await response.json()) as Gathering
       setGatherings((previous) => [gathering, ...previous])
@@ -231,11 +325,15 @@ export function AttendancePage({ members }: AttendancePageProps) {
       setLocation('')
       setMessage('출석부 초안을 만들었습니다.')
     } catch (error) {
-      setMessage(errorMessage(error, '출석부를 만들지 못했습니다.'))
+      setCreateGatheringError(
+        errorMessage(error, '출석부를 만들지 못했습니다.'),
+      )
+    } finally {
+      setIsCreatingGathering(false)
     }
   }
 
-  async function changeGatheringStatus(action: 'open' | 'close' | 'cancel') {
+  async function changeGatheringStatus(action: 'open' | 'close') {
     if (selectedGathering === null) {
       return
     }
@@ -259,6 +357,50 @@ export function AttendancePage({ members }: AttendancePageProps) {
       )
     } catch (error) {
       setMessage(errorMessage(error, '출석부 상태를 변경하지 못했습니다.'))
+    }
+  }
+
+  async function cancelGathering(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (selectedGathering === null) {
+      return
+    }
+    if (gatheringCancellationReason.trim() === '') {
+      setGatheringCancellationError('모임 취소 사유를 입력해 주세요.')
+      return
+    }
+
+    setGatheringCancellationError('')
+    try {
+      const response = await fetch(
+        `/api/v1/gatherings/${selectedGathering.id}/cancel`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cancellationReason: gatheringCancellationReason.trim(),
+          }),
+        },
+      )
+      if (!response.ok) {
+        throw await responseError(response, '모임을 취소하지 못했습니다.')
+      }
+      const cancelled = (await response.json()) as Gathering
+      setGatherings((previous) =>
+        previous.filter((gathering) => gathering.id !== cancelled.id),
+      )
+      setSelectedGatheringId(null)
+      setAttendances([])
+      setIsGatheringCancellationOpen(false)
+      setGatheringCancellationReason('')
+      setMessage(
+        '모임을 취소했습니다. 취소 이력에서 사유를 확인할 수 있습니다.',
+      )
+    } catch (error) {
+      setGatheringCancellationError(
+        errorMessage(error, '모임을 취소하지 못했습니다.'),
+      )
     }
   }
 
@@ -366,13 +508,22 @@ export function AttendancePage({ members }: AttendancePageProps) {
             날짜별 출석부를 열고 회원별 참여 방식을 기록합니다.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => void refreshGatherings()}
-          type="button"
-        >
-          새로고침
-        </button>
+        <div className="header-actions">
+          <button
+            className="secondary-button"
+            onClick={openCancellationHistory}
+            type="button"
+          >
+            취소 이력 보기
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => void refreshGatherings()}
+            type="button"
+          >
+            새로고침
+          </button>
+        </div>
       </div>
 
       <section
@@ -436,6 +587,7 @@ export function AttendancePage({ members }: AttendancePageProps) {
                   aria-label={`${formatCalendarDateLabel(calendarMonth.year, calendarMonth.month, calendarDay.day)} 선택`}
                   aria-pressed={heldOn === calendarDay.date}
                   className="calendar-date-button"
+                  disabled={readOnly && calendarDay.gatherings.length === 0}
                   onClick={() => selectCalendarDate(calendarDay.date)}
                   type="button"
                 >
@@ -461,15 +613,20 @@ export function AttendancePage({ members }: AttendancePageProps) {
       </section>
 
       <div className="attendance-grid">
-        <section className="panel">
-          <h3>새 출석부</h3>
-          <p className="description">
-            캘린더의 날짜를 누르거나 아래 버튼을 눌러 출석부를 만듭니다.
-          </p>
-          <button onClick={() => setIsCreateGatheringOpen(true)} type="button">
-            새 출석부 만들기
-          </button>
-        </section>
+        {!readOnly && (
+          <section className="panel">
+            <h3>새 출석부</h3>
+            <p className="description">
+              캘린더의 날짜를 누르거나 아래 버튼을 눌러 출석부를 만듭니다.
+            </p>
+            <button
+              onClick={() => setIsCreateGatheringOpen(true)}
+              type="button"
+            >
+              새 출석부 만들기
+            </button>
+          </section>
+        )}
 
         <section className="panel">
           <h3>출석부 목록</h3>
@@ -535,7 +692,9 @@ export function AttendancePage({ members }: AttendancePageProps) {
               />
             </label>
             <div className="form-actions">
-              <button type="submit">출석부 초안 만들기</button>
+              <button disabled={isCreatingGathering} type="submit">
+                {isCreatingGathering ? '출석부 생성 중…' : '출석부 초안 만들기'}
+              </button>
               <button
                 className="secondary-button"
                 onClick={() => setIsCreateGatheringOpen(false)}
@@ -544,6 +703,11 @@ export function AttendancePage({ members }: AttendancePageProps) {
                 취소
               </button>
             </div>
+            {createGatheringError && (
+              <p className="field-error" role="alert">
+                {createGatheringError}
+              </p>
+            )}
           </form>
         </Modal>
       )}
@@ -594,6 +758,7 @@ export function AttendancePage({ members }: AttendancePageProps) {
           onClose={() => {
             setSelectedGatheringId(null)
             setCancellingAttendanceId(null)
+            setIsGatheringCancellationOpen(false)
           }}
         >
           <section className="attendance-detail">
@@ -607,37 +772,43 @@ export function AttendancePage({ members }: AttendancePageProps) {
                   {gatheringStatusLabels[selectedGathering.gatheringStatus]}
                 </p>
               </div>
-              <div className="form-actions">
-                {selectedGathering.gatheringStatus === 'DRAFT' && (
-                  <button
-                    onClick={() => void changeGatheringStatus('open')}
-                    type="button"
-                  >
-                    출석 시작
-                  </button>
-                )}
-                {selectedGathering.gatheringStatus === 'OPEN' && (
-                  <button
-                    onClick={() => void changeGatheringStatus('close')}
-                    type="button"
-                  >
-                    출석 마감
-                  </button>
-                )}
-                {selectedGathering.gatheringStatus !== 'CLOSED' &&
-                  selectedGathering.gatheringStatus !== 'CANCELLED' && (
+              {!readOnly && (
+                <div className="form-actions">
+                  {selectedGathering.gatheringStatus === 'DRAFT' && (
                     <button
-                      className="danger-button"
-                      onClick={() => void changeGatheringStatus('cancel')}
+                      onClick={() => void changeGatheringStatus('open')}
                       type="button"
                     >
-                      모임 취소
+                      출석 시작
                     </button>
                   )}
-              </div>
+                  {selectedGathering.gatheringStatus === 'OPEN' && (
+                    <button
+                      onClick={() => void changeGatheringStatus('close')}
+                      type="button"
+                    >
+                      출석 마감
+                    </button>
+                  )}
+                  {selectedGathering.gatheringStatus !== 'CLOSED' &&
+                    selectedGathering.gatheringStatus !== 'CANCELLED' && (
+                      <button
+                        className="danger-button"
+                        onClick={() => {
+                          setGatheringCancellationReason('')
+                          setGatheringCancellationError('')
+                          setIsGatheringCancellationOpen(true)
+                        }}
+                        type="button"
+                      >
+                        모임 취소
+                      </button>
+                    )}
+                </div>
+              )}
             </div>
 
-            {selectedGathering.gatheringStatus === 'OPEN' && (
+            {!readOnly && selectedGathering.gatheringStatus === 'OPEN' && (
               <form
                 className="attendance-record-form"
                 onSubmit={recordAttendance}
@@ -694,18 +865,19 @@ export function AttendancePage({ members }: AttendancePageProps) {
                             ? '기록됨'
                             : '취소됨'}
                         </span>
-                        {attendance.attendanceStatus === 'RECORDED' && (
-                          <button
-                            className="secondary-button"
-                            onClick={() => {
-                              setCancellingAttendanceId(attendance.id)
-                              setCancellationReason('')
-                            }}
-                            type="button"
-                          >
-                            출석 취소
-                          </button>
-                        )}
+                        {!readOnly &&
+                          attendance.attendanceStatus === 'RECORDED' && (
+                            <button
+                              className="secondary-button"
+                              onClick={() => {
+                                setCancellingAttendanceId(attendance.id)
+                                setCancellationReason('')
+                              }}
+                              type="button"
+                            >
+                              출석 취소
+                            </button>
+                          )}
                       </li>
                       {cancellingAttendanceId === attendance.id && (
                         <li className="attendance-cancel-form">
@@ -742,6 +914,117 @@ export function AttendancePage({ members }: AttendancePageProps) {
               </ul>
             )}
           </section>
+        </Modal>
+      )}
+
+      {isGatheringCancellationOpen && selectedGathering && (
+        <Modal
+          ariaLabelledBy="cancel-gathering-heading"
+          onClose={() => setIsGatheringCancellationOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="cancel-gathering-heading">모임을 취소할까요?</h3>
+            <p>
+              {selectedGathering.heldOn} {selectedGathering.title ?? '정모'}는
+              기본 목록에서 숨겨지고 취소 이력에 보관됩니다.
+            </p>
+          </div>
+          <form className="form" onSubmit={cancelGathering}>
+            <label>
+              취소 사유
+              <textarea
+                maxLength={1000}
+                onChange={(event) =>
+                  setGatheringCancellationReason(event.target.value)
+                }
+                required
+                rows={4}
+                value={gatheringCancellationReason}
+              />
+            </label>
+            <div className="form-actions">
+              <button className="danger-button" type="submit">
+                모임 취소
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => setIsGatheringCancellationOpen(false)}
+                type="button"
+              >
+                돌아가기
+              </button>
+            </div>
+            {gatheringCancellationError && (
+              <p className="field-error" role="alert">
+                {gatheringCancellationError}
+              </p>
+            )}
+          </form>
+        </Modal>
+      )}
+
+      {isCancellationHistoryOpen && (
+        <Modal
+          ariaLabelledBy="cancellation-history-heading"
+          onClose={() => setIsCancellationHistoryOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="cancellation-history-heading">취소 이력</h3>
+            <p>취소된 정모와 사유를 최근 취소 순서로 확인합니다.</p>
+          </div>
+          {isCancellationHistoryLoading ? (
+            <p className="empty-state">취소 이력을 불러오는 중입니다.</p>
+          ) : cancellationHistoryError ? (
+            <p className="field-error" role="alert">
+              {cancellationHistoryError}
+            </p>
+          ) : cancelledGatherings.length === 0 ? (
+            <p className="empty-state">취소된 정모가 없습니다.</p>
+          ) : (
+            <ul className="cancellation-history-list">
+              {cancelledGatherings.map((gathering) => (
+                <li key={gathering.id}>
+                  <div>
+                    <strong>{gathering.heldOn}</strong>
+                    <span>{gathering.title ?? '제목 없는 정모'}</span>
+                  </div>
+                  <p>{gathering.cancellationReason}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="pagination-controls">
+            <button
+              className="secondary-button"
+              disabled={
+                isCancellationHistoryLoading || cancellationHistoryPage === 0
+              }
+              onClick={() =>
+                void loadCancellationHistory(cancellationHistoryPage - 1)
+              }
+              type="button"
+            >
+              이전
+            </button>
+            <span>
+              {cancellationHistoryTotalElements === 0
+                ? '0건'
+                : `${cancellationHistoryPage + 1} / ${cancellationHistoryTotalPages} 페이지`}
+            </span>
+            <button
+              className="secondary-button"
+              disabled={
+                isCancellationHistoryLoading ||
+                cancellationHistoryPage + 1 >= cancellationHistoryTotalPages
+              }
+              onClick={() =>
+                void loadCancellationHistory(cancellationHistoryPage + 1)
+              }
+              type="button"
+            >
+              다음
+            </button>
+          </div>
         </Modal>
       )}
       {message && (

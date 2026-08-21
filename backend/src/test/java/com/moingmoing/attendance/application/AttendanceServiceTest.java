@@ -83,7 +83,7 @@ class AttendanceServiceTest {
     @Test
     void rejectsAttendanceForCancelledGathering() {
         Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
-        gathering.cancel();
+        gathering.cancel("운영상 취소했습니다.");
         AttendanceService attendanceService = service();
         when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
 

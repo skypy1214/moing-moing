@@ -25,4 +25,24 @@ class GatheringTest {
         assertThatThrownBy(gathering::close)
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void cancelsGatheringWithReason() {
+        Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
+
+        gathering.cancel("장소 사정으로 취소합니다.");
+
+        assertThat(gathering.getGatheringStatus()).isEqualTo(GatheringStatus.CANCELLED);
+        assertThat(gathering.getCancelledAt()).isNotNull();
+        assertThat(gathering.getCancellationReason()).isEqualTo("장소 사정으로 취소합니다.");
+    }
+
+    @Test
+    void rejectsCancellationWithoutReason() {
+        Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
+
+        assertThatThrownBy(() -> gathering.cancel(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("취소 사유");
+    }
 }

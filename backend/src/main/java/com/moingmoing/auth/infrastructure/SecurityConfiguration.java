@@ -2,10 +2,11 @@ package com.moingmoing.auth.infrastructure;
 
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -43,7 +44,13 @@ class SecurityConfiguration {
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
                         (request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/health").permitAll()
+                        .requestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/guest-login",
+                                "/api/v1/health")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/**")
+                        .hasAnyRole("ADMIN", "VIEWER")
                         .anyRequest().hasRole("ADMIN"))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) ->

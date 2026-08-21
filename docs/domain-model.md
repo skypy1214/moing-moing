@@ -72,6 +72,8 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 
 하루에 모임이 반드시 하나라는 규칙이 확정되면 `heldOn`을 unique로 둔다. 아니면 날짜+순번 또는 시작 시각 기준 unique가 필요하다.
 
+취소된 `Gathering`은 `cancelledAt`와 필수 `cancellationReason`을 남긴다. 기본 목록·캘린더 조회에서는 제외하고, 별도의 취소 이력 조회에서만 최근 취소 순으로 확인한다.
+
 ### Attendance
 
 - `id`, `gatheringId`, `memberId`.

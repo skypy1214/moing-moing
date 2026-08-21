@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { FormEvent } from 'react'
 
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { CouponPage } from './features/coupon/CouponPage'
 import { MeetingNotePage } from './features/meetingnote/MeetingNotePage'
 import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPage'
-import { apiFetch as fetch } from './shared/api/apiFetch'
+import {
+  apiFetch as fetch,
+  apiLoadingChangeEvent,
+  isApiLoading,
+} from './shared/api/apiFetch'
 import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
 import './App.css'
 
@@ -36,8 +46,14 @@ type ApiErrorResponse = {
   fieldErrors?: Record<string, string>
 }
 
-type MemberFilter = 'ALL' | Member['membershipStatus']
-type MemberSort = 'NAME_ASC' | 'JOINED_ON_DESC'
+type AuthAccount = {
+  loginId: string
+  readOnly: boolean
+}
+
+type MemberStatusFilter = 'ALL' | Member['membershipStatus']
+type MemberRoleFilter = 'ALL' | Member['memberRole']
+type MemberSort = 'ROLE_PRIORITY' | 'NAME_ASC' | 'JOINED_ON_DESC'
 type MemberRole = Member['memberRole']
 
 const today = new Date().toISOString().slice(0, 10)
@@ -55,10 +71,33 @@ const memberRoleLabels: Record<MemberRole, string> = {
   LEADER: '모임장',
 }
 
+const memberRoleIcons: Record<MemberRole, string> = {
+  MEMBER: '●',
+  STAFF: '◆',
+  LEADER: '♛',
+}
+
+const memberRolePriority: Record<MemberRole, number> = {
+  LEADER: 0,
+  STAFF: 1,
+  MEMBER: 2,
+}
+
+function subscribeToApiLoading(listener: () => void) {
+  window.addEventListener(apiLoadingChangeEvent, listener)
+  return () => window.removeEventListener(apiLoadingChangeEvent, listener)
+}
+
 function App() {
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
+  const [isReadOnly, setIsReadOnly] = useState(false)
+  const isRequestInProgress = useSyncExternalStore(
+    subscribeToApiLoading,
+    isApiLoading,
+    () => false,
+  )
   const [members, setMembers] = useState<Member[]>([])
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [isMemberSheetOpen, setIsMemberSheetOpen] = useState(false)
@@ -81,8 +120,11 @@ function App() {
   const { showFeedbackDialog } = useFeedbackDialog()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [memberSearch, setMemberSearch] = useState('')
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>('ALL')
-  const [memberSort, setMemberSort] = useState<MemberSort>('NAME_ASC')
+  const [memberStatusFilter, setMemberStatusFilter] =
+    useState<MemberStatusFilter>('ALL')
+  const [memberRoleFilter, setMemberRoleFilter] =
+    useState<MemberRoleFilter>('ALL')
+  const [memberSort, setMemberSort] = useState<MemberSort>('ROLE_PRIORITY')
   const [currentPage, setCurrentPage] = useState<
     'MEMBERS' | 'ATTENDANCE' | 'COUPONS' | 'STATISTICS' | 'MEETING_NOTES'
   >('MEMBERS')
@@ -92,7 +134,12 @@ function App() {
     return [...members]
       .filter(
         (member) =>
-          memberFilter === 'ALL' || member.membershipStatus === memberFilter,
+          memberStatusFilter === 'ALL' ||
+          member.membershipStatus === memberStatusFilter,
+      )
+      .filter(
+        (member) =>
+          memberRoleFilter === 'ALL' || member.memberRole === memberRoleFilter,
       )
       .filter((member) => {
         if (normalizedSearch === '') {
@@ -103,12 +150,20 @@ function App() {
           .some((value) => value.toLocaleLowerCase().includes(normalizedSearch))
       })
       .sort((left, right) => {
+        if (memberSort === 'ROLE_PRIORITY') {
+          const roleDifference =
+            memberRolePriority[left.memberRole] -
+            memberRolePriority[right.memberRole]
+          if (roleDifference !== 0) {
+            return roleDifference
+          }
+        }
         if (memberSort === 'JOINED_ON_DESC') {
           return right.joinedOn.localeCompare(left.joinedOn)
         }
         return left.displayName.localeCompare(right.displayName, 'ko')
       })
-  }, [memberFilter, memberSearch, memberSort, members])
+  }, [memberRoleFilter, memberSearch, memberSort, memberStatusFilter, members])
 
   const loadMembers = useCallback(async () => {
     const response = await fetch('/api/v1/members', { credentials: 'include' })
@@ -127,8 +182,9 @@ function App() {
         return
       }
 
-      const account = (await response.json()) as { loginId: string }
+      const account = (await response.json()) as AuthAccount
       setCurrentLoginId(account.loginId)
+      setIsReadOnly(account.readOnly)
       await loadMembers()
     } catch {
       setMessage('서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해 주세요.')
@@ -189,12 +245,35 @@ function App() {
     }
 
     setCurrentLoginId(loginId)
+    setIsReadOnly(false)
     setPassword('')
+    await loadMembers()
+  }
+
+  async function handleGuestLogin() {
+    setMessage('')
+    const response = await fetch('/api/v1/auth/guest-login', {
+      method: 'POST',
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      setMessage(
+        '게스트 모드를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      )
+      return
+    }
+
+    setCurrentLoginId('guest')
+    setIsReadOnly(true)
     await loadMembers()
   }
 
   async function handleCreateMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isReadOnly) {
+      return
+    }
     setMessage('')
     setFieldErrors({})
 
@@ -272,6 +351,9 @@ function App() {
 
   async function handleUpdateMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isReadOnly) {
+      return
+    }
     if (selectedMember === null) {
       return
     }
@@ -346,6 +428,9 @@ function App() {
   }
 
   async function handleMembershipStatusChange() {
+    if (isReadOnly) {
+      return
+    }
     if (selectedMember === null) {
       return
     }
@@ -381,6 +466,9 @@ function App() {
 
   async function handleStartExclusion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isReadOnly) {
+      return
+    }
     if (selectedMember === null) {
       return
     }
@@ -423,6 +511,9 @@ function App() {
     startDate: string
     note: string | null
   }) {
+    if (isReadOnly) {
+      return
+    }
     if (selectedMember === null || editingExclusion === null) {
       return
     }
@@ -456,6 +547,9 @@ function App() {
   }
 
   function beginExclusionEdit(exclusion: ActivityExclusion) {
+    if (isReadOnly) {
+      return
+    }
     setEditingExclusion(exclusion)
     setExclusionReason(exclusion.reason)
     setExclusionStartDate(exclusion.startDate)
@@ -470,6 +564,9 @@ function App() {
   }
 
   async function handleEndExclusion(exclusion: ActivityExclusion) {
+    if (isReadOnly) {
+      return
+    }
     if (selectedMember === null) {
       return
     }
@@ -503,6 +600,7 @@ function App() {
       credentials: 'include',
     })
     setCurrentLoginId(null)
+    setIsReadOnly(false)
     setMembers([])
     setSelectedMember(null)
     setIsMemberSheetOpen(false)
@@ -514,6 +612,12 @@ function App() {
   if (currentLoginId === null) {
     return (
       <main className="login-page">
+        {isRequestInProgress && (
+          <div aria-live="polite" className="api-loading-overlay" role="status">
+            <span aria-hidden="true" className="api-loading-spinner" />
+            처리 중입니다…
+          </div>
+        )}
         <section className="login-card" aria-labelledby="login-heading">
           <p className="eyebrow">MOING MOING</p>
           <h1 id="login-heading">운영진 관리</h1>
@@ -540,6 +644,16 @@ function App() {
             </label>
             <button type="submit">로그인</button>
           </form>
+          <p className="guest-login-prompt">
+            둘러보기만 원하시나요?{' '}
+            <button
+              className="guest-login-button"
+              onClick={() => void handleGuestLogin()}
+              type="button"
+            >
+              게스트로 둘러보기
+            </button>
+          </p>
           {message && selectedMember === null && (
             <p className="message" role="status">
               {message}
@@ -552,13 +666,20 @@ function App() {
 
   return (
     <main className="app-shell">
+      {isRequestInProgress && (
+        <div aria-live="polite" className="api-loading-overlay" role="status">
+          <span aria-hidden="true" className="api-loading-spinner" />
+          처리 중입니다…
+        </div>
+      )}
       <header className="app-header">
         <div>
           <p className="eyebrow">MOING MOING</p>
           <h1>{currentPage === 'MEMBERS' ? '회원 관리' : '출석 관리'}</h1>
         </div>
         <div className="account-actions">
-          <span>{currentLoginId}</span>
+          <span>{isReadOnly ? '게스트' : currentLoginId}</span>
+          {isReadOnly && <span className="read-only-badge">읽기 전용</span>}
           <button
             className="secondary-button"
             onClick={handleLogout}
@@ -623,84 +744,125 @@ function App() {
         </button>
       </nav>
 
+      {isReadOnly && (
+        <p className="read-only-notice" role="status">
+          게스트 모드에서는 데이터를 조회만 할 수 있습니다. 등록, 수정, 출석 및
+          쿠폰 처리는 관리자 로그인이 필요합니다.
+        </p>
+      )}
+
       {currentPage === 'MEMBERS' && (
         <section
           className={isMemberDetailPage ? 'member-page' : 'content-grid'}
         >
           {!isMemberDetailPage && (
             <>
-              <section
-                className="panel"
-                aria-labelledby="member-create-heading"
-              >
-                <h2 id="member-create-heading">새 회원 등록</h2>
-                <form className="form" onSubmit={handleCreateMember}>
-                  <label>
-                    이름
-                    <input
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      required
-                      value={displayName}
-                    />
-                    {fieldErrors.displayName && selectedMember === null && (
-                      <span className="field-error">
-                        {fieldErrors.displayName}
-                      </span>
-                    )}
-                  </label>
-                  <label>
-                    소모임 닉네임 <span className="optional">(선택)</span>
-                    <input
-                      onChange={(event) =>
-                        setExternalNickname(event.target.value)
-                      }
-                      value={externalNickname}
-                    />
-                  </label>
-                  <label>
-                    역할
-                    <select
-                      onChange={(event) =>
-                        setMemberRole(event.target.value as MemberRole)
-                      }
-                      value={memberRole}
-                    >
-                      {Object.entries(memberRoleLabels).map(([role, label]) => (
-                        <option key={role} value={role}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    가입일
-                    <input
-                      onChange={(event) => setJoinedOn(event.target.value)}
-                      required
-                      type="date"
-                      value={joinedOn}
-                    />
-                    {fieldErrors.joinedOn && selectedMember === null && (
-                      <span className="field-error">
-                        {fieldErrors.joinedOn}
-                      </span>
-                    )}
-                  </label>
-                  <label>
-                    메모 <span className="optional">(선택)</span>
-                    <textarea
-                      onChange={(event) => setMemo(event.target.value)}
-                      value={memo}
-                    />
-                  </label>
-                  <button type="submit">회원 등록</button>
-                </form>
-                {message && selectedMember === null && (
-                  <p className="message" role="status">
-                    {message}
-                  </p>
-                )}
-              </section>
+              {!isReadOnly && (
+                <section
+                  className="panel"
+                  aria-labelledby="member-create-heading"
+                >
+                  <h2 id="member-create-heading">새 회원 등록</h2>
+                  <form className="form" onSubmit={handleCreateMember}>
+                    <label>
+                      이름
+                      <input
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        required
+                        value={displayName}
+                      />
+                      {fieldErrors.displayName && selectedMember === null && (
+                        <span className="field-error">
+                          {fieldErrors.displayName}
+                        </span>
+                      )}
+                    </label>
+                    <label>
+                      소모임 닉네임 <span className="optional">(선택)</span>
+                      <input
+                        onChange={(event) =>
+                          setExternalNickname(event.target.value)
+                        }
+                        value={externalNickname}
+                      />
+                    </label>
+                    <fieldset className="member-role-selector">
+                      <legend>역할</legend>
+                      <div className="member-role-options">
+                        {Object.entries(memberRoleLabels).map(
+                          ([role, label]) => {
+                            const memberRoleOption = role as MemberRole
+                            const isSelected = memberRole === memberRoleOption
+
+                            return (
+                              <label
+                                className={`member-role-option member-role-option-${memberRoleOption.toLowerCase()}${
+                                  isSelected
+                                    ? ' member-role-option-selected'
+                                    : ''
+                                }`}
+                                key={role}
+                              >
+                                <input
+                                  checked={isSelected}
+                                  name="member-role"
+                                  onChange={() =>
+                                    setMemberRole(memberRoleOption)
+                                  }
+                                  type="radio"
+                                  value={memberRoleOption}
+                                />
+                                <span
+                                  className={`member-role-badge member-role-${memberRoleOption.toLowerCase()}`}
+                                >
+                                  <span aria-hidden="true">
+                                    {memberRoleIcons[memberRoleOption]}
+                                  </span>
+                                  {label}
+                                </span>
+                                <span className="member-role-description">
+                                  {memberRoleOption === 'LEADER'
+                                    ? '소모임 대표'
+                                    : memberRoleOption === 'STAFF'
+                                      ? '운영 보조'
+                                      : '일반 참여자'}
+                                </span>
+                              </label>
+                            )
+                          },
+                        )}
+                      </div>
+                    </fieldset>
+                    <label>
+                      가입일
+                      <input
+                        onChange={(event) => setJoinedOn(event.target.value)}
+                        required
+                        type="date"
+                        value={joinedOn}
+                      />
+                      {fieldErrors.joinedOn && selectedMember === null && (
+                        <span className="field-error">
+                          {fieldErrors.joinedOn}
+                        </span>
+                      )}
+                    </label>
+                    <label>
+                      메모 <span className="optional">(선택)</span>
+                      <textarea
+                        onChange={(event) => setMemo(event.target.value)}
+                        value={memo}
+                      />
+                    </label>
+                    <button type="submit">회원 등록</button>
+                  </form>
+                  {message && selectedMember === null && (
+                    <p className="message" role="status">
+                      {message}
+                    </p>
+                  )}
+                </section>
+              )}
 
               <section className="panel" aria-labelledby="member-list-heading">
                 <div className="panel-heading">
@@ -731,13 +893,33 @@ function App() {
                     회원 상태
                     <select
                       onChange={(event) =>
-                        setMemberFilter(event.target.value as MemberFilter)
+                        setMemberStatusFilter(
+                          event.target.value as MemberStatusFilter,
+                        )
                       }
-                      value={memberFilter}
+                      value={memberStatusFilter}
                     >
                       <option value="ALL">전체</option>
                       <option value="ACTIVE">활동 중</option>
                       <option value="WITHDRAWN">탈퇴</option>
+                    </select>
+                  </label>
+                  <label>
+                    회원 역할
+                    <select
+                      onChange={(event) =>
+                        setMemberRoleFilter(
+                          event.target.value as MemberRoleFilter,
+                        )
+                      }
+                      value={memberRoleFilter}
+                    >
+                      <option value="ALL">전체</option>
+                      {Object.entries(memberRoleLabels).map(([role, label]) => (
+                        <option key={role} value={role}>
+                          {label}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label>
@@ -748,6 +930,7 @@ function App() {
                       }
                       value={memberSort}
                     >
+                      <option value="ROLE_PRIORITY">역할 우선</option>
                       <option value="NAME_ASC">이름순</option>
                       <option value="JOINED_ON_DESC">가입일 최신순</option>
                     </select>
@@ -765,20 +948,31 @@ function App() {
                           type="button"
                         >
                           <div>
-                            <strong>{member.displayName}</strong>
+                            <div className="member-name-line">
+                              <strong>{member.displayName}</strong>
+                              <span
+                                aria-label={`직책 ${memberRoleLabels[member.memberRole]}`}
+                                className={`member-role-badge member-role-${member.memberRole.toLowerCase()}`}
+                              >
+                                <span aria-hidden="true">
+                                  {memberRoleIcons[member.memberRole]}
+                                </span>
+                                {memberRoleLabels[member.memberRole]}
+                              </span>
+                            </div>
                             <span>
-                              {memberRoleLabels[member.memberRole]}
-                              {member.externalNickname &&
-                                ` · ${member.externalNickname}`}
+                              {member.externalNickname ?? '소모임 닉네임 없음'}
                             </span>
                           </div>
-                          <span
-                            className={`status status-${member.membershipStatus.toLowerCase()}`}
-                          >
-                            {member.membershipStatus === 'ACTIVE'
-                              ? '활동 중'
-                              : '탈퇴'}
-                          </span>
+                          <div className="member-row-badges">
+                            <span
+                              className={`status status-${member.membershipStatus.toLowerCase()}`}
+                            >
+                              {member.membershipStatus === 'ACTIVE'
+                                ? '활동 중'
+                                : '탈퇴'}
+                            </span>
+                          </div>
                         </button>
                       </li>
                     ))}
@@ -796,7 +990,18 @@ function App() {
               <div className="panel-heading">
                 <div>
                   <h2 id="member-detail-heading">회원 상세</h2>
-                  <p>{selectedMember.displayName}</p>
+                  <p className="member-detail-role">
+                    <span
+                      aria-label={`직책 ${memberRoleLabels[selectedMember.memberRole]}`}
+                      className={`member-role-badge member-role-${selectedMember.memberRole.toLowerCase()}`}
+                    >
+                      <span aria-hidden="true">
+                        {memberRoleIcons[selectedMember.memberRole]}
+                      </span>
+                      {memberRoleLabels[selectedMember.memberRole]}
+                    </span>
+                    {` ${selectedMember.displayName}`}
+                  </p>
                 </div>
                 <button
                   className="secondary-button"
@@ -864,7 +1069,9 @@ function App() {
                     value={memo}
                   />
                 </label>
-                <button type="submit">회원 정보 저장</button>
+                <button disabled={isReadOnly} type="submit">
+                  회원 정보 저장
+                </button>
               </form>
 
               <section
@@ -895,6 +1102,7 @@ function App() {
                   </label>
                   <button
                     className="danger-button"
+                    disabled={isReadOnly}
                     onClick={handleMembershipStatusChange}
                     type="button"
                   >
@@ -953,7 +1161,7 @@ function App() {
                     />
                   </label>
                   <div className="form-actions">
-                    <button type="submit">
+                    <button disabled={isReadOnly} type="submit">
                       {editingExclusion === null
                         ? '활동 중단 시작'
                         : '활동 중단 기간 저장'}
@@ -961,6 +1169,7 @@ function App() {
                     {editingExclusion && (
                       <button
                         className="secondary-button"
+                        disabled={isReadOnly}
                         onClick={cancelExclusionEdit}
                         type="button"
                       >
@@ -1001,6 +1210,7 @@ function App() {
                         <div className="exclusion-actions">
                           <button
                             className="secondary-button"
+                            disabled={isReadOnly}
                             onClick={() => beginExclusionEdit(exclusion)}
                             type="button"
                           >
@@ -1009,6 +1219,7 @@ function App() {
                           {exclusion.endDate === null && (
                             <button
                               className="secondary-button"
+                              disabled={isReadOnly}
                               onClick={() => void handleEndExclusion(exclusion)}
                               type="button"
                             >
@@ -1052,8 +1263,15 @@ function App() {
                       {selectedMember.displayName}
                     </h2>
                     <p>
-                      {memberRoleLabels[selectedMember.memberRole]}
-                      {' · '}
+                      <span
+                        aria-label={`직책 ${memberRoleLabels[selectedMember.memberRole]}`}
+                        className={`member-role-badge member-role-${selectedMember.memberRole.toLowerCase()}`}
+                      >
+                        <span aria-hidden="true">
+                          {memberRoleIcons[selectedMember.memberRole]}
+                        </span>
+                        {memberRoleLabels[selectedMember.memberRole]}
+                      </span>{' '}
                       {selectedMember.membershipStatus === 'ACTIVE'
                         ? '활동 중'
                         : '탈퇴'}
@@ -1096,10 +1314,16 @@ function App() {
           )}
         </section>
       )}
-      {currentPage === 'ATTENDANCE' && <AttendancePage members={members} />}
-      {currentPage === 'COUPONS' && <CouponPage members={members} />}
+      {currentPage === 'ATTENDANCE' && (
+        <AttendancePage members={members} readOnly={isReadOnly} />
+      )}
+      {currentPage === 'COUPONS' && (
+        <CouponPage members={members} readOnly={isReadOnly} />
+      )}
       {currentPage === 'STATISTICS' && <MonthlyStatisticsPage />}
-      {currentPage === 'MEETING_NOTES' && <MeetingNotePage />}
+      {currentPage === 'MEETING_NOTES' && (
+        <MeetingNotePage readOnly={isReadOnly} />
+      )}
     </main>
   )
 }

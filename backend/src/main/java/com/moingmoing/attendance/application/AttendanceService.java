@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +38,13 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public List<Gathering> findGatherings() {
-        return gatheringRepository.findAllByOrderByHeldOnDesc();
+        return gatheringRepository.findByGatheringStatusNotOrderByHeldOnDesc(GatheringStatus.CANCELLED);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Gathering> findCancelledGatherings(int page, int size) {
+        return gatheringRepository.findByGatheringStatusOrderByCancelledAtDesc(
+                GatheringStatus.CANCELLED, PageRequest.of(page, size));
     }
 
     public Gathering createGathering(LocalDate heldOn, String title, Instant startsAt, String location) {
@@ -55,9 +63,9 @@ public class AttendanceService {
         return gathering;
     }
 
-    public Gathering cancelGathering(UUID gatheringId) {
+    public Gathering cancelGathering(UUID gatheringId, String cancellationReason) {
         Gathering gathering = findGathering(gatheringId);
-        gathering.cancel();
+        gathering.cancel(cancellationReason);
         return gathering;
     }
 

@@ -27,7 +27,11 @@ type NoteSort = 'CREATED_DESC' | 'CREATED_ASC' | 'TITLE_ASC'
 
 const initialMarkdown = `## 안건\n\n- [ ] 논의할 내용\n- [x] 완료한 내용\n\n| 담당 | 할 일 |\n| --- | --- |\n| 운영진 | 다음 모임 준비 |`
 
-export function MeetingNotePage() {
+type MeetingNotePageProps = {
+  readOnly?: boolean
+}
+
+export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [notes, setNotes] = useState<MeetingNote[]>([])
   const [selectedNote, setSelectedNote] = useState<MeetingNote | null>(null)
@@ -203,13 +207,15 @@ export function MeetingNotePage() {
           <h2>회의록</h2>
           <p>Markdown으로 작성하고, 저장 전 미리 보기로 확인합니다.</p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={resetEditor}
-          type="button"
-        >
-          새 회의록
-        </button>
+        {!readOnly && (
+          <button
+            className="secondary-button"
+            onClick={resetEditor}
+            type="button"
+          >
+            새 회의록
+          </button>
+        )}
       </div>
 
       <section className="meeting-note-grid">
@@ -219,6 +225,7 @@ export function MeetingNotePage() {
             <label>
               이름
               <input
+                disabled={readOnly}
                 onChange={(event) => setCategoryName(event.target.value)}
                 required
                 value={categoryName}
@@ -227,6 +234,7 @@ export function MeetingNotePage() {
             <label>
               색상
               <input
+                disabled={readOnly}
                 onChange={(event) => setCategoryColor(event.target.value)}
                 pattern="#[0-9A-Fa-f]{6}"
                 required
@@ -234,7 +242,7 @@ export function MeetingNotePage() {
               />
             </label>
             <div className="form-actions">
-              <button type="submit">
+              <button disabled={readOnly} type="submit">
                 {editingCategory === null ? '카테고리 추가' : '카테고리 수정'}
               </button>
               {editingCategory !== null && (
@@ -259,20 +267,24 @@ export function MeetingNotePage() {
                   {category.name}
                 </span>
                 <div className="category-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => beginCategoryEdit(category)}
-                    type="button"
-                  >
-                    수정
-                  </button>
-                  <button
-                    className="danger-button"
-                    onClick={() => void deactivateCategory(category)}
-                    type="button"
-                  >
-                    비활성화
-                  </button>
+                  {!readOnly && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => beginCategoryEdit(category)}
+                      type="button"
+                    >
+                      수정
+                    </button>
+                  )}
+                  {!readOnly && (
+                    <button
+                      className="danger-button"
+                      onClick={() => void deactivateCategory(category)}
+                      type="button"
+                    >
+                      비활성화
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -364,7 +376,7 @@ export function MeetingNotePage() {
             <h3>{selectedNote === null ? '회의록 작성' : '회의록 수정'}</h3>
             <p>raw HTML은 렌더링하지 않습니다.</p>
           </div>
-          {selectedNote !== null && (
+          {!readOnly && selectedNote !== null && (
             <button
               className="danger-button"
               onClick={() => void hideNote(selectedNote)}
@@ -377,6 +389,7 @@ export function MeetingNotePage() {
         <label>
           카테고리
           <select
+            disabled={readOnly}
             onChange={(event) => setCategoryId(event.target.value)}
             required
             value={categoryId}
@@ -392,6 +405,7 @@ export function MeetingNotePage() {
         <label>
           제목
           <input
+            disabled={readOnly}
             maxLength={200}
             onChange={(event) => setTitle(event.target.value)}
             required
@@ -402,12 +416,13 @@ export function MeetingNotePage() {
           Markdown 본문
           <textarea
             className="markdown-editor"
+            disabled={readOnly}
             onChange={(event) => setMarkdownContent(event.target.value)}
             required
             value={markdownContent}
           />
         </label>
-        <button type="submit">저장</button>
+        {!readOnly && <button type="submit">저장</button>}
       </form>
 
       <section className="panel markdown-preview">

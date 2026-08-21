@@ -30,6 +30,45 @@ describe('App', () => {
     expect(screen.getByLabelText('로그인 ID')).toBeInTheDocument()
     expect(screen.getByLabelText('비밀번호')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '로그인' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: '게스트로 둘러보기' }),
+    ).toBeInTheDocument()
+  })
+
+  it('starts a guest session with read-only member browsing', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 'member-1',
+              displayName: '조회 회원',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+          ],
+        }),
+    )
+
+    renderApp()
+
+    await user.click(screen.getByRole('button', { name: '게스트로 둘러보기' }))
+
+    expect(await screen.findByText('읽기 전용')).toBeInTheDocument()
+    expect(screen.getByText('조회 회원')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: '새 회원 등록' }),
+    ).not.toBeInTheDocument()
   })
 
   it('logs in through the API and loads members', async () => {
@@ -104,5 +143,74 @@ describe('App', () => {
       await screen.findByRole('dialog', { name: '회원 정보 저장 완료' }),
     ).toBeInTheDocument()
     expect(screen.getByText('역할 정보를 저장했습니다.')).toBeInTheDocument()
+  })
+
+  it('prioritizes leadership roles and filters the member list by role', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 'member-1',
+              displayName: '일반 회원',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+            {
+              id: 'member-2',
+              displayName: '운영진 회원',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'STAFF',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+            {
+              id: 'member-3',
+              displayName: '모임장 회원',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'LEADER',
+              joinedOn: '2026-08-21',
+              withdrawnOn: null,
+              memo: null,
+            },
+          ],
+        }),
+    )
+
+    const { container } = renderApp()
+
+    await user.type(screen.getByLabelText('로그인 ID'), 'administrator')
+    await user.type(screen.getByLabelText('비밀번호'), 'safe-password')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
+
+    await screen.findByText('모임장 회원')
+    const staffRoleRadio = screen.getByRole('radio', { name: /운영진/ })
+    await user.click(staffRoleRadio)
+    expect(staffRoleRadio).toBeChecked()
+
+    const memberRows = Array.from(container.querySelectorAll('.member-row'))
+    expect(memberRows.map((button) => button.textContent)).toEqual([
+      expect.stringContaining('모임장 회원'),
+      expect.stringContaining('운영진 회원'),
+      expect.stringContaining('일반 회원'),
+    ])
+
+    await user.selectOptions(screen.getByLabelText('회원 역할'), 'STAFF')
+
+    expect(screen.getByText('운영진 회원')).toBeInTheDocument()
+    expect(screen.queryByText('모임장 회원')).not.toBeInTheDocument()
   })
 })

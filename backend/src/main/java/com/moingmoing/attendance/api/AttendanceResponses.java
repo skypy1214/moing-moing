@@ -16,7 +16,9 @@ record GatheringResponse(
         String title,
         Instant startsAt,
         String location,
-        GatheringStatus gatheringStatus) {
+        GatheringStatus gatheringStatus,
+        Instant cancelledAt,
+        String cancellationReason) {
     static GatheringResponse from(Gathering gathering) {
         return new GatheringResponse(
                 gathering.getId(),
@@ -24,8 +26,18 @@ record GatheringResponse(
                 gathering.getTitle(),
                 gathering.getStartsAt(),
                 gathering.getLocation(),
-                gathering.getGatheringStatus());
+                gathering.getGatheringStatus(),
+                gathering.getCancelledAt(),
+                gathering.getCancellationReason());
     }
+}
+
+record CancelledGatheringPageResponse(
+        java.util.List<GatheringResponse> items,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages) {
 }
 
 record AttendanceResponse(
