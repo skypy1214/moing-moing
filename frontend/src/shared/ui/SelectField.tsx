@@ -1,4 +1,7 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+
+import { useFloatingOptions } from './useFloatingOptions'
 
 export type SelectOption = {
   label: string
@@ -23,17 +26,19 @@ export function SelectField({
   value,
 }: SelectFieldProps) {
   const listboxId = useId()
+  const fieldRef = useRef<HTMLDivElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const selectedOption = options.find((option) => option.value === value)
+  const { optionsRef, style } = useFloatingOptions({
+    anchorRef: fieldRef,
+    isOpen,
+    onRequestClose: () => setIsOpen(false),
+  })
 
   return (
     <div
       className={`ui-select-field${isOpen ? ' is-open' : ''}`}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setIsOpen(false)
-        }
-      }}
+      ref={fieldRef}
     >
       <span className="ui-select-label">{label}</span>
       <button
@@ -57,25 +62,35 @@ export function SelectField({
           ▾
         </span>
       </button>
-      {isOpen && (
-        <div className="ui-select-options" id={listboxId} role="listbox">
-          {options.map((option) => (
-            <button
-              aria-selected={option.value === value}
-              className={option.value === value ? 'is-selected' : undefined}
-              key={option.value}
-              onClick={() => {
-                onChange(option.value)
-                setIsOpen(false)
-              }}
-              role="option"
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {isOpen &&
+        createPortal(
+          <div
+            className="ui-select-options ui-select-options-floating"
+            id={listboxId}
+            ref={optionsRef}
+            role="listbox"
+            style={style}
+          >
+            <div className="floating-options-scroll">
+              {options.map((option) => (
+                <button
+                  aria-selected={option.value === value}
+                  className={option.value === value ? 'is-selected' : undefined}
+                  key={option.value}
+                  onClick={() => {
+                    onChange(option.value)
+                    setIsOpen(false)
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

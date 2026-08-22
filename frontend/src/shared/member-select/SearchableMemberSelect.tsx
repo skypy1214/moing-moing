@@ -1,6 +1,8 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import type { Member } from '../../App'
+import { useFloatingOptions } from '../ui/useFloatingOptions'
 
 type SearchableMemberSelectProps = {
   label: string
@@ -24,10 +26,16 @@ export function SearchableMemberSelect({
 }: SearchableMemberSelectProps) {
   const inputId = useId()
   const listboxId = useId()
+  const inputContainerRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const selectedMember = members.find((member) => member.id === value)
+  const { optionsRef, style } = useFloatingOptions({
+    anchorRef: inputContainerRef,
+    isOpen,
+    onRequestClose: () => setIsOpen(false),
+  })
 
   useEffect(() => {
     setQuery(selectedMember ? memberLabel(selectedMember) : '')
@@ -64,16 +72,12 @@ export function SearchableMemberSelect({
   }
 
   return (
-    <div
-      className="searchable-member-select"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setIsOpen(false)
-        }
-      }}
-    >
+    <div className="searchable-member-select">
       <label htmlFor={inputId}>{label}</label>
-      <div className={`member-autocomplete${isOpen ? ' is-open' : ''}`}>
+      <div
+        className={`member-autocomplete${isOpen ? ' is-open' : ''}`}
+        ref={inputContainerRef}
+      >
         <input
           aria-autocomplete="list"
           aria-controls={listboxId}
@@ -100,7 +104,11 @@ export function SearchableMemberSelect({
               openOptions(false)
               setActiveIndex((index) => Math.max(index - 1, 0))
             }
-            if (event.key === 'Enter' && isOpen && visibleMembers[activeIndex]) {
+            if (
+              event.key === 'Enter' &&
+              isOpen &&
+              visibleMembers[activeIndex]
+            ) {
               event.preventDefault()
               selectMember(visibleMembers[activeIndex])
             }
@@ -127,39 +135,49 @@ export function SearchableMemberSelect({
             ×
           </button>
         )}
-        {isOpen && (
-          <div
-            className="member-autocomplete-options"
-            id={listboxId}
-            role="listbox"
-          >
-            {visibleMembers.length === 0 ? (
-              <p>검색 결과가 없습니다.</p>
-            ) : (
-              visibleMembers.map((member) => (
-                <button
-                  aria-selected={member.id === value}
-                  className={
-                    member.id === value
-                      ? 'is-selected'
-                      : visibleMembers[activeIndex]?.id === member.id
-                        ? 'is-active'
-                        : undefined
-                  }
-                  key={member.id}
-                  onMouseEnter={() => setActiveIndex(visibleMembers.indexOf(member))}
-                  onClick={() => selectMember(member)}
-                  role="option"
-                  type="button"
-                >
-                  <strong>{member.displayName}</strong>
-                  {member.externalNickname && <span>{member.externalNickname}</span>}
-                  {member.membershipStatus === 'WITHDRAWN' && <em>탈퇴</em>}
-                </button>
-              ))
-            )}
-          </div>
-        )}
+        {isOpen &&
+          createPortal(
+            <div
+              className="member-autocomplete-options member-autocomplete-options-floating"
+              id={listboxId}
+              ref={optionsRef}
+              role="listbox"
+              style={style}
+            >
+              <div className="floating-options-scroll">
+                {visibleMembers.length === 0 ? (
+                  <p>검색 결과가 없습니다.</p>
+                ) : (
+                  visibleMembers.map((member) => (
+                    <button
+                      aria-selected={member.id === value}
+                      className={
+                        member.id === value
+                          ? 'is-selected'
+                          : visibleMembers[activeIndex]?.id === member.id
+                            ? 'is-active'
+                            : undefined
+                      }
+                      key={member.id}
+                      onMouseEnter={() =>
+                        setActiveIndex(visibleMembers.indexOf(member))
+                      }
+                      onClick={() => selectMember(member)}
+                      role="option"
+                      type="button"
+                    >
+                      <strong>{member.displayName}</strong>
+                      {member.externalNickname && (
+                        <span>{member.externalNickname}</span>
+                      )}
+                      {member.membershipStatus === 'WITHDRAWN' && <em>탈퇴</em>}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>,
+            document.body,
+          )}
       </div>
     </div>
   )
