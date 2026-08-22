@@ -103,4 +103,23 @@ public class Gathering {
         this.cancellationReason = cancellationReason.trim();
         updatedAt = Instant.now();
     }
+
+    public void reopen() {
+        if (gatheringStatus != GatheringStatus.CLOSED) {
+            throw new IllegalArgumentException("Only a closed gathering can be reopened.");
+        }
+        gatheringStatus = GatheringStatus.OPEN;
+        updatedAt = Instant.now();
+    }
+
+    public void updateDetails(LocalDate heldOn, String title, Instant startsAt, String location) {
+        if (gatheringStatus == GatheringStatus.CANCELLED) {
+            throw new IllegalArgumentException("Cancelled gatherings cannot be changed.");
+        }
+        this.heldOn = heldOn;
+        this.title = title;
+        this.startsAt = startsAt;
+        this.location = location;
+        updatedAt = Instant.now();
+    }
 }

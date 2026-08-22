@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import type { IDetectedBarcode, IScannerError } from '@yudiel/react-qr-scanner'
 import { QRCodeSVG } from 'qrcode.react'
@@ -9,11 +9,13 @@ import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
+import { KoreanDateInput, formatKoreanDate } from '../../shared/ui/KoreanDateInput'
 import { SelectField } from '../../shared/ui/SelectField'
 
 type CouponStatus = 'ISSUED' | 'SUSPENDED' | 'EXPIRED' | 'FULLY_USED' | 'VOIDED'
 type CouponType = 'MANUAL_FREE_PASS' | 'ATTENDANCE_CHAMPION'
 type AwardStatus = 'GRANTED' | 'CANCELLED' | 'CALCULATED'
+type CouponFilter = 'ALL' | CouponStatus
 
 type Coupon = {
   id: string
@@ -24,7 +26,10 @@ type Coupon = {
   validUntil: string
   totalUses: number
   remainingUses: number
+  name: string | null
   issuedReason: string | null
+  championAwardId: string | null
+  hasQrCode: boolean
 }
 
 type AttendanceChampionAward = {
@@ -58,7 +63,7 @@ const couponStatusLabels: Record<CouponStatus, string> = {
   ISSUED: '사용 가능',
   SUSPENDED: '정지',
   EXPIRED: '만료',
-  FULLY_USED: '모두 사용',
+  FULLY_USED: '사용 완료',
   VOIDED: '폐기',
 }
 
@@ -67,27 +72,85 @@ const couponTypeLabels: Record<CouponType, string> = {
   ATTENDANCE_CHAMPION: '출석왕 쿠폰',
 }
 
+function couponValidityLabel(coupon: Coupon) {
+  if (coupon.validUntil === '9999-12-31') {
+    return `${formatKoreanDate(coupon.validFrom)}부터 · 무기한`
+  }
+  return `${formatKoreanDate(coupon.validFrom)} ~ ${formatKoreanDate(coupon.validUntil)}`
+}
+
 type CouponPageProps = {
   members: Member[]
   readOnly?: boolean
+}
+
+function CouponDialog({
+  children,
+  onClose,
+}: {
+  children: ReactNode
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <section aria-modal="true" className="modal-content" role="dialog">
+        <div className="modal-scroll-content">
+          <div className="modal-header">
+          <button
+            aria-label="모달 닫기"
+            className="modal-close-button"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+          </div>
+          {children}
+        </div>
+      </section>
+    </div>
+  )
 }
 
 export function CouponPage({ members, readOnly = false }: CouponPageProps) {
   const { confirm, showFeedbackDialog } = useFeedbackDialog()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [awards, setAwards] = useState<AttendanceChampionAward[]>([])
+  const [couponFilter, setCouponFilter] = useState<CouponFilter>('ALL')
   const [memberId, setMemberId] = useState('')
   const [validFrom, setValidFrom] = useState(today)
   const [validUntil, setValidUntil] = useState(today)
+  const [isUnlimited, setIsUnlimited] = useState(false)
   const [totalUses, setTotalUses] = useState(1)
+  const [couponName, setCouponName] = useState('')
   const [issuedReason, setIssuedReason] = useState('')
   const [awardMonth, setAwardMonth] = useState(currentMonth)
+  const [isCouponIssuePage, setIsCouponIssuePage] = useState(false)
+  const [isAwardIssueOpen, setIsAwardIssueOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [extensionDate, setExtensionDate] = useState(today)
   const [usageHistory, setUsageHistory] = useState<CouponUsage[]>([])
   const [usageHistoryCouponId, setUsageHistoryCouponId] = useState<
     string | null
   >(null)
+  const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null)
   const [couponToUse, setCouponToUse] = useState<Coupon | null>(null)
   const [gatherings, setGatherings] = useState<Gathering[]>([])
   const [gatheringId, setGatheringId] = useState('')
@@ -104,7 +167,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
   const memberName = (id: string) =>
     members.find((member) => member.id === id)?.displayName ?? '알 수 없는 회원'
 
-  async function loadCoupons() {
+  const loadCoupons = useCallback(async () => {
     const response = await fetch('/api/v1/coupons', { credentials: 'include' })
     if (!response.ok) {
       setMessage('쿠폰 목록을 불러오지 못했습니다.')
@@ -112,7 +175,29 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     }
     setCoupons((await response.json()) as Coupon[])
     setMessage('쿠폰 목록을 새로고침했습니다.')
-  }
+  }, [])
+
+  useEffect(() => {
+    void loadCoupons()
+  }, [loadCoupons])
+
+  const loadAwards = useCallback(async () => {
+    const response = await fetch(
+      `/api/v1/attendance-champion-awards?month=${encodeURIComponent(awardMonth)}`,
+      { credentials: 'include' },
+    )
+    if (!response.ok) {
+      setMessage('선택한 달의 출석왕 결과를 불러오지 못했습니다.')
+      return
+    }
+    setAwards((await response.json()) as AttendanceChampionAward[])
+  }, [awardMonth])
+
+  useEffect(() => {
+    if (isAwardIssueOpen) {
+      void loadAwards()
+    }
+  }, [isAwardIssueOpen, loadAwards])
 
   async function issueCoupon(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -123,8 +208,9 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     const payload = {
       memberId,
       validFrom,
-      validUntil,
+      validUntil: isUnlimited ? '9999-12-31' : validUntil,
       totalUses,
+      name: couponName,
       issuedReason: issuedReason || null,
     }
     const response = await fetch('/api/v1/coupons', {
@@ -139,7 +225,10 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     }
     const issuedCoupon = (await response.json()) as Coupon
     setCoupons((previous) => [issuedCoupon, ...previous])
+    setMemberId('')
+    setCouponName('')
     setIssuedReason('')
+    setIsCouponIssuePage(false)
     setMessage('쿠폰을 발급했습니다.')
   }
 
@@ -156,6 +245,8 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     setCoupons((previous) =>
       previous.map((item) => (item.id === changed.id ? changed : item)),
     )
+    setSelectedCoupon((previous) => (previous?.id === changed.id ? changed : previous))
+    setMessage(action === 'suspend' ? '쿠폰을 정지했습니다.' : '쿠폰을 폐기했습니다.')
   }
 
   async function extendCoupon(coupon: Coupon) {
@@ -177,11 +268,13 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     setCoupons((previous) =>
       previous.map((item) => (item.id === changed.id ? changed : item)),
     )
+    setSelectedCoupon((previous) => (previous?.id === changed.id ? changed : previous))
     setMessage('쿠폰 사용 기간을 연장했습니다.')
   }
 
   async function loadUsageHistory(coupon: Coupon) {
     setUsageHistoryCouponId(coupon.id)
+    setSelectedCoupon(null)
     const response = await fetch(`/api/v1/coupons/${coupon.id}/usages`, {
       credentials: 'include',
     })
@@ -194,6 +287,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
 
   async function openCouponUse(coupon: Coupon) {
     setCouponToUse(coupon)
+    setSelectedCoupon(null)
     setGatheringId('')
     const response = await fetch('/api/v1/gatherings', {
       credentials: 'include',
@@ -282,13 +376,32 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     setQrScannerError(error.message)
   }
 
+  async function viewQrCode(coupon: Coupon) {
+    const response = await fetch(`/api/v1/coupons/${coupon.id}/qr-token/view`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      await showFeedbackDialog({
+        title: 'QR 코드를 불러오지 못했습니다',
+        message: 'QR 코드를 다시 발급한 뒤 확인해 주세요.',
+      })
+      return
+    }
+    const result = (await response.json()) as { token: string }
+    setQrCodeCoupon(coupon)
+    setQrCodeToken(result.token)
+  }
+
   async function issueQrCode(coupon: Coupon) {
+    const hasQrCode = coupon.hasQrCode
     const confirmed = await confirm({
-      title: '새 QR 코드 발급',
-      message:
-        '새 QR 코드를 발급하면 기존 QR 코드는 즉시 사용할 수 없게 됩니다.',
-      confirmLabel: '새 QR 코드 발급',
-      isDestructive: true,
+      title: hasQrCode ? 'QR 코드 재발급' : 'QR 코드 발급',
+      message: hasQrCode
+        ? 'QR 코드를 재발급하면 기존 QR 코드는 즉시 사용할 수 없게 됩니다.'
+        : '회원에게 보여 줄 쿠폰 QR 코드를 발급합니다.',
+      confirmLabel: hasQrCode ? 'QR 코드 재발급' : 'QR 코드 발급',
+      isDestructive: hasQrCode,
     })
     if (!confirmed) {
       return
@@ -299,13 +412,22 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     })
     if (!response.ok) {
       await showFeedbackDialog({
-        title: 'QR 코드 발급 실패',
+        title: hasQrCode ? 'QR 코드 재발급 실패' : 'QR 코드 발급 실패',
         message: '쿠폰 상태를 확인한 뒤 다시 시도해 주세요.',
       })
       return
     }
     const result = (await response.json()) as { token: string }
-    setQrCodeCoupon(coupon)
+    const couponWithQrCode = { ...coupon, hasQrCode: true }
+    setCoupons((currentCoupons) =>
+      currentCoupons.map((currentCoupon) =>
+        currentCoupon.id === coupon.id ? couponWithQrCode : currentCoupon,
+      ),
+    )
+    setSelectedCoupon((previous) =>
+      previous?.id === coupon.id ? couponWithQrCode : previous,
+    )
+    setQrCodeCoupon(couponWithQrCode)
     setQrCodeToken(result.token)
   }
 
@@ -392,6 +514,41 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     setMessage('쿠폰 사용과 출석 기록을 취소했습니다.')
   }
 
+  async function voidCoupon(coupon: Coupon) {
+    const confirmed = await confirm({
+      title: '쿠폰을 폐기할까요?',
+      message: '폐기하면 목록에서 사용할 수 없게 됩니다. 필요하면 나중에 폐기를 취소할 수 있습니다.',
+      confirmLabel: '쿠폰 폐기',
+      isDestructive: true,
+    })
+    if (confirmed) {
+      await changeCoupon(coupon, 'void')
+      setSelectedCoupon(null)
+    }
+  }
+
+  async function restoreVoidedCoupon(coupon: Coupon) {
+    const confirmed = await confirm({
+      title: '쿠폰 폐기를 취소할까요?',
+      message: '미사용 쿠폰을 다시 사용 가능 상태로 되돌립니다.',
+      confirmLabel: '폐기 취소',
+    })
+    if (!confirmed) return
+
+    const response = await fetch(`/api/v1/coupons/${coupon.id}/restore`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      setMessage('쿠폰 폐기를 취소하지 못했습니다.')
+      return
+    }
+    const changed = (await response.json()) as Coupon
+    setCoupons((previous) => previous.map((item) => (item.id === changed.id ? changed : item)))
+    setSelectedCoupon(null)
+    setMessage('쿠폰 폐기를 취소했습니다.')
+  }
+
   async function grantAwards(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const response = await fetch('/api/v1/attendance-champion-awards', {
@@ -409,9 +566,17 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     await loadCoupons()
   }
 
-  async function cancelAward(award: AttendanceChampionAward) {
+  async function cancelAward(awardId: string) {
+    const confirmed = await confirm({
+      title: '출석왕 수상을 취소할까요?',
+      message: '연결된 미사용 출석왕 쿠폰도 함께 폐기됩니다.',
+      confirmLabel: '수상 취소',
+      isDestructive: true,
+    })
+    if (!confirmed) return
+
     const response = await fetch(
-      `/api/v1/attendance-champion-awards/${award.id}/cancel`,
+      `/api/v1/attendance-champion-awards/${awardId}/cancel`,
       {
         method: 'POST',
         credentials: 'include',
@@ -427,7 +592,31 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     setAwards((previous) =>
       previous.map((item) => (item.id === changed.id ? changed : item)),
     )
+    setSelectedCoupon(null)
     setMessage('출석왕 수상과 미사용 쿠폰을 취소했습니다.')
+    await loadCoupons()
+  }
+
+  async function restoreAward(awardId: string) {
+    const confirmed = await confirm({
+      title: '출석왕 수상 취소를 되돌릴까요?',
+      message: '연결된 미사용 출석왕 쿠폰을 다시 사용 가능 상태로 복원합니다.',
+      confirmLabel: '수상 복원',
+    })
+    if (!confirmed) return
+
+    const response = await fetch(`/api/v1/attendance-champion-awards/${awardId}/restore`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      setMessage('출석왕 수상 취소를 되돌리지 못했습니다.')
+      return
+    }
+    const changed = (await response.json()) as AttendanceChampionAward
+    setAwards((previous) => previous.map((item) => (item.id === changed.id ? changed : item)))
+    setSelectedCoupon(null)
+    setMessage('출석왕 수상과 쿠폰을 복원했습니다.')
     await loadCoupons()
   }
 
@@ -436,31 +625,77 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
       <div className="attendance-page-heading">
         <div>
           <p className="eyebrow">COUPONS</p>
-          <h2>{'쿠폰 관리'}</h2>
-          <p>{'발급과 상태 변경은 이력으로 보존됩니다.'}</p>
+          <h2>{isCouponIssuePage ? '쿠폰 발급' : '쿠폰 관리'}</h2>
+          <p>
+            {isCouponIssuePage
+              ? '회원과 사용 조건을 입력해 새 쿠폰을 발급합니다.'
+              : '발급과 상태 변경은 이력으로 보존됩니다.'}
+          </p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => void loadCoupons()}
-          type="button"
-        >
-          {'목록 새로고침'}
-        </button>
-        {!readOnly && (
-          <button
-            className="secondary-button"
-            onClick={() => void openQrUse()}
-            type="button"
-          >
-            {'QR 토큰 사용'}
-          </button>
-        )}
+        <div className="header-actions">
+          {isCouponIssuePage ? (
+            <button
+              className="secondary-button"
+              onClick={() => setIsCouponIssuePage(false)}
+              type="button"
+            >
+              {'목록으로'}
+            </button>
+          ) : (
+            <>
+              {!readOnly && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsAwardIssueOpen(true)}
+                  type="button"
+                >
+                  {'출석왕 자동 발급'}
+                </button>
+              )}
+              {!readOnly && (
+                <button onClick={() => setIsCouponIssuePage(true)} type="button">
+                  {'쿠폰 발급'}
+                </button>
+              )}
+              {!readOnly && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void openQrUse()}
+                  type="button"
+                >
+                  {'QR 토큰 사용'}
+                </button>
+              )}
+              <button
+                className="secondary-button"
+                onClick={() => void loadCoupons()}
+                type="button"
+              >
+                {'목록 새로고침'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <div className="attendance-grid">
-        {!readOnly && (
-          <section className="panel">
-            <h2>{'수동 쿠폰 발급'}</h2>
+      {isCouponIssuePage && !readOnly && (
+        <section
+          aria-labelledby="coupon-issue-heading"
+          className="panel coupon-issue-page"
+        >
+          <h2 id="coupon-issue-heading">{'새 쿠폰 발급'}</h2>
+          <p className="description">
+            {'발급된 쿠폰은 목록에서 QR과 사용 이력을 관리할 수 있습니다.'}
+          </p>
             <form className="form" onSubmit={issueCoupon}>
+              <label>
+                {'쿠폰 이름'}
+                <input
+                  maxLength={100}
+                  onChange={(event) => setCouponName(event.target.value)}
+                  required
+                  value={couponName}
+                />
+              </label>
               <SearchableMemberSelect
                 label="회원"
                 members={members}
@@ -468,24 +703,27 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
                 required
                 value={memberId}
               />
-              <label>
-                {'사용 시작일'}
-                <input
-                  onChange={(event) => setValidFrom(event.target.value)}
-                  required
-                  type="date"
-                  value={validFrom}
-                />
-              </label>
-              <label>
-                {'사용 종료일'}
-                <input
-                  onChange={(event) => setValidUntil(event.target.value)}
-                  required
-                  type="date"
-                  value={validUntil}
-                />
-              </label>
+              <fieldset className="coupon-validity-fieldset">
+                <legend>{'쿠폰 기한'}</legend>
+                <div className="coupon-validity-inputs">
+                  <KoreanDateInput onChange={setValidFrom} required value={validFrom} />
+                  <span aria-hidden="true">~</span>
+                  <KoreanDateInput
+                    disabled={isUnlimited}
+                    onChange={setValidUntil}
+                    required={!isUnlimited}
+                    value={validUntil}
+                  />
+                </div>
+                <label className="coupon-unlimited-toggle">
+                  <input
+                    checked={isUnlimited}
+                    onChange={(event) => setIsUnlimited(event.target.checked)}
+                    type="checkbox"
+                  />
+                  {'무기한'}
+                </label>
+              </fieldset>
               <label>
                 {'사용 가능 횟수'}
                 <input
@@ -497,7 +735,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
                 />
               </label>
               <label>
-                {'발급 사유 '}
+                {'쿠폰 설명 '}
                 <span className="optional">{'(선택)'}</span>
                 <textarea
                   onChange={(event) => setIssuedReason(event.target.value)}
@@ -506,215 +744,254 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               </label>
               <button type="submit">{'쿠폰 발급'}</button>
             </form>
-          </section>
-        )}
-        {!readOnly && (
-          <section className="panel">
-            <h2>{'출석왕 자동 발급'}</h2>
-            <p className="description">
-              {
-                'NORMAL 출석 최다자를 확정하고 다음 달 쿠폰을 발급합니다. 동일 월 재실행은 중복 발급하지 않습니다.'
-              }
-            </p>
-            <form className="form" onSubmit={grantAwards}>
-              <label>
-                {'대상 월'}
-                <input
-                  onChange={(event) => setAwardMonth(event.target.value)}
-                  required
-                  type="month"
-                  value={awardMonth}
-                />
-              </label>
+        </section>
+      )}
+      {!isCouponIssuePage && !readOnly && isAwardIssueOpen && (
+        <CouponDialog onClose={() => setIsAwardIssueOpen(false)}>
+          <div className="modal-heading">
+            <div>
+              <h2 id="coupon-award-heading">{'출석왕 자동 발급'}</h2>
+              <p>{'최다 출석자를 확정해 다음 달 쿠폰을 발급합니다.'}</p>
+              <p>{'※쿠폰 사용은 제외됩니다.'}</p>
+            </div>
+          </div>
+          <form className="coupon-award-form" onSubmit={grantAwards}>
+              <SelectField
+                label="대상 연도"
+                onChange={(year) => setAwardMonth(`${year}-${awardMonth.slice(5)}`)}
+                options={Array.from({ length: 5 }, (_, index) => {
+                  const year = new Date().getFullYear() - 3 + index
+                  return { value: String(year), label: `${year}년` }
+                })}
+                value={awardMonth.slice(0, 4)}
+              />
+              <SelectField
+                label="대상 월"
+                onChange={(month) => setAwardMonth(`${awardMonth.slice(0, 4)}-${month}`)}
+                options={Array.from({ length: 12 }, (_, index) => {
+                  const month = String(index + 1).padStart(2, '0')
+                  return { value: month, label: `${index + 1}월` }
+                })}
+                value={awardMonth.slice(5)}
+              />
               <button type="submit">{'출석왕 확정 및 쿠폰 발급'}</button>
-            </form>
-            {awards.length > 0 && (
-              <ul className="coupon-list">
-                {awards.map((award) => (
-                  <li key={award.id}>
-                    <div>
-                      <strong>{memberName(award.memberId)}</strong>
-                      <span>
-                        {award.qualifyingAttendanceCount}
-                        {'회 · '}
-                        {award.rewardUses}
-                        {'회 쿠폰 · '}
-                        {award.policyVersion}
-                      </span>
-                    </div>
-                    <div>
-                      {award.awardStatus === 'GRANTED' && (
-                        <button
-                          className="danger-button"
-                          onClick={() => void cancelAward(award)}
-                          type="button"
-                        >
-                          {'수상 취소'}
-                        </button>
-                      )}
-                      {award.awardStatus === 'CANCELLED' && (
-                        <span className="status status-withdrawn">
-                          {'취소됨'}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-      </div>
-      <section className="panel">
+          </form>
+          {awards.length > 0 && (
+            <ul className="coupon-list coupon-award-list">
+              {awards.map((award) => (
+                <li key={award.id}>
+                  <div>
+                    <strong>{memberName(award.memberId)}</strong>
+                    <span>
+                      {`${award.qualifyingAttendanceCount}회 출석 · ${award.rewardUses}회 쿠폰`}
+                    </span>
+                  </div>
+                  <div>
+                    {award.awardStatus === 'GRANTED' && (
+                      <button
+                        className="danger-button"
+                        onClick={() => void cancelAward(award.id)}
+                        type="button"
+                      >
+                        {'수상 취소'}
+                      </button>
+                    )}
+                    {award.awardStatus === 'CANCELLED' && (
+                      <button
+                        className="secondary-button"
+                        onClick={() => void restoreAward(award.id)}
+                        type="button"
+                      >
+                        {'수상 복원'}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CouponDialog>
+      )}
+      {!isCouponIssuePage && (
+        <section className="panel">
         <div className="panel-heading">
           <div>
             <h2>{'쿠폰 목록'}</h2>
             <p>{'출석왕 쿠폰은 수상 취소로만 폐기할 수 있습니다.'}</p>
           </div>
         </div>
-        {coupons.length === 0 ? (
+        <div className="list-filter-buttons" aria-label="쿠폰 상태 필터">
+          {([
+            ['ALL', '전체'],
+            ['ISSUED', '사용 가능'],
+            ['SUSPENDED', '정지'],
+            ['FULLY_USED', '사용 완료'],
+            ['EXPIRED', '만료'],
+            ['VOIDED', '폐기'],
+          ] as const).map(([value, label]) => (
+            <button
+              className={couponFilter === value ? 'is-active' : 'secondary-button'}
+              key={value}
+              onClick={() => setCouponFilter(value)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {coupons.filter((coupon) => couponFilter === 'ALL' || coupon.couponStatus === couponFilter).length === 0 ? (
           <EmptyState
-            description="쿠폰을 발급하면 회원별 사용 현황을 확인할 수 있습니다."
+            description="선택한 상태의 쿠폰이 없습니다."
             icon="◇"
-            title="표시할 쿠폰이 없습니다"
+            title={coupons.length === 0 ? '표시할 쿠폰이 없습니다' : '조건에 맞는 쿠폰이 없습니다'}
           />
         ) : (
           <ul className="coupon-list">
-            {coupons.map((coupon) => (
+            {coupons
+              .filter((coupon) => couponFilter === 'ALL' || coupon.couponStatus === couponFilter)
+              .map((coupon) => (
               <li key={coupon.id}>
                 <div>
-                  <strong>
-                    {memberName(coupon.memberId)}
-                    {' · '}
-                    {couponTypeLabels[coupon.couponType]}
-                  </strong>
-                  <span>
-                    {coupon.remainingUses}
-                    {'/'}
-                    {coupon.totalUses}
-                    {'회 · '}
-                    {coupon.validFrom}
-                    {' ~ '}
-                    {coupon.validUntil}
-                  </span>
-                  {coupon.issuedReason && <span>{coupon.issuedReason}</span>}
+                  <strong>{coupon.name ?? couponTypeLabels[coupon.couponType]}</strong>
+                  <span>{`${memberName(coupon.memberId)} · 잔여 ${coupon.remainingUses}회`}</span>
+                  <span>{couponValidityLabel(coupon)}</span>
                 </div>
                 <div className="coupon-actions">
-                  <span className="status status-coupon">
+                  <span className={`status status-coupon status-coupon-${coupon.couponStatus.toLowerCase()}`}>
                     {couponStatusLabels[coupon.couponStatus]}
                   </span>
-                  {!readOnly && coupon.couponStatus === 'ISSUED' && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => void issueQrCode(coupon)}
-                      type="button"
-                    >
-                      {'QR 코드 발급'}
-                    </button>
-                  )}
-                  {!readOnly && coupon.couponStatus === 'ISSUED' && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => void changeCoupon(coupon, 'suspend')}
-                      type="button"
-                    >
-                      {'정지'}
-                    </button>
-                  )}
-                  {!readOnly &&
-                    coupon.couponStatus !== 'VOIDED' &&
-                    coupon.couponStatus !== 'FULLY_USED' && (
+                  {coupon.couponStatus === 'ISSUED' && !readOnly && (
+                    <>
                       <button
                         className="secondary-button"
-                        onClick={() => void extendCoupon(coupon)}
+                        onClick={() => void (coupon.hasQrCode ? viewQrCode(coupon) : issueQrCode(coupon))}
                         type="button"
                       >
-                        {'기간 연장'}
+                        {coupon.hasQrCode ? 'QR 보기' : 'QR 발급'}
                       </button>
-                    )}
-                  <button
-                    className="secondary-button"
-                    onClick={() => void loadUsageHistory(coupon)}
-                    type="button"
-                  >
-                    {'사용 이력'}
-                  </button>
-                  {!readOnly && coupon.couponStatus === 'ISSUED' && (
+                      <button onClick={() => void openCouponUse(coupon)} type="button">
+                        {'쿠폰 사용'}
+                      </button>
+                    </>
+                  )}
+                  {coupon.couponStatus === 'FULLY_USED' && (
                     <button
                       className="secondary-button"
-                      onClick={() => void openCouponUse(coupon)}
+                      onClick={() => void loadUsageHistory(coupon)}
                       type="button"
                     >
-                      {'쿠폰 사용'}
+                      {'사용 이력'}
                     </button>
                   )}
-                  {!readOnly &&
-                    coupon.couponStatus === 'ISSUED' &&
-                    coupon.couponType === 'MANUAL_FREE_PASS' && (
-                      <button
-                        className="danger-button"
-                        onClick={() => void changeCoupon(coupon, 'void')}
-                        type="button"
-                      >
-                        {'폐기'}
-                      </button>
-                    )}
+                  {!readOnly && (
+                    <button
+                      aria-label={`${coupon.name ?? '쿠폰'} 관리`}
+                      className="secondary-button coupon-more-button"
+                      onClick={() => setSelectedCoupon(coupon)}
+                      type="button"
+                    >
+                      ⋮
+                    </button>
+                  )}
                 </div>
               </li>
-            ))}
+              ))}
           </ul>
         )}
-        <label className="coupon-extension-field">
-          {'기간 연장 종료일'}
-          <input
-            onChange={(event) => setExtensionDate(event.target.value)}
-            type="date"
-            value={extensionDate}
-          />
-        </label>
-        {usageHistoryCouponId !== null && (
-          <section className="subsection">
-            <h3>{'쿠폰 사용 이력'}</h3>
-            {usageHistory.length === 0 ? (
-              <EmptyState
-                description="쿠폰을 사용하면 처리 이력이 여기에 표시됩니다."
-                icon="◇"
-                title="사용 이력이 없습니다"
-              />
-            ) : (
-              <ul className="coupon-list">
-                {usageHistory.map((usage) => (
-                  <li key={usage.id}>
-                    <span>
-                      {usage.usageStatus === 'USED' ? '사용됨' : '사용 취소됨'}
-                    </span>
-                    <span>{usage.attendanceId}</span>
-                    {!readOnly && usage.usageStatus === 'USED' && (
-                      <button
-                        className="danger-button"
-                        onClick={() => void reverseUsage(usage)}
-                        type="button"
-                      >
-                        {'사용 취소'}
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <label className="coupon-extension-field">
-              <input
-                onChange={(event) => setReversalReason(event.target.value)}
-                placeholder="사용 취소 사유"
-                value={reversalReason}
-              />
-            </label>
+        </section>
+      )}
+      {selectedCoupon !== null && (
+        <div
+          className="bottom-sheet-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedCoupon(null)
+          }}
+        >
+          <section aria-modal="true" className="bottom-sheet coupon-action-sheet" role="dialog">
+            <div className="bottom-sheet-handle" />
+            <div className="panel-heading">
+              <div>
+                <h3>{selectedCoupon.name ?? couponTypeLabels[selectedCoupon.couponType]}</h3>
+                <p>{`${couponStatusLabels[selectedCoupon.couponStatus]} · ${couponValidityLabel(selectedCoupon)}`}</p>
+                {selectedCoupon.issuedReason && <p>{selectedCoupon.issuedReason}</p>}
+              </div>
+              <button className="modal-close-button" onClick={() => setSelectedCoupon(null)} type="button">×</button>
+            </div>
+            <div className="coupon-sheet-actions">
+              {message && <p className="message coupon-sheet-message" role="status">{message}</p>}
+              <button onClick={() => void loadUsageHistory(selectedCoupon)} type="button">사용 이력</button>
+              {selectedCoupon.couponStatus === 'ISSUED' && (
+                <>
+                  <button className="secondary-button" onClick={() => void issueQrCode(selectedCoupon)} type="button">
+                    {selectedCoupon.hasQrCode ? 'QR 재발급' : 'QR 발급'}
+                  </button>
+                  <button className="secondary-button" onClick={() => void changeCoupon(selectedCoupon, 'suspend')} type="button">정지</button>
+                </>
+              )}
+              {selectedCoupon.couponStatus !== 'VOIDED' &&
+                selectedCoupon.couponStatus !== 'FULLY_USED' &&
+                selectedCoupon.validUntil !== '9999-12-31' && (
+                <label className="coupon-extension-field">
+                  기간 연장 종료일
+                  <KoreanDateInput onChange={setExtensionDate} value={extensionDate} />
+                  <button className="secondary-button" onClick={() => void extendCoupon(selectedCoupon)} type="button">기간 연장</button>
+                </label>
+              )}
+              {selectedCoupon.couponStatus === 'ISSUED' && selectedCoupon.couponType === 'MANUAL_FREE_PASS' && (
+                <button className="danger-button" onClick={() => void voidCoupon(selectedCoupon)} type="button">쿠폰 폐기</button>
+              )}
+              {selectedCoupon.couponStatus === 'ISSUED' &&
+                selectedCoupon.couponType === 'ATTENDANCE_CHAMPION' &&
+                selectedCoupon.championAwardId && (
+                <button
+                  className="danger-button"
+                  onClick={() => void cancelAward(selectedCoupon.championAwardId!)}
+                  type="button"
+                >
+                  {'수상 취소'}
+                </button>
+              )}
+              {selectedCoupon.couponStatus === 'VOIDED' && selectedCoupon.couponType === 'MANUAL_FREE_PASS' && (
+                <button className="secondary-button" onClick={() => void restoreVoidedCoupon(selectedCoupon)} type="button">폐기 취소</button>
+              )}
+              {selectedCoupon.couponStatus === 'VOIDED' &&
+                selectedCoupon.couponType === 'ATTENDANCE_CHAMPION' &&
+                selectedCoupon.championAwardId && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void restoreAward(selectedCoupon.championAwardId!)}
+                  type="button"
+                >
+                  {'수상 복원'}
+                </button>
+              )}
+            </div>
           </section>
-        )}
-      </section>
+        </div>
+      )}
+      {usageHistoryCouponId !== null && (
+        <CouponDialog onClose={() => setUsageHistoryCouponId(null)}>
+          <div className="modal-heading"><h2>쿠폰 사용 이력</h2></div>
+          {usageHistory.length === 0 ? (
+            <EmptyState description="쿠폰을 사용하면 처리 이력이 여기에 표시됩니다." icon="◇" title="사용 이력이 없습니다" />
+          ) : (
+            <ul className="coupon-list">
+              {usageHistory.map((usage) => (
+                <li key={usage.id}>
+                  <span>{usage.usageStatus === 'USED' ? '사용됨' : '사용 취소됨'}</span>
+                  {!readOnly && usage.usageStatus === 'USED' && <button className="danger-button" onClick={() => void reverseUsage(usage)} type="button">사용 취소</button>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!readOnly && <label><input onChange={(event) => setReversalReason(event.target.value)} placeholder="사용 취소 사유" value={reversalReason} /></label>}
+        </CouponDialog>
+      )}
       {!readOnly && couponToUse !== null && (
-        <section className="panel">
-          <h2>{'쿠폰 사용 처리'}</h2>
+        <CouponDialog onClose={() => setCouponToUse(null)}>
+          <div className="modal-heading">
+            <h2>{'쿠폰 사용 처리'}</h2>
+          </div>
           <form className="form" onSubmit={useCoupon}>
             <SelectField
               label="열린 모임"
@@ -737,7 +1014,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               </button>
             </div>
           </form>
-        </section>
+        </CouponDialog>
       )}
       {!readOnly && isQrUseOpen && (
         <section
@@ -804,7 +1081,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
             {qrValidatedCoupon && (
               <div className="qr-validated-coupon">
                 <strong>{`${memberName(qrValidatedCoupon.memberId)}님의 쿠폰`}</strong>
-                <span>{`${qrValidatedCoupon.remainingUses}/${qrValidatedCoupon.totalUses}회 · ${qrValidatedCoupon.validUntil}까지`}</span>
+                <span>{`잔여 ${qrValidatedCoupon.remainingUses}회 · ${couponValidityLabel(qrValidatedCoupon)}`}</span>
               </div>
             )}
             <SelectField
@@ -869,11 +1146,6 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
             <p>{'이 QR 코드는 운영진의 스캔·확인 후에만 사용 처리됩니다.'}</p>
           </div>
         </section>
-      )}
-      {message && (
-        <p className="message" role="status">
-          {message}
-        </p>
       )}
     </section>
   )

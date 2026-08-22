@@ -7,10 +7,12 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.moingmoing.coupon.application.AttendanceChampionAwardService;
@@ -26,6 +28,11 @@ class AttendanceChampionAwardController {
         this.awardService = awardService;
     }
 
+    @GetMapping
+    List<AttendanceChampionAwardResponse> list(@RequestParam YearMonth month) {
+        return awardService.findByMonth(month).stream().map(AttendanceChampionAwardResponse::from).toList();
+    }
+
     @PostMapping
     List<AttendanceChampionAwardResponse> grant(@Valid @RequestBody GrantAttendanceChampionAwardRequest request) {
         return awardService.grant(request.month()).stream().map(AttendanceChampionAwardResponse::from).toList();
@@ -34,6 +41,11 @@ class AttendanceChampionAwardController {
     @PostMapping("/{id}/cancel")
     AttendanceChampionAwardResponse cancel(@PathVariable UUID id) {
         return AttendanceChampionAwardResponse.from(awardService.cancel(id));
+    }
+
+    @PostMapping("/{id}/restore")
+    AttendanceChampionAwardResponse restore(@PathVariable UUID id) {
+        return AttendanceChampionAwardResponse.from(awardService.restore(id));
     }
 }
 

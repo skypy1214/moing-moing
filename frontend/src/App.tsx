@@ -15,6 +15,7 @@ import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPa
 import {
   apiFetch as fetch,
   apiLoadingChangeEvent,
+  apiUnauthorizedEvent,
   isApiLoading,
 } from './shared/api/apiFetch'
 import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
@@ -190,6 +191,18 @@ function App() {
     useState<MemberRoleFilter>('ALL')
   const [memberSort, setMemberSort] = useState<MemberSort>('ROLE_PRIORITY')
   const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setCurrentLoginId(null)
+      setIsReadOnly(false)
+      setMembers([])
+      setSelectedMember(null)
+      setMessage('서버 세션이 만료되어 자동으로 로그아웃되었습니다.')
+    }
+    window.addEventListener(apiUnauthorizedEvent, handleUnauthorized)
+    return () => window.removeEventListener(apiUnauthorizedEvent, handleUnauthorized)
+  }, [])
 
   const navigationItems = [
     { value: 'MEMBERS', label: '회원', icon: '♙' },

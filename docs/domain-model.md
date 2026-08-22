@@ -77,7 +77,7 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 ### Attendance
 
 - `id`, `gatheringId`, `memberId`.
-- `participationType`: `NORMAL | COUPON`을 우선 제안한다.
+- `participationType`: `NORMAL | COUPON | HOST`.
 - `couponUsageId`: 무료 참여가 쿠폰에 의해 발생하면 연결.
 - `recordedBy`, `recordedAt`.
 - 정정 지원 시 `status: RECORDED | CANCELLED`, `cancelledAt`, `cancelledBy`, `cancellationReason`.
@@ -98,13 +98,18 @@ Phase 3의 최초 schema에는 `gatheringId`, `memberId`, `participationType`, `
 - `id`, `memberId`(수령자).
 - `type`: `ATTENDANCE_CHAMPION`, `MANUAL_FREE_PASS`, 기타 명시적 유형.
 - `status`: `ISSUED | SUSPENDED | EXPIRED | FULLY_USED | VOIDED`.
+- `EXPIRED` 표시는 `ISSUED` 상태이면서 현재 날짜가 `validUntil`보다 뒤인 경우 날짜 기준으로 계산한다. 정지·사용 완료·폐기 상태가 만료 표시보다 우선한다.
 - `validFrom`, `validUntil`.
+- 수동 쿠폰은 운영자가 입력한 `name`과 `issuedReason`(화면 표기: 쿠폰 설명)을 가진다. 무기한 쿠폰은 `validUntil`에 `9999-12-31`을 저장해 기존 날짜 기반 유효성 규칙을 유지한다.
 - `totalUses`, `remainingUses` 또는 사용 이력 집계.
-- `qrTokenHash`: 원본 토큰 대신 해시 저장을 우선 검토.
-- `issuedReason`, `issuedBy`, `issuedAt`, `suspendedAt`, `voidedAt`.
+- `qrTokenHash`: QR 스캔 검증용 SHA-256 해시. 원본 토큰은 저장하지 않는다.
+- `qrTokenCiphertext`: 운영진이 기존 QR을 다시 볼 수 있도록 환경변수 키로 AES-GCM 암호화한 토큰. 암호화 키는 DB에 저장하지 않는다.
+- `name`, `issuedReason`, `issuedBy`, `issuedAt`, `suspendedAt`, `voidedAt`.
 - 출석왕 보상이라면 `championAwardId`.
 
 출석왕 보상 쿠폰의 `totalUses`는 해당 `AttendanceChampionAward.rewardUses`와 같아야 한다. 쿠폰을 한 장으로 발급할지 여러 장으로 나눌지는 별도 UX 결정이지만, 보상 당시의 총 사용 가능 횟수는 변경하지 않는다.
+
+출석왕 수상 취소는 연결된 미사용 쿠폰을 `VOIDED`로 바꾸고 수상 상태를 `CANCELLED`로 남긴다. 쿠폰이 모두 미사용이고 폐기 상태라면 수상 취소를 되돌려 쿠폰과 수상 상태를 함께 복원할 수 있다.
 
 상태는 가능한 경우 날짜와 사용 이력에서 파생하되, 정지/폐기처럼 명시적 조치가 필요한 상태는 저장한다. `EXPIRED`를 배치로 변경할 필요 없이 `validUntil`로 유효성을 계산할 수도 있다. 표시 상태와 영속 상태를 구분해 상태 불일치를 줄인다.
 
@@ -169,7 +174,7 @@ Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행
 ## 5. 삭제와 감사 정책
 
 - Member, Attendance, CouponUsage, AttendanceChampionAward, UserAccount: 물리 삭제 금지 원칙.
-- Coupon: 미사용 오발급도 `VOIDED` 우선. 생성 직후 테스트 데이터 등 물리 삭제 허용 조건은 별도 결정.
+- Coupon: 미사용 오발급도 `VOIDED` 우선이며 물리 삭제하지 않는다. 수동 쿠폰은 미사용 상태라면 폐기를 취소해 다시 `ISSUED`로 복원할 수 있고, 폐기 시각은 감사 정보로 남긴다.
 - MeetingNote/Category: 숨김/비활성화 우선. 개인정보 삭제 요구에 대응할 별도 관리 절차는 배포 전 정한다.
 - 모든 중요한 상태 변경에는 수행자와 시각을 남긴다. 범용 감사 이벤트 테이블은 실제 조회 요구가 확정되기 전에는 도입하지 않는다.
 

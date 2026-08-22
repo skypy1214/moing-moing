@@ -17,6 +17,7 @@ class CouponTest {
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 30),
                 2,
+                "테스트 쿠폰",
                 "Manual reward");
 
         assertEquals(CouponStatus.ISSUED, coupon.getCouponStatus());
@@ -32,6 +33,7 @@ class CouponTest {
                 LocalDate.of(2026, 9, 2),
                 LocalDate.of(2026, 9, 1),
                 1,
+                "테스트 쿠폰",
                 null));
     }
 
@@ -39,7 +41,7 @@ class CouponTest {
     void preserves_the_coupon_as_voided_instead_of_deleting_it() {
         Coupon coupon = new Coupon(
                 UUID.randomUUID(), CouponType.MANUAL_FREE_PASS,
-                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1, null);
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1, "테스트 쿠폰", null);
 
         coupon.voidCoupon();
 
@@ -48,10 +50,22 @@ class CouponTest {
     }
 
     @Test
+    void restores_an_unused_voided_coupon() {
+        Coupon coupon = new Coupon(
+                UUID.randomUUID(), CouponType.MANUAL_FREE_PASS,
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1, "테스트 쿠폰", null);
+
+        coupon.voidCoupon();
+        coupon.restoreVoidedCoupon();
+
+        assertEquals(CouponStatus.ISSUED, coupon.getCouponStatus());
+    }
+
+    @Test
     void restores_a_use_after_a_coupon_attendance_is_reversed() {
         Coupon coupon = new Coupon(
                 UUID.randomUUID(), CouponType.MANUAL_FREE_PASS,
-                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1, null);
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1, "테스트 쿠폰", null);
 
         coupon.useOn(LocalDate.of(2026, 9, 10));
         coupon.restoreOneUse();

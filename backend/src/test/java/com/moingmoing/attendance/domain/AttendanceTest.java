@@ -9,6 +9,17 @@ import org.junit.jupiter.api.Test;
 
 class AttendanceTest {
     @Test
+    void changesParticipationTypeWithoutCreatingAnotherAttendanceRecord() {
+        Attendance attendance = new Attendance(
+                UUID.randomUUID(), UUID.randomUUID(), AttendanceParticipationType.NORMAL);
+
+        attendance.changeParticipationType(AttendanceParticipationType.HOST);
+
+        assertThat(attendance.getParticipationType()).isEqualTo(AttendanceParticipationType.HOST);
+        assertThat(attendance.getAttendanceStatus()).isEqualTo(AttendanceStatus.RECORDED);
+    }
+
+    @Test
     void cancelsRecordedAttendanceWithAReason() {
         Attendance attendance = new Attendance(
                 UUID.randomUUID(), UUID.randomUUID(), AttendanceParticipationType.NORMAL);

@@ -85,6 +85,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 | `SERVER_PORT` | `8080` | 백엔드 HTTP 포트 |
 | `PORT` | 배포 플랫폼 값 | Render가 주입하는 HTTP 포트. 설정 시 `SERVER_PORT`보다 우선한다. |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` (local/dev) | 쉼표로 구분한 프론트 origin 목록. production에서는 Cloudflare Pages 운영 URL을 정확히 입력한다. |
+| `QR_TOKEN_ENCRYPTION_KEY` | 없음 | 기존 쿠폰 QR을 재발급 없이 다시 표시하는 Base64 형식 32바이트 AES 키. 새 키는 PowerShell에서 `[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))`로 생성한다. |
 | `INITIAL_ADMIN_LOGIN` | `admin` | 최초 로컬 관리자 로그인 ID |
 | `INITIAL_ADMIN_PASSWORD` | 예시값 | 최초 로컬 관리자 비밀번호. 운영에서는 안전한 secret으로 설정 |
 

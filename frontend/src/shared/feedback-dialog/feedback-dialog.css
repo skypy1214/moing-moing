@@ -31,8 +31,24 @@
 
 .feedback-dialog-actions {
   display: flex;
+  gap: 12px;
   justify-content: end;
   margin-top: 24px;
+}
+
+.feedback-dialog-actions button {
+  min-width: 88px;
+}
+
+.feedback-dialog-cancel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+.feedback-dialog-cancel:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
 
 @media (max-width: 760px) {

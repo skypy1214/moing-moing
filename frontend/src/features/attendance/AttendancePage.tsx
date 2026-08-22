@@ -3,14 +3,16 @@ import type { FormEvent, ReactNode } from 'react'
 
 import type { Member } from '../../App'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { KoreanDateInput } from '../../shared/ui/KoreanDateInput'
 import { SelectField } from '../../shared/ui/SelectField'
 
 type GatheringStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED'
-type ParticipationType = 'NORMAL' | 'COUPON'
+type ParticipationType = 'NORMAL' | 'COUPON' | 'HOST'
 type AttendanceStatus = 'RECORDED' | 'CANCELLED'
+type GatheringFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
 type Gathering = {
   id: string
@@ -54,8 +56,9 @@ const gatheringStatusLabels: Record<GatheringStatus, string> = {
 }
 
 const participationLabels: Record<ParticipationType, string> = {
-  NORMAL: '일반 출석',
-  COUPON: '쿠폰 출석',
+  NORMAL: '출석',
+  COUPON: '쿠폰',
+  HOST: '진행자',
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -91,10 +94,26 @@ type AttendancePageProps = {
 type ModalProps = {
   ariaLabelledBy: string
   children: ReactNode
+  closeOnEscape?: boolean
   onClose: () => void
 }
 
-function Modal({ ariaLabelledBy, children, onClose }: ModalProps) {
+function Modal({
+  ariaLabelledBy,
+  children,
+  closeOnEscape = true,
+  onClose,
+}: ModalProps) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (closeOnEscape && event.key === 'Escape') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [closeOnEscape, onClose])
+
   return (
     <div className="modal-backdrop">
       <section
@@ -103,17 +122,19 @@ function Modal({ ariaLabelledBy, children, onClose }: ModalProps) {
         className="modal-content"
         role="dialog"
       >
-        <div className="modal-header">
-          <button
-            aria-label="모달 닫기"
-            className="modal-close-button"
-            onClick={onClose}
-            type="button"
-          >
-            ×
-          </button>
+        <div className="modal-scroll-content">
+          <div className="modal-header">
+            <button
+              aria-label="모달 닫기"
+              className="modal-close-button"
+              onClick={onClose}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+          {children}
         </div>
-        {children}
       </section>
     </div>
   )
@@ -123,6 +144,7 @@ export function AttendancePage({
   members,
   readOnly = false,
 }: AttendancePageProps) {
+  const { confirm } = useFeedbackDialog()
   const [gatherings, setGatherings] = useState<Gathering[]>([])
   const [attendances, setAttendances] = useState<Attendance[]>([])
   const [selectedGatheringId, setSelectedGatheringId] = useState<string | null>(
@@ -130,6 +152,11 @@ export function AttendancePage({
   )
   const [heldOn, setHeldOn] = useState(today)
   const [isCreateGatheringOpen, setIsCreateGatheringOpen] = useState(false)
+  const [isEditGatheringOpen, setIsEditGatheringOpen] = useState(false)
+  const [editHeldOn, setEditHeldOn] = useState(today)
+  const [editTitle, setEditTitle] = useState('')
+  const [editLocation, setEditLocation] = useState('')
+  const [editGatheringError, setEditGatheringError] = useState('')
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const current = new Date()
     return { year: current.getFullYear(), month: current.getMonth() }
@@ -142,6 +169,9 @@ export function AttendancePage({
     useState<ParticipationType>('NORMAL')
   const [historyMemberId, setHistoryMemberId] = useState('')
   const [historyAttendances, setHistoryAttendances] = useState<Attendance[]>([])
+  const [hasLoadedMemberHistory, setHasLoadedMemberHistory] = useState(false)
+  const [isMemberHistoryOpen, setIsMemberHistoryOpen] = useState(false)
+  const [gatheringFilter, setGatheringFilter] = useState<GatheringFilter>('OPEN')
   const [cancellingAttendanceId, setCancellingAttendanceId] = useState<
     string | null
   >(null)
@@ -244,7 +274,7 @@ export function AttendancePage({
     })
     setHeldOn(date)
     setIsCreateGatheringOpen(true)
-    setMessage(`${date} 날짜의 출석부 생성 창을 열었습니다.`)
+    setMessage(`${date} 날짜의 정모 개설 창을 열었습니다.`)
   }
 
   async function refreshGatherings() {
@@ -343,7 +373,7 @@ export function AttendancePage({
       setIsCreateGatheringOpen(false)
       setTitle('')
       setLocation('')
-      setMessage('출석부 초안을 만들었습니다.')
+      setMessage('정모를 개설했습니다.')
     } catch (error) {
       setCreateGatheringError(
         errorMessage(error, '출석부를 만들지 못했습니다.'),
@@ -353,7 +383,7 @@ export function AttendancePage({
     }
   }
 
-  async function changeGatheringStatus(action: 'open' | 'close') {
+  async function changeGatheringStatus(action: 'open' | 'close' | 'reopen') {
     if (selectedGathering === null) {
       return
     }
@@ -377,6 +407,44 @@ export function AttendancePage({
       )
     } catch (error) {
       setMessage(errorMessage(error, '출석부 상태를 변경하지 못했습니다.'))
+    }
+  }
+
+  function openGatheringEdit() {
+    if (selectedGathering === null) return
+    setEditHeldOn(selectedGathering.heldOn)
+    setEditTitle(selectedGathering.title ?? '')
+    setEditLocation(selectedGathering.location ?? '')
+    setEditGatheringError('')
+    setIsEditGatheringOpen(true)
+  }
+
+  async function updateGathering(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (selectedGathering === null) return
+    setEditGatheringError('')
+    try {
+      const response = await fetch(`/api/v1/gatherings/${selectedGathering.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          heldOn: editHeldOn,
+          title: editTitle || null,
+          startsAt: null,
+          location: editLocation || null,
+        }),
+      })
+      if (!response.ok) {
+        throw await responseError(response, '정모 정보를 변경하지 못했습니다.')
+      }
+      const changed = (await response.json()) as Gathering
+      setGatherings((previous) =>
+        previous.map((gathering) => (gathering.id === changed.id ? changed : gathering)),
+      )
+      setIsEditGatheringOpen(false)
+    } catch (error) {
+      setEditGatheringError(errorMessage(error, '정모 정보를 변경하지 못했습니다.'))
     }
   }
 
@@ -431,6 +499,20 @@ export function AttendancePage({
       return
     }
 
+    const existingAttendance = selectedAttendances.find(
+      (attendance) => attendance.memberId === memberId,
+    )
+    if (
+      existingAttendance !== undefined &&
+      !(await confirm({
+        title: '출석 상태를 변경할까요?',
+        message: '이미 리스트에 존재하는 회원입니다. 그래도 변경하시겠습니까?',
+        confirmLabel: '변경',
+      }))
+    ) {
+      return
+    }
+
     const payload = { memberId, participationType }
     try {
       const response = await fetch(
@@ -443,11 +525,18 @@ export function AttendancePage({
         },
       )
       if (!response.ok) {
-        throw new Error('출석 기록을 추가하지 못했습니다.')
+        throw await responseError(response, '출석 기록을 변경하지 못했습니다.')
       }
       const attendance = (await response.json()) as Attendance
-      setAttendances((previous) => [...previous, attendance])
-      setMessage('출석 기록을 추가했습니다.')
+      setAttendances((previous) => {
+        const existingIndex = previous.findIndex((item) => item.id === attendance.id)
+        if (existingIndex === -1) {
+          return [...previous, attendance]
+        }
+        return previous.map((item) => (item.id === attendance.id ? attendance : item))
+      })
+      setMemberId('')
+      setMessage(existingAttendance ? '출석 상태를 변경했습니다.' : '출석 기록을 추가했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '출석 기록을 추가하지 못했습니다.'))
     }
@@ -471,6 +560,7 @@ export function AttendancePage({
       }
       setHistoryAttendances((await historyResponse.json()) as Attendance[])
       setGatherings((await gatheringsResponse.json()) as Gathering[])
+      setHasLoadedMemberHistory(true)
       setMessage('회원 출석 이력을 조회했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '회원 출석 이력을 불러오지 못했습니다.'))
@@ -488,19 +578,33 @@ export function AttendancePage({
     }
 
     try {
+      const attendance = selectedAttendances.find(
+        (item) => item.id === cancellingAttendanceId,
+      )
+      const endpoint = attendance?.participationType === 'COUPON'
+        ? `/api/v1/coupons/usages/attendance/${cancellingAttendanceId}/reverse`
+        : `/api/v1/gatherings/${selectedGathering.id}/attendances/${cancellingAttendanceId}/cancel`
+      const cancellationPayload = attendance?.participationType === 'COUPON'
+        ? { reason: cancellationReason.trim() }
+        : { cancellationReason: cancellationReason.trim() }
       const response = await fetch(
-        `/api/v1/gatherings/${selectedGathering.id}/attendances/${cancellingAttendanceId}/cancel`,
+        endpoint,
         {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cancellationReason: cancellationReason.trim(),
-          }),
+          body: JSON.stringify(cancellationPayload),
         },
       )
       if (!response.ok) {
-        throw new Error('출석 기록을 취소하지 못했습니다.')
+        throw await responseError(response, '출석 기록을 취소하지 못했습니다.')
+      }
+      if (attendance?.participationType === 'COUPON') {
+        await loadAttendances(selectedGathering.id)
+        setCancellingAttendanceId(null)
+        setCancellationReason('')
+        setMessage('쿠폰 사용과 출석 기록을 취소했습니다.')
+        return
       }
       const cancelled = (await response.json()) as Attendance
       const updateAttendance = (attendance: Attendance) =>
@@ -518,6 +622,25 @@ export function AttendancePage({
   const selectedAttendances = attendances.filter(
     (attendance) => attendance.gatheringId === selectedGatheringId,
   )
+  const selectedAttendanceCount = selectedAttendances.filter(
+    (attendance) => attendance.attendanceStatus === 'RECORDED',
+  ).length
+  const visibleGatherings = gatherings.filter((gathering) =>
+    gatheringFilter === 'ALL' ? true : gathering.gatheringStatus === gatheringFilter,
+  )
+
+  function openMemberHistory() {
+    setIsMemberHistoryOpen(true)
+    setHistoryMemberId('')
+    setHistoryAttendances([])
+    setHasLoadedMemberHistory(false)
+  }
+
+  function selectHistoryMember(memberId: string) {
+    setHistoryMemberId(memberId)
+    setHistoryAttendances([])
+    setHasLoadedMemberHistory(false)
+  }
 
   return (
     <section className="attendance-page" aria-labelledby="attendance-heading">
@@ -534,7 +657,14 @@ export function AttendancePage({
             onClick={openCancellationHistory}
             type="button"
           >
-            취소 이력 보기
+            정모 취소 이력
+          </button>
+          <button
+            className="secondary-button"
+            onClick={openMemberHistory}
+            type="button"
+          >
+            회원별 출석 이력
           </button>
           <button
             className="secondary-button"
@@ -554,7 +684,7 @@ export function AttendancePage({
           <div>
             <h3 id="calendar-heading">출석 캘린더</h3>
             <p>
-              날짜를 눌러 출석부 생성 날짜를 선택하거나, 표시된 출석부를 바로
+              날짜를 눌러 정모 개설 날짜를 선택하거나, 표시된 출석부를 바로
               엽니다.
             </p>
           </div>
@@ -689,32 +819,39 @@ export function AttendancePage({
       </section>
 
       <div className="attendance-grid">
-        {!readOnly && (
-          <section className="panel">
-            <h3>새 출석부</h3>
-            <p className="description">
-              캘린더의 날짜를 누르거나 아래 버튼을 눌러 출석부를 만듭니다.
-            </p>
-            <button
-              onClick={() => setIsCreateGatheringOpen(true)}
-              type="button"
-            >
-              새 출석부 만들기
-            </button>
-          </section>
-        )}
-
         <section className="panel gathering-list-panel">
-          <h3>출석부 목록</h3>
-          {gatherings.length === 0 ? (
+          <div className="panel-heading">
+            <div>
+              <h3>출석부 목록</h3>
+              <p>출석 상태별로 모임을 확인할 수 있습니다.</p>
+            </div>
+            <div className="gathering-filter-buttons" role="group" aria-label="출석부 상태 필터">
+              {([
+                ['ALL', '전체'],
+                ['OPEN', '출석 진행 중'],
+                ['CLOSED', '마감'],
+              ] as const).map(([filter, label]) => (
+                <button
+                  aria-pressed={gatheringFilter === filter}
+                  className={gatheringFilter === filter ? 'is-active' : 'secondary-button'}
+                  key={filter}
+                  onClick={() => setGatheringFilter(filter)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {visibleGatherings.length === 0 ? (
             <EmptyState
-              description="캘린더에서 날짜를 선택해 첫 출석부를 만들어 보세요."
+              description="선택한 상태에 해당하는 출석부가 없습니다."
               icon="□"
-              title="아직 만든 출석부가 없습니다"
+              title="표시할 출석부가 없습니다"
             />
           ) : (
             <ul className="gathering-list">
-              {gatherings.map((gathering) => (
+              {visibleGatherings.map((gathering) => (
                 <li key={gathering.id}>
                   <button
                     className={`gathering-row ${selectedGatheringId === gathering.id ? 'selected' : ''}`}
@@ -744,8 +881,8 @@ export function AttendancePage({
           onClose={() => setIsCreateGatheringOpen(false)}
         >
           <div className="modal-heading">
-            <h3 id="create-gathering-heading">새 출석부 만들기</h3>
-            <p>모임 정보를 입력하면 초안 상태의 출석부가 생성됩니다.</p>
+            <h3 id="create-gathering-heading">정모 개설</h3>
+            <p>모임 정보를 입력하면 초안 상태로 개설됩니다.</p>
           </div>
           <form className="form" onSubmit={createGathering}>
             <label>
@@ -768,7 +905,7 @@ export function AttendancePage({
             </label>
             <div className="form-actions">
               <button disabled={isCreatingGathering} type="submit">
-                {isCreatingGathering ? '출석부 생성 중…' : '출석부 초안 만들기'}
+                {isCreatingGathering ? '정모 개설 중…' : '정모 개설'}
               </button>
               <button
                 className="secondary-button"
@@ -787,53 +924,61 @@ export function AttendancePage({
         </Modal>
       )}
 
-      <section className="panel attendance-history">
-        <h3>회원별 출석 이력</h3>
-        <div className="attendance-history-controls">
-          <SearchableMemberSelect
-            includeWithdrawn
-            label="회원"
-            members={members}
-            onChange={setHistoryMemberId}
-            value={historyMemberId}
-          />
-          <button onClick={() => void loadMemberHistory()} type="button">
-            이력 조회
-          </button>
-        </div>
-        {historyMemberId !== '' && historyAttendances.length === 0 ? (
-          <EmptyState
-            description="이 회원의 출석 기록이 생기면 여기에 표시됩니다."
-            icon="✓"
-            title="조회된 출석 이력이 없습니다"
-          />
-        ) : (
-          <ul className="attendance-list">
-            {historyAttendances.map((attendance) => {
-              const gathering = gatherings.find(
-                (item) => item.id === attendance.gatheringId,
-              )
-              return (
-                <li key={attendance.id}>
-                  <strong>{gathering?.heldOn ?? '날짜를 불러오는 중'}</strong>
-                  <span>
-                    {participationLabels[attendance.participationType]}
-                  </span>
-                  <span>
-                    {attendance.attendanceStatus === 'RECORDED'
-                      ? '기록됨'
-                      : `취소됨: ${attendance.cancellationReason}`}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+      {isMemberHistoryOpen && (
+        <Modal
+          ariaLabelledBy="member-history-heading"
+          onClose={() => setIsMemberHistoryOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="member-history-heading">회원별 출석 이력</h3>
+            <p>회원을 선택한 뒤 이력을 조회합니다.</p>
+          </div>
+          <div className="attendance-history-controls">
+            <SearchableMemberSelect
+              includeWithdrawn
+              label="회원"
+              members={members}
+              onChange={selectHistoryMember}
+              value={historyMemberId}
+            />
+            <button onClick={() => void loadMemberHistory()} type="button">
+              이력 조회
+            </button>
+          </div>
+          {hasLoadedMemberHistory && historyAttendances.length === 0 && (
+            <EmptyState
+              description="이 회원의 출석 기록이 생기면 여기에 표시됩니다."
+              icon="✓"
+              title="조회된 출석 이력이 없습니다"
+            />
+          )}
+          {hasLoadedMemberHistory && historyAttendances.length > 0 && (
+            <ul className="attendance-list">
+              {historyAttendances.map((attendance) => {
+                const gathering = gatherings.find(
+                  (item) => item.id === attendance.gatheringId,
+                )
+                return (
+                  <li key={attendance.id}>
+                    <strong>{gathering?.heldOn ?? '날짜를 불러오는 중'}</strong>
+                    <span>{participationLabels[attendance.participationType]}</span>
+                    <span>
+                      {attendance.attendanceStatus === 'RECORDED'
+                        ? '기록됨'
+                        : `취소됨: ${attendance.cancellationReason ?? '사유 없음'}`}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Modal>
+      )}
 
       {selectedGathering && (
         <Modal
           ariaLabelledBy="attendance-detail-heading"
+          closeOnEscape={!isGatheringCancellationOpen && !isEditGatheringOpen}
           onClose={() => {
             setSelectedGatheringId(null)
             setCancellingAttendanceId(null)
@@ -848,11 +993,17 @@ export function AttendancePage({
                 </h3>
                 <p>
                   {selectedGathering.location ?? '장소 미입력'} ·{' '}
-                  {gatheringStatusLabels[selectedGathering.gatheringStatus]}
+                  {gatheringStatusLabels[selectedGathering.gatheringStatus]} ·{' '}
+                  {selectedAttendanceCount}명 참여
                 </p>
               </div>
-              {!readOnly && (
-                <div className="form-actions">
+               {!readOnly && (
+                 <div className="form-actions">
+                  {selectedGathering.gatheringStatus !== 'CANCELLED' && (
+                    <button className="secondary-button" onClick={openGatheringEdit} type="button">
+                      정모 정보 수정
+                    </button>
+                  )}
                   {selectedGathering.gatheringStatus === 'DRAFT' && (
                     <button
                       onClick={() => void changeGatheringStatus('open')}
@@ -867,6 +1018,14 @@ export function AttendancePage({
                       type="button"
                     >
                       출석 마감
+                    </button>
+                  )}
+                  {selectedGathering.gatheringStatus === 'CLOSED' && (
+                    <button
+                      onClick={() => void changeGatheringStatus('reopen')}
+                      type="button"
+                    >
+                      재개
                     </button>
                   )}
                   {selectedGathering.gatheringStatus !== 'CLOSED' &&
@@ -931,14 +1090,21 @@ export function AttendancePage({
                         <strong>
                           {member?.displayName ?? '알 수 없는 회원'}
                         </strong>
-                        <span>
-                          {participationLabels[attendance.participationType]}
-                        </span>
-                        <span>
-                          {attendance.attendanceStatus === 'RECORDED'
-                            ? '기록됨'
-                            : '취소됨'}
-                        </span>
+                        {attendance.attendanceStatus === 'RECORDED' ? (
+                          <>
+                            <span>
+                              {participationLabels[attendance.participationType]}
+                            </span>
+                            <span>기록됨</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>
+                              {`취소 사유: ${attendance.cancellationReason ?? '사유 없음'}`}
+                            </span>
+                            <span className="attendance-cancelled-label">취소</span>
+                          </>
+                        )}
                         {!readOnly &&
                           attendance.attendanceStatus === 'RECORDED' && (
                             <button
@@ -998,10 +1164,7 @@ export function AttendancePage({
         >
           <div className="modal-heading">
             <h3 id="cancel-gathering-heading">모임을 취소할까요?</h3>
-            <p>
-              {selectedGathering.heldOn} {selectedGathering.title ?? '정모'}는
-              기본 목록에서 숨겨지고 취소 이력에 보관됩니다.
-            </p>
+            <p>{`${selectedGathering.heldOn} ${selectedGathering.title ?? '정모'}`}</p>
           </div>
           <form className="form" onSubmit={cancelGathering}>
             <label>
@@ -1033,6 +1196,36 @@ export function AttendancePage({
                 {gatheringCancellationError}
               </p>
             )}
+          </form>
+        </Modal>
+      )}
+      {isEditGatheringOpen && selectedGathering && (
+        <Modal
+          ariaLabelledBy="edit-gathering-heading"
+          onClose={() => setIsEditGatheringOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="edit-gathering-heading">정모 정보 수정</h3>
+            <p>날짜, 제목, 장소를 변경할 수 있습니다.</p>
+          </div>
+          <form className="form" onSubmit={updateGathering}>
+            <label>
+              모임 날짜
+              <KoreanDateInput onChange={setEditHeldOn} required value={editHeldOn} />
+            </label>
+            <label>
+              정모 제목
+              <input onChange={(event) => setEditTitle(event.target.value)} value={editTitle} />
+            </label>
+            <label>
+              장소
+              <input onChange={(event) => setEditLocation(event.target.value)} value={editLocation} />
+            </label>
+            {editGatheringError && <p className="field-error" role="alert">{editGatheringError}</p>}
+            <div className="form-actions">
+              <button type="submit">저장</button>
+              <button className="secondary-button" onClick={() => setIsEditGatheringOpen(false)} type="button">취소</button>
+            </div>
           </form>
         </Modal>
       )}
@@ -1104,11 +1297,6 @@ export function AttendancePage({
             </button>
           </div>
         </Modal>
-      )}
-      {message && (
-        <p className="message" role="status">
-          {message}
-        </p>
       )}
     </section>
   )

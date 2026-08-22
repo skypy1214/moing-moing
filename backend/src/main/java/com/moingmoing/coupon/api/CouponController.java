@@ -49,6 +49,7 @@ class CouponController {
                 request.validFrom(),
                 request.validUntil(),
                 request.totalUses(),
+                request.name(),
                 request.issuedReason()));
         return ResponseEntity.created(URI.create("/api/v1/coupons/" + response.id())).body(response);
     }
@@ -61,6 +62,11 @@ class CouponController {
     @PostMapping("/{id}/void")
     CouponResponse voidCoupon(@PathVariable UUID id) {
         return CouponResponse.from(couponService.voidCoupon(id));
+    }
+
+    @PostMapping("/{id}/restore")
+    CouponResponse restoreVoidedCoupon(@PathVariable UUID id) {
+        return CouponResponse.from(couponService.restoreVoidedCoupon(id));
     }
 
     @PutMapping("/{id}/valid-until")
@@ -83,6 +89,11 @@ class CouponController {
         return new QrTokenResponse(couponService.issueQrToken(id));
     }
 
+    @PostMapping("/{id}/qr-token/view")
+    QrTokenResponse viewQrToken(@PathVariable UUID id) {
+        return new QrTokenResponse(couponService.viewQrToken(id));
+    }
+
     @PostMapping("/qr/validate")
     CouponResponse validateQrToken(@Valid @RequestBody ValidateQrCouponRequest request) {
         return CouponResponse.from(couponService.findByQrToken(request.token()));
@@ -100,6 +111,13 @@ class CouponController {
             @Valid @RequestBody ReverseCouponUsageRequest request) {
         return CouponUsageResponse.from(couponService.reverseUsage(id, usageId, request.reason()));
     }
+
+    @PostMapping("/usages/attendance/{attendanceId}/reverse")
+    CouponUsageResponse reverseForAttendance(
+            @PathVariable UUID attendanceId,
+            @Valid @RequestBody ReverseCouponUsageRequest request) {
+        return CouponUsageResponse.from(couponService.reverseUsageForAttendance(attendanceId, request.reason()));
+    }
 }
 
 record IssueManualCouponRequest(
@@ -107,6 +125,7 @@ record IssueManualCouponRequest(
         @NotNull LocalDate validFrom,
         @NotNull LocalDate validUntil,
         @Min(1) int totalUses,
+        @NotBlank @Size(max = 100) String name,
         @Size(max = 1000) String issuedReason) {
 }
 
@@ -128,12 +147,15 @@ record CouponResponse(
         LocalDate validUntil,
         int totalUses,
         int remainingUses,
-        String issuedReason) {
+        String name,
+        String issuedReason,
+        UUID championAwardId,
+        boolean hasQrCode) {
     static CouponResponse from(Coupon coupon) {
         return new CouponResponse(
-                coupon.getId(), coupon.getMemberId(), coupon.getCouponType(), coupon.getCouponStatus(),
+                coupon.getId(), coupon.getMemberId(), coupon.getCouponType(), coupon.getDisplayStatus(LocalDate.now()),
                 coupon.getValidFrom(), coupon.getValidUntil(), coupon.getTotalUses(), coupon.getRemainingUses(),
-                coupon.getIssuedReason());
+                coupon.getName(), coupon.getIssuedReason(), coupon.getChampionAwardId(), coupon.hasViewableQrToken());
     }
 }
 

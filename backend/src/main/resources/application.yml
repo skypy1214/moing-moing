@@ -24,3 +24,5 @@ app:
   initial-admin:
     login: ${INITIAL_ADMIN_LOGIN:}
     password: ${INITIAL_ADMIN_PASSWORD:}
+  coupon:
+    qr-token-encryption-key: ${QR_TOKEN_ENCRYPTION_KEY:}

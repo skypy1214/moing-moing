@@ -17,6 +17,13 @@ record CreateGatheringRequest(
         @Size(max = 200) String location) {
 }
 
+record UpdateGatheringRequest(
+        @NotNull LocalDate heldOn,
+        @Size(max = 200) String title,
+        Instant startsAt,
+        @Size(max = 200) String location) {
+}
+
 record RecordAttendanceRequest(
         @NotNull UUID memberId,
         @NotNull AttendanceParticipationType participationType) {

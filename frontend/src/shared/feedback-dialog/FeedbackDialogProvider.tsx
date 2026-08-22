@@ -96,7 +96,11 @@ export function FeedbackDialogProvider({ children }: { children: ReactNode }) {
             <h2 id="confirmation-dialog-heading">{confirmation.title}</h2>
             <p>{confirmation.message}</p>
             <div className="feedback-dialog-actions">
-              <button onClick={() => closeConfirmation(false)} type="button">
+              <button
+                className="feedback-dialog-cancel"
+                onClick={() => closeConfirmation(false)}
+                type="button"
+              >
                 취소
               </button>
               <button

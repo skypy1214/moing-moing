@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moingmoing.attendance.domain.Attendance;
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
@@ -51,6 +52,13 @@ public class AttendanceService {
         return gatheringRepository.save(new Gathering(heldOn, title, startsAt, location));
     }
 
+    public Gathering updateGathering(
+            UUID gatheringId, LocalDate heldOn, String title, Instant startsAt, String location) {
+        Gathering gathering = findGathering(gatheringId);
+        gathering.updateDetails(heldOn, title, startsAt, location);
+        return gathering;
+    }
+
     public Gathering openGathering(UUID gatheringId) {
         Gathering gathering = findGathering(gatheringId);
         gathering.open();
@@ -60,6 +68,12 @@ public class AttendanceService {
     public Gathering closeGathering(UUID gatheringId) {
         Gathering gathering = findGathering(gatheringId);
         gathering.close();
+        return gathering;
+    }
+
+    public Gathering reopenGathering(UUID gatheringId) {
+        Gathering gathering = findGathering(gatheringId);
+        gathering.reopen();
         return gathering;
     }
 
@@ -92,8 +106,16 @@ public class AttendanceService {
                 && gathering.getHeldOn().isAfter(member.getWithdrawnOn())) {
             throw new IllegalArgumentException("탈퇴일 이후에는 출석을 기록할 수 없습니다.");
         }
-        if (attendanceRepository.existsByGatheringIdAndMemberId(gatheringId, memberId)) {
-            throw new IllegalArgumentException("이미 해당 모임의 출석 기록이 있습니다.");
+        Attendance existingAttendance = attendanceRepository
+                .findByGatheringIdAndMemberId(gatheringId, memberId)
+                .orElse(null);
+        if (existingAttendance != null) {
+            if (existingAttendance.getAttendanceStatus() == AttendanceStatus.CANCELLED) {
+                existingAttendance.recordAgain(participationType);
+            } else {
+                existingAttendance.changeParticipationType(participationType);
+            }
+            return existingAttendance;
         }
         return attendanceRepository.save(new Attendance(gatheringId, memberId, participationType));
     }

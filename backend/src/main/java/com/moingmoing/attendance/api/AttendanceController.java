@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +50,18 @@ class AttendanceController {
     @PostMapping("/{id}/close")
     GatheringResponse closeGathering(@PathVariable UUID id) {
         return GatheringResponse.from(attendanceService.closeGathering(id));
+    }
+
+    @PutMapping("/{id}")
+    GatheringResponse updateGathering(
+            @PathVariable UUID id, @Valid @RequestBody UpdateGatheringRequest request) {
+        return GatheringResponse.from(attendanceService.updateGathering(
+                id, request.heldOn(), request.title(), request.startsAt(), request.location()));
+    }
+
+    @PostMapping("/{id}/reopen")
+    GatheringResponse reopenGathering(@PathVariable UUID id) {
+        return GatheringResponse.from(attendanceService.reopenGathering(id));
     }
 
     @GetMapping("/cancellations")

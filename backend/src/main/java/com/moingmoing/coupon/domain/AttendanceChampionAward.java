@@ -67,4 +67,12 @@ public class AttendanceChampionAward {
         awardStatus = AttendanceChampionAwardStatus.CANCELLED;
         updatedAt = Instant.now();
     }
+
+    public void restore() {
+        if (awardStatus != AttendanceChampionAwardStatus.CANCELLED) {
+            throw new IllegalArgumentException("Only a cancelled attendance champion award can be restored.");
+        }
+        awardStatus = AttendanceChampionAwardStatus.GRANTED;
+        updatedAt = Instant.now();
+    }
 }

@@ -1,5 +1,6 @@
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 export const apiLoadingChangeEvent = 'moingmoing:api-loading-change'
+export const apiUnauthorizedEvent = 'moingmoing:api-unauthorized'
 
 let pendingApiRequestCount = 0
 
@@ -31,8 +32,20 @@ export function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
   pendingApiRequestCount += 1
   notifyApiLoadingChange()
 
-  return globalThis.fetch(`${apiBaseUrl}${input}`, init).finally(() => {
-    pendingApiRequestCount -= 1
-    notifyApiLoadingChange()
-  })
+  return globalThis
+    .fetch(`${apiBaseUrl}${input}`, init)
+    .then((response) => {
+      if (
+        response.status === 401 &&
+        !input.includes('/api/v1/auth/login') &&
+        typeof window !== 'undefined'
+      ) {
+        window.dispatchEvent(new Event(apiUnauthorizedEvent))
+      }
+      return response
+    })
+    .finally(() => {
+      pendingApiRequestCount -= 1
+      notifyApiLoadingChange()
+    })
 }

@@ -31,6 +31,7 @@ public class CouponService {
     private final AttendanceService attendanceService;
     private final AttendanceRepository attendanceRepository;
     private final GatheringRepository gatheringRepository;
+    private final CouponQrTokenCipher qrTokenCipher;
 
     public CouponService(
             CouponRepository couponRepository,
@@ -38,20 +39,27 @@ public class CouponService {
             MemberService memberService,
             AttendanceService attendanceService,
             AttendanceRepository attendanceRepository,
-            GatheringRepository gatheringRepository) {
+            GatheringRepository gatheringRepository,
+            CouponQrTokenCipher qrTokenCipher) {
         this.couponRepository = couponRepository;
         this.couponUsageRepository = couponUsageRepository;
         this.memberService = memberService;
         this.attendanceService = attendanceService;
         this.attendanceRepository = attendanceRepository;
         this.gatheringRepository = gatheringRepository;
+        this.qrTokenCipher = qrTokenCipher;
     }
 
     public Coupon issueManualCoupon(
-            UUID memberId, LocalDate validFrom, LocalDate validUntil, int totalUses, String issuedReason) {
+            UUID memberId,
+            LocalDate validFrom,
+            LocalDate validUntil,
+            int totalUses,
+            String name,
+            String issuedReason) {
         memberService.findById(memberId);
         return couponRepository.save(new Coupon(
-                memberId, CouponType.MANUAL_FREE_PASS, validFrom, validUntil, totalUses, issuedReason));
+                memberId, CouponType.MANUAL_FREE_PASS, validFrom, validUntil, totalUses, name, issuedReason));
     }
 
     @Transactional(readOnly = true)
@@ -79,20 +87,38 @@ public class CouponService {
         return coupon;
     }
 
+    public Coupon restoreVoidedCoupon(UUID couponId) {
+        Coupon coupon = findById(couponId);
+        if (coupon.getChampionAwardId() != null) {
+            throw new IllegalArgumentException("Attendance champion coupons cannot be restored individually.");
+        }
+        coupon.restoreVoidedCoupon();
+        return coupon;
+    }
+
     public Coupon extendUntil(UUID couponId, LocalDate validUntil) {
         Coupon coupon = findById(couponId);
         coupon.extendUntil(validUntil);
         return coupon;
     }
 
-    /** The raw token is returned once for QR encoding; only its digest is retained. */
+    /** Issuing a token deliberately replaces the previous one, invalidating its QR code. */
     public String issueQrToken(UUID couponId) {
         Coupon coupon = findById(couponId);
         byte[] bytes = new byte[32];
         QR_TOKEN_RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        coupon.replaceQrToken(token);
+        coupon.replaceQrToken(token, qrTokenCipher.encrypt(token));
         return token;
+    }
+
+    @Transactional(readOnly = true)
+    public String viewQrToken(UUID couponId) {
+        Coupon coupon = findById(couponId);
+        if (!coupon.hasViewableQrToken()) {
+            throw new IllegalArgumentException("This QR code must be issued again before it can be viewed.");
+        }
+        return qrTokenCipher.decrypt(coupon.getQrTokenCiphertext());
     }
 
     /** Looks up a scanned token without consuming the coupon; use remains an explicit follow-up action. */
@@ -129,6 +155,12 @@ public class CouponService {
         coupon.restoreOneUse();
         usage.reverse(reason);
         return usage;
+    }
+
+    public CouponUsage reverseUsageForAttendance(UUID attendanceId, String reason) {
+        CouponUsage usage = couponUsageRepository.findByAttendanceId(attendanceId)
+                .orElseThrow(() -> new IllegalArgumentException("Coupon usage not found."));
+        return reverseUsage(usage.getCouponId(), usage.getId(), reason);
     }
 
     @Transactional(readOnly = true)

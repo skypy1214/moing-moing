@@ -98,6 +98,11 @@ public class AttendanceChampionAwardService {
         }).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<AttendanceChampionAward> findByMonth(YearMonth month) {
+        return awardRepository.findByTargetMonthOrderByMemberIdAsc(month.atDay(1));
+    }
+
     /**
      * A reward cancellation is audit-preserving. Coupons with any use are deliberately
      * protected: reverse the usage first so attendance and coupon balances stay consistent.
@@ -116,6 +121,19 @@ public class AttendanceChampionAwardService {
         }
         coupons.forEach(Coupon::voidCoupon);
         award.cancel();
+        return award;
+    }
+
+    public AttendanceChampionAward restore(UUID awardId) {
+        AttendanceChampionAward award = awardRepository.findById(awardId)
+                .orElseThrow(() -> new IllegalArgumentException("Attendance champion award not found."));
+        List<Coupon> coupons = couponRepository.findByChampionAwardIdOrderByIssuedAtDesc(awardId);
+        if (coupons.isEmpty() || coupons.stream().anyMatch(coupon -> coupon.getCouponStatus() != CouponStatus.VOIDED
+                || coupon.getRemainingUses() != coupon.getTotalUses())) {
+            throw new IllegalStateException("Only unused cancelled attendance champion coupons can be restored.");
+        }
+        coupons.forEach(Coupon::restoreVoidedCoupon);
+        award.restore();
         return award;
     }
 

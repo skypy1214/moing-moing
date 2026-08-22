@@ -84,4 +84,24 @@ public class Attendance {
         cancelledAt = Instant.now();
         updatedAt = cancelledAt;
     }
+
+    /**
+     * A re-attendance keeps the original record and cancellation audit instead of creating a duplicate.
+     */
+    public void recordAgain(AttendanceParticipationType newParticipationType) {
+        if (attendanceStatus != AttendanceStatus.CANCELLED) {
+            throw new IllegalArgumentException("Only a cancelled attendance can be recorded again.");
+        }
+        participationType = newParticipationType;
+        attendanceStatus = AttendanceStatus.RECORDED;
+        recordedAt = Instant.now();
+        cancelledAt = null;
+        cancellationReason = null;
+        updatedAt = recordedAt;
+    }
+
+    public void changeParticipationType(AttendanceParticipationType newParticipationType) {
+        participationType = newParticipationType;
+        updatedAt = Instant.now();
+    }
 }

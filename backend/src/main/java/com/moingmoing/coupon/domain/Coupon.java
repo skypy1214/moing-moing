@@ -27,9 +27,11 @@ public class Coupon {
     private LocalDate validUntil;
     private int totalUses;
     private int remainingUses;
+    private String name;
     private String issuedReason;
     private UUID championAwardId;
     private String qrTokenHash;
+    private String qrTokenCiphertext;
     private Instant issuedAt;
     private Instant suspendedAt;
     private Instant voidedAt;
@@ -45,6 +47,7 @@ public class Coupon {
             LocalDate validFrom,
             LocalDate validUntil,
             int totalUses,
+            String name,
             String issuedReason) {
         if (validUntil.isBefore(validFrom)) {
             throw new IllegalArgumentException("Coupon expiry cannot be before its start date.");
@@ -60,6 +63,7 @@ public class Coupon {
         this.validUntil = validUntil;
         this.totalUses = totalUses;
         this.remainingUses = totalUses;
+        this.name = name;
         this.issuedReason = issuedReason;
         this.issuedAt = Instant.now();
         this.createdAt = issuedAt;
@@ -78,6 +82,7 @@ public class Coupon {
                 validFrom,
                 validUntil,
                 totalUses,
+                "출석왕 쿠폰",
                 "Monthly attendance champion reward");
         coupon.championAwardId = championAwardId;
         return coupon;
@@ -87,17 +92,30 @@ public class Coupon {
     public UUID getMemberId() { return memberId; }
     public CouponType getCouponType() { return couponType; }
     public CouponStatus getCouponStatus() { return couponStatus; }
+    public CouponStatus getDisplayStatus(LocalDate today) {
+        if (couponStatus == CouponStatus.ISSUED && validUntil.isBefore(today)) {
+            return CouponStatus.EXPIRED;
+        }
+        return couponStatus;
+    }
     public LocalDate getValidFrom() { return validFrom; }
     public LocalDate getValidUntil() { return validUntil; }
     public int getTotalUses() { return totalUses; }
     public int getRemainingUses() { return remainingUses; }
+    public String getName() { return name; }
     public String getIssuedReason() { return issuedReason; }
     public UUID getChampionAwardId() { return championAwardId; }
     public Instant getIssuedAt() { return issuedAt; }
+    public String getQrTokenCiphertext() { return qrTokenCiphertext; }
+    public boolean hasViewableQrToken() { return qrTokenCiphertext != null; }
 
-    /** Stores only a SHA-256 digest so a database leak cannot reveal a usable QR token. */
-    public void replaceQrToken(String rawToken) {
+    /**
+     * The digest remains the scanner lookup key, while the ciphertext lets an administrator view
+     * the current QR again without rotating it. The raw token itself is never persisted.
+     */
+    public void replaceQrToken(String rawToken, String ciphertext) {
         qrTokenHash = sha256(rawToken);
+        qrTokenCiphertext = ciphertext;
         updatedAt = Instant.now();
     }
 
@@ -149,10 +167,17 @@ public class Coupon {
         if (couponStatus == CouponStatus.VOIDED || couponStatus == CouponStatus.FULLY_USED) {
             throw new IllegalArgumentException("This coupon cannot be voided.");
         }
-        // Void is irreversible because the original issue must remain auditable after an operator mistake.
         couponStatus = CouponStatus.VOIDED;
         voidedAt = Instant.now();
         updatedAt = voidedAt;
+    }
+
+    public void restoreVoidedCoupon() {
+        if (couponStatus != CouponStatus.VOIDED || remainingUses == 0) {
+            throw new IllegalArgumentException("Only an unused voided coupon can be restored.");
+        }
+        couponStatus = CouponStatus.ISSUED;
+        updatedAt = Instant.now();
     }
 
     public void extendUntil(LocalDate newValidUntil) {

@@ -28,6 +28,7 @@ Render 환경변수/secret에 다음 값을 설정한다. `DB_*`, 초기 관리�
 | `DB_USERNAME` | Neon role |
 | `DB_PASSWORD` | Neon password |
 | `CORS_ALLOWED_ORIGINS` | Cloudflare Pages 운영 URL. 예: `https://admin.example.pages.dev` |
+| `QR_TOKEN_ENCRYPTION_KEY` | 기존 쿠폰 QR을 다시 보기 위한 Base64 형식 32바이트 AES 키. PowerShell에서 `[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))`로 한 번 생성해 Render secret으로 저장한다. |
 | `INITIAL_ADMIN_LOGIN` | 최초 배포 때만 필요한 관리자 ID |
 | `INITIAL_ADMIN_PASSWORD` | 최초 배포 때만 필요한 관리자 비밀번호 |
 

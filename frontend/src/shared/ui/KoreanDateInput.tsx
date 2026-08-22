@@ -17,7 +17,7 @@ function displayDate(value: string) {
   const digits = dateDigits(value)
   return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)]
     .filter((part) => part.length > 0)
-    .join('.')
+    .join('/')
 }
 
 function isoDate(digits: string) {
@@ -85,7 +85,7 @@ export function KoreanDateInput({
           'YYYY.MM.DD 형식으로 입력해 주세요.',
         )
       }}
-      placeholder="YYYY.MM.DD"
+      placeholder="YYYY/MM/DD"
       ref={inputRef}
       type="text"
       value={draft}

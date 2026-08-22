@@ -39,7 +39,8 @@ class AttendanceServiceTest {
         AttendanceService attendanceService = service();
         when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
         when(memberService.findById(member.getId())).thenReturn(member);
-        when(attendanceRepository.existsByGatheringIdAndMemberId(gathering.getId(), member.getId())).thenReturn(false);
+        when(attendanceRepository.findByGatheringIdAndMemberId(gathering.getId(), member.getId()))
+                .thenReturn(Optional.empty());
         when(attendanceRepository.save(any(Attendance.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Attendance attendance = attendanceService.recordAttendance(
@@ -51,18 +52,22 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void rejectsDuplicateAttendanceForTheSameGatheringAndMember() {
+    void changesParticipationTypeForExistingAttendance() {
         Gathering gathering = openGathering();
         Member member = new Member("회원", null, LocalDate.of(2026, 1, 1), null);
         AttendanceService attendanceService = service();
         when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
         when(memberService.findById(member.getId())).thenReturn(member);
-        when(attendanceRepository.existsByGatheringIdAndMemberId(gathering.getId(), member.getId())).thenReturn(true);
+        Attendance existing = new Attendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.NORMAL);
+        when(attendanceRepository.findByGatheringIdAndMemberId(gathering.getId(), member.getId()))
+                .thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> attendanceService.recordAttendance(
-                gathering.getId(), member.getId(), AttendanceParticipationType.NORMAL))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("이미 해당 모임");
+        Attendance changed = attendanceService.recordAttendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.HOST);
+
+        assertThat(changed).isSameAs(existing);
+        assertThat(changed.getParticipationType()).isEqualTo(AttendanceParticipationType.HOST);
     }
 
     @Test

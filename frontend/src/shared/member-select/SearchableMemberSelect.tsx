@@ -26,6 +26,7 @@ export function SearchableMemberSelect({
   const listboxId = useId()
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const selectedMember = members.find((member) => member.id === value)
 
   useEffect(() => {
@@ -55,6 +56,13 @@ export function SearchableMemberSelect({
     setIsOpen(false)
   }
 
+  function openOptions(resetActiveIndex = true) {
+    setIsOpen(true)
+    if (resetActiveIndex) {
+      setActiveIndex(-1)
+    }
+  }
+
   return (
     <div
       className="searchable-member-select"
@@ -76,17 +84,33 @@ export function SearchableMemberSelect({
             if (value !== '') {
               onChange('')
             }
-            setIsOpen(true)
+            openOptions()
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={openOptions}
           onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              openOptions(false)
+              setActiveIndex((index) =>
+                Math.min(index + 1, Math.max(visibleMembers.length - 1, 0)),
+              )
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              openOptions(false)
+              setActiveIndex((index) => Math.max(index - 1, 0))
+            }
+            if (event.key === 'Enter' && isOpen && visibleMembers[activeIndex]) {
+              event.preventDefault()
+              selectMember(visibleMembers[activeIndex])
+            }
             if (event.key === 'Escape') {
               setIsOpen(false)
             }
           }}
           placeholder="이름 또는 닉네임으로 검색"
           role="combobox"
-          type="search"
+          type="text"
           value={query}
         />
         {value !== '' && (
@@ -115,8 +139,15 @@ export function SearchableMemberSelect({
               visibleMembers.map((member) => (
                 <button
                   aria-selected={member.id === value}
-                  className={member.id === value ? 'is-selected' : undefined}
+                  className={
+                    member.id === value
+                      ? 'is-selected'
+                      : visibleMembers[activeIndex]?.id === member.id
+                        ? 'is-active'
+                        : undefined
+                  }
                   key={member.id}
+                  onMouseEnter={() => setActiveIndex(visibleMembers.indexOf(member))}
                   onClick={() => selectMember(member)}
                   role="option"
                   type="button"
