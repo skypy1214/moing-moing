@@ -90,7 +90,7 @@ export function SearchableMemberSelect({
             }
             openOptions()
           }}
-          onFocus={openOptions}
+          onFocus={() => openOptions()}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') {
               event.preventDefault()

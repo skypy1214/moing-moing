@@ -105,13 +105,13 @@ function Modal({
   onClose,
 }: ModalProps) {
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (closeOnEscape && event.key === 'Escape') {
         onClose()
       }
     }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => document.removeEventListener('keydown', closeOnEscape)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [closeOnEscape, onClose])
 
   return (
@@ -176,7 +176,7 @@ export function AttendancePage({
     string | null
   >(null)
   const [cancellationReason, setCancellationReason] = useState('')
-  const [message, setMessage] = useState('')
+  const [, setMessage] = useState('')
   const [createGatheringError, setCreateGatheringError] = useState('')
   const [isCreatingGathering, setIsCreatingGathering] = useState(false)
   const [isGatheringCancellationOpen, setIsGatheringCancellationOpen] =
@@ -326,12 +326,10 @@ export function AttendancePage({
     void loadCancellationHistory()
   }
 
-  async function selectGathering(gathering: Gathering) {
-    setSelectedGatheringId(gathering.id)
-    setMessage('')
+  async function loadAttendances(gatheringId: string) {
     try {
       const response = await fetch(
-        `/api/v1/gatherings/${gathering.id}/attendances`,
+        `/api/v1/gatherings/${gatheringId}/attendances`,
         {
           credentials: 'include',
         },
@@ -343,6 +341,12 @@ export function AttendancePage({
     } catch (error) {
       setMessage(errorMessage(error, '출석 기록을 불러오지 못했습니다.'))
     }
+  }
+
+  async function selectGathering(gathering: Gathering) {
+    setSelectedGatheringId(gathering.id)
+    setMessage('')
+    await loadAttendances(gathering.id)
   }
 
   async function createGathering(event: FormEvent<HTMLFormElement>) {
