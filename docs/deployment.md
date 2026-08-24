@@ -10,6 +10,8 @@ Cloudflare Workers Static Assets (React/Vite + /api/* Worker proxy)
 
 > 2026-08-25 정정: 실제 프론트 배포 주소가 `workers.dev`이므로 Cloudflare Pages Function은 실행되지 않는다. `frontend/wrangler.jsonc`와 `frontend/worker/index.ts`가 `/api/*`를 처리하는 Cloudflare Worker의 기준이다. Worker Dashboard에서 `API_ORIGIN=https://moing-moing-api.onrender.com`을 production 변수로 설정한 뒤 `npm run deploy:worker`로 배포한다.
 
+`wrangler.jsonc`의 `keep_vars: true`는 Dashboard에서 설정한 `API_ORIGIN`을 Git 배포가 삭제하지 않도록 보존한다. 이 설정이 배포된 뒤 Worker Dashboard에서 `API_ORIGIN`을 다시 저장한다.
+
 Neon은 PostgreSQL 서비스이며 Spring Boot 또는 정적 React 파일을 실행하지 않는다. DB 비밀번호는 Cloudflare Pages에 넣지 않고 Render에만 설정한다.
 
 ## Render 백엔드
