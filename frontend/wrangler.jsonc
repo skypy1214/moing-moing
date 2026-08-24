@@ -4,6 +4,9 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-08-24",
   "keep_vars": true,
+  "vars": {
+    "API_ORIGIN": "https://moing-moing-api.onrender.com"
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist",
