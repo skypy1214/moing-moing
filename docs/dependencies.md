@@ -13,6 +13,7 @@ Phase 1에서 직접 선택한 런타임 및 품질 도구를 기록한다. 전�
 | Checkstyle | 13.9.0 | LGPL-2.1-or-later | Gradle `check`에 통합되는 Java 정적 스타일 검사 |
 | React | lockfile 기준 | MIT | 관리자 SPA UI |
 | Vite | lockfile 기준 | MIT | React/TypeScript 개발 서버와 빌드 |
+| Wrangler | 4.86.0 | MIT OR Apache-2.0 | Cloudflare Workers Static Assets 배포와 `/api/*` Worker 프록시. Cloudflare 공식 유지보수 도구이며 정적 Worker의 POST 405를 방지하도록 프록시 경로를 코드로 관리한다. |
 | ESLint 및 TypeScript ESLint | lockfile 기준 | MIT/BSD-2-Clause | TypeScript 정적 검사 |
 | Prettier | lockfile 기준 | MIT | 일관된 프론트엔드 포맷 검사 |
 | Vitest, Testing Library, jsdom | lockfile 기준 | MIT | 사용자 동작 중심 프론트 단위 테스트 |

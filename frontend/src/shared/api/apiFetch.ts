@@ -3,7 +3,7 @@ export const apiUnauthorizedEvent = 'moingmoing:api-unauthorized'
 
 let pendingApiRequestCount = 0
 
-// Production requests are handled by the Cloudflare Pages /api proxy. Vite uses
+// Production requests are handled by the Cloudflare Worker /api proxy. Vite uses
 // the same relative path through its local development proxy.
 export const apiBaseUrl = ''
 

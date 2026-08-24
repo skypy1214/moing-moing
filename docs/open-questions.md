@@ -130,8 +130,8 @@
 ### OQ-16 배포, 백업, 개인정보
 
 - 상태: 일부 결정
-- 결정(2026-08-21): 프론트는 Cloudflare Pages, 백엔드는 Render Free Web Service, DB는 기존 Neon PostgreSQL을 사용한다. URL·DB 연결·초기 관리자·CORS origin은 플랫폼 환경변수/secret으로만 관리한다.
-- 추가 결정(2026-08-24): Cloudflare Pages Function이 `/api/*`를 Render로 프록시한다. Render URL은 Pages의 서버 측 `API_ORIGIN`으로만 관리하며, 브라우저 세션은 first-party 쿠키로 유지한다. 이는 iPhone Safari의 제3자 쿠키 차단을 피하기 위한 결정이다.
+- 결정(2026-08-21, 갱신 2026-08-25): 프론트는 Cloudflare Workers Static Assets, 백엔드는 Render Free Web Service, DB는 기존 Neon PostgreSQL을 사용한다. URL·DB 연결·초기 관리자·CORS origin은 플랫폼 환경변수/secret으로만 관리한다.
+- 추가 결정(2026-08-25): Cloudflare Worker가 `/api/*`를 Render로 프록시한다. 정적 Asset Worker는 POST를 처리하지 않아 405를 반환할 수 있으므로, `assets.run_worker_first`로 `/api/*`를 명시적으로 Worker에 전달한다. Render URL은 Worker의 서버 측 `API_ORIGIN`으로만 관리하며, 브라우저 세션은 first-party 쿠키로 유지한다. 이는 iPhone Safari의 제3자 쿠키 차단을 피하기 위한 결정이다.
 - 남은 질문: 운영 도메인, Neon 백업 보존 기간과 복구 리허설, 개인정보 보존·삭제 요청 절차.
 - 주의: Render Free 인스턴스의 제한은 운영 전 점검한다. 추후 자체 도메인을 도입하면 프론트/API를 같은 등록 도메인의 하위 도메인으로 구성할 수 있다.
 

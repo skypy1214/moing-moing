@@ -1,15 +1,19 @@
-type ApiProxyContext = {
-  env: {
-    API_ORIGIN?: string
-  }
-  request: Request
+type StaticAssets = {
+  fetch(request: Request): Promise<Response>
 }
 
-export const onRequest = async ({
-  env,
-  request,
-}: ApiProxyContext): Promise<Response> => {
-  const configuredOrigin = env.API_ORIGIN?.trim()
+type Environment = {
+  API_ORIGIN?: string
+  ASSETS: StaticAssets
+}
+
+const apiPathPrefix = '/api/'
+
+const proxyApiRequest = async (
+  request: Request,
+  environment: Environment,
+): Promise<Response> => {
+  const configuredOrigin = environment.API_ORIGIN?.trim()
   if (!configuredOrigin) {
     return new Response('API_ORIGIN is not configured.', { status: 500 })
   }
@@ -32,8 +36,8 @@ export const onRequest = async ({
   )
   const headers = new Headers(request.headers)
 
-  // This server-to-server request does not need browser CORS handling. Keep Cookie so
-  // the Render session remains available while the browser treats it as first-party.
+  // The browser talks to this Worker as its own origin. The upstream only needs
+  // the session Cookie; an Origin header would incorrectly trigger CORS handling.
   headers.delete('host')
   headers.delete('origin')
 
@@ -43,4 +47,16 @@ export const onRequest = async ({
     method: request.method,
     redirect: 'manual',
   })
+}
+
+export default {
+  async fetch(request: Request, environment: Environment): Promise<Response> {
+    const requestUrl = new URL(request.url)
+
+    if (requestUrl.pathname.startsWith(apiPathPrefix)) {
+      return proxyApiRequest(request, environment)
+    }
+
+    return environment.ASSETS.fetch(request)
+  },
 }

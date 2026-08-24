@@ -13,7 +13,7 @@
 
 ## Current repository / deployment
 
-- Frontend: React + TypeScript + Vite, deployed on Cloudflare Pages.
+- Frontend: React + TypeScript + Vite, deployed on Cloudflare Workers Static Assets.
 - Backend: Java 21 + Spring Boot + Gradle, deployed on Render.
 - Database: Neon PostgreSQL. Flyway runs on backend startup.
 - Local environment values are in `.env` and must never be printed or committed.

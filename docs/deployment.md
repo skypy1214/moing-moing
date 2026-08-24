@@ -1,12 +1,14 @@
-# Cloudflare Pages + Render + Neon 배포
+# Cloudflare Workers + Render + Neon 배포
 
 ## 구성
 
 ```text
-Cloudflare Pages (React/Vite + /api/* Pages Function)
+Cloudflare Workers Static Assets (React/Vite + /api/* Worker proxy)
   -- HTTPS 서버 간 API 프록시 --> Render Web Service (Spring Boot)
   -- JDBC TLS 연결 --> Neon PostgreSQL
 ```
+
+> 2026-08-25 정정: 실제 프론트 배포 주소가 `workers.dev`이므로 Cloudflare Pages Function은 실행되지 않는다. `frontend/wrangler.jsonc`와 `frontend/worker/index.ts`가 `/api/*`를 처리하는 Cloudflare Worker의 기준이다. Worker Dashboard에서 `API_ORIGIN=https://moing-moing-api.onrender.com`을 production 변수로 설정한 뒤 `npm run deploy:worker`로 배포한다.
 
 Neon은 PostgreSQL 서비스이며 Spring Boot 또는 정적 React 파일을 실행하지 않는다. DB 비밀번호는 Cloudflare Pages에 넣지 않고 Render에만 설정한다.
 
