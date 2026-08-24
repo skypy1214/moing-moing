@@ -1,10 +1,16 @@
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
+import {
+  MemberRoleIcon,
+  memberRoleLabels,
+  type MemberRole,
+} from '../../shared/member/MemberRoleIcon'
 import { KoreanDateInput } from '../../shared/ui/KoreanDateInput'
 
-export type MemberRole = 'MEMBER' | 'STAFF' | 'LEADER'
+export type { MemberRole } from '../../shared/member/MemberRoleIcon'
 
 type MemberProfileFormProps = {
+  actions?: ReactNode
   displayName: string
   externalNickname: string
   fieldErrors: Record<string, string>
@@ -23,16 +29,16 @@ type MemberProfileFormProps = {
 
 const roleOptions: ReadonlyArray<{
   description: string
-  icon: string
   label: string
   value: MemberRole
 }> = [
-  { value: 'LEADER', label: '모임장', icon: '♛', description: '소모임 대표' },
-  { value: 'STAFF', label: '운영진', icon: '◆', description: '운영 보조' },
-  { value: 'MEMBER', label: '회원', icon: '●', description: '일반 참여자' },
+  { value: 'LEADER', label: memberRoleLabels.LEADER, description: '소모임 대표' },
+  { value: 'STAFF', label: memberRoleLabels.STAFF, description: '운영 보조' },
+  { value: 'MEMBER', label: memberRoleLabels.MEMBER, description: '일반 참여자' },
 ]
 
 export function MemberProfileForm({
+  actions,
   displayName,
   externalNickname,
   fieldErrors,
@@ -94,7 +100,7 @@ export function MemberProfileForm({
                 <span
                   className={`member-role-badge member-role-${option.value.toLowerCase()}`}
                 >
-                  <span aria-hidden="true">{option.icon}</span>
+                  <MemberRoleIcon decorative role={option.value} />
                   {option.label}
                 </span>
                 <span className="member-role-description">
@@ -125,9 +131,12 @@ export function MemberProfileForm({
           value={memo}
         />
       </label>
-      <button disabled={readOnly} type="submit">
-        {submitLabel}
-      </button>
+      <div className="form-actions member-profile-actions">
+        <button disabled={readOnly} type="submit">
+          {submitLabel}
+        </button>
+        {actions}
+      </div>
     </form>
   )
 }

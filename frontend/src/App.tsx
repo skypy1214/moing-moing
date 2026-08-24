@@ -14,8 +14,10 @@ import {
   MemberProfileForm,
   type MemberRole as MemberProfileRole,
 } from './features/member/MemberProfileForm'
+import { MemberParticipationHistory } from './features/member/MemberParticipationHistory'
 import { MeetingNotePage } from './features/meetingnote/MeetingNotePage'
 import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPage'
+import { MemberRoleIcon, memberRoleLabels } from './shared/member/MemberRoleIcon'
 import {
   apiFetch as fetch,
   apiBaseUrl,
@@ -87,27 +89,6 @@ const activityExclusionReasonLabels: Record<ActivityExclusionReason, string> = {
   MEDICAL: '건강/치료',
   MILITARY_SERVICE: '군 복무',
   OTHER: '기타',
-}
-
-const memberRoleLabels: Record<MemberRole, string> = {
-  MEMBER: '회원',
-  STAFF: '운영진',
-  LEADER: '모임장',
-}
-
-const memberRoleIconSources: Record<MemberRole, string> = {
-  MEMBER:
-    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f464.svg',
-  STAFF:
-    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg',
-  LEADER:
-    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg',
-}
-
-const memberRoleIcons: Record<MemberRole, string> = {
-  MEMBER: '●',
-  STAFF: '◆',
-  LEADER: '♛',
 }
 
 const memberRolePriority: Record<MemberRole, number> = {
@@ -194,7 +175,11 @@ function App() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [isMemberSheetOpen, setIsMemberSheetOpen] = useState(false)
   const [isMemberDetailPage, setIsMemberDetailPage] = useState(false)
+  const [isMemberParticipationPage, setIsMemberParticipationPage] = useState(false)
   const [isMemberCreatePage, setIsMemberCreatePage] = useState(false)
+  const [isMembershipModalOpen, setIsMembershipModalOpen] = useState(false)
+  const [isActivityExclusionModalOpen, setIsActivityExclusionModalOpen] =
+    useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
   const [isLoadingExclusions, setIsLoadingExclusions] = useState(false)
   const [editingExclusion, setEditingExclusion] =
@@ -403,7 +388,11 @@ function App() {
   }, [backendStatus, restoreSession])
 
   useEffect(() => {
-    if (!isMemberSheetOpen) {
+    if (
+      !isMemberSheetOpen &&
+      !isMembershipModalOpen &&
+      !isActivityExclusionModalOpen
+    ) {
       return
     }
 
@@ -411,6 +400,8 @@ function App() {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsMemberSheetOpen(false)
+        setIsMembershipModalOpen(false)
+        setIsActivityExclusionModalOpen(false)
       }
     }
     document.body.style.overflow = 'hidden'
@@ -420,7 +411,7 @@ function App() {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [isMemberSheetOpen])
+  }, [isActivityExclusionModalOpen, isMemberSheetOpen, isMembershipModalOpen])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -543,6 +534,7 @@ function App() {
   function openMemberCreatePage() {
     setSelectedMember(null)
     setIsMemberDetailPage(false)
+    setIsMemberParticipationPage(false)
     setDisplayName('')
     setExternalNickname('')
     setJoinedOn(today)
@@ -557,6 +549,7 @@ function App() {
     setSelectedMember(member)
     setIsMemberSheetOpen(true)
     setIsMemberDetailPage(false)
+    setIsMemberParticipationPage(false)
     setDisplayName(member.displayName)
     setExternalNickname(member.externalNickname ?? '')
     setJoinedOn(member.joinedOn)
@@ -653,6 +646,7 @@ function App() {
       ),
     )
     setSelectedMember(updatedMember)
+    setIsMembershipModalOpen(false)
     setMessage('회원 정보를 수정했습니다.')
     showFeedbackDialog({
       title: '회원 정보 저장 완료',
@@ -813,6 +807,17 @@ function App() {
     setExclusionNote('')
   }
 
+  function closeActivityExclusionModal() {
+    cancelExclusionEdit()
+    setIsActivityExclusionModalOpen(false)
+  }
+
+  function openMemberParticipationHistory() {
+    setIsMemberSheetOpen(false)
+    setIsMemberDetailPage(false)
+    setIsMemberParticipationPage(true)
+  }
+
   async function handleEndExclusion(exclusion: ActivityExclusion) {
     if (isReadOnly) {
       return
@@ -874,6 +879,8 @@ function App() {
     setSelectedMember(null)
     setIsMemberSheetOpen(false)
     setIsMemberDetailPage(false)
+    setIsMembershipModalOpen(false)
+    setIsActivityExclusionModalOpen(false)
     setEditingExclusion(null)
     setMessage('로그아웃했습니다.')
   }
@@ -1048,12 +1055,12 @@ function App() {
       {currentPage === 'MEMBERS' && (
         <section
           className={
-            isMemberDetailPage || isMemberCreatePage
+            isMemberDetailPage || isMemberParticipationPage || isMemberCreatePage
               ? 'member-page'
               : 'member-list-page'
           }
         >
-          {!isMemberDetailPage && (
+          {!isMemberDetailPage && !isMemberParticipationPage && (
             <>
               {!isReadOnly && isMemberCreatePage && (
                 <section
@@ -1235,13 +1242,7 @@ function App() {
                             >
                               <div className="member-identity">
                                 <div className="member-name-line">
-                                  <img
-                                    alt={memberRoleLabels[member.memberRole]}
-                                    className={`member-role-icon member-role-icon-${member.memberRole.toLowerCase()}`}
-                                    src={
-                                      memberRoleIconSources[member.memberRole]
-                                    }
-                                  />
+                                  <MemberRoleIcon role={member.memberRole} />
                                   <strong>{member.displayName}</strong>
                                   <span
                                     className={`member-activity-status ${member.activityPaused ? 'is-paused' : 'is-active'}`}
@@ -1291,9 +1292,7 @@ function App() {
                       aria-label={`직책 ${memberRoleLabels[selectedMember.memberRole]}`}
                       className={`member-role-badge member-role-${selectedMember.memberRole.toLowerCase()}`}
                     >
-                      <span aria-hidden="true">
-                        {memberRoleIcons[selectedMember.memberRole]}
-                      </span>
+                      <MemberRoleIcon decorative role={selectedMember.memberRole} />
                       {memberRoleLabels[selectedMember.memberRole]}
                     </span>
                     {` ${selectedMember.displayName}`}
@@ -1322,179 +1321,282 @@ function App() {
                 onMemoChange={setMemo}
                 onSubmit={handleUpdateMember}
                 readOnly={isReadOnly}
-                submitLabel="회원 정보 저장"
-              />
-
-              <section
-                className="subsection"
-                aria-labelledby="membership-status-heading"
-              >
-                <h3 id="membership-status-heading">회원 상태</h3>
-                <p>
-                  현재 상태:{' '}
-                  <strong>
-                    {selectedMember.membershipStatus === 'ACTIVE'
-                      ? '활동 중'
-                      : '탈퇴'}
-                  </strong>
-                </p>
-                <div className="inline-form">
-                  <label>
-                    {selectedMember.membershipStatus === 'ACTIVE'
-                      ? '탈퇴일'
-                      : '재활성화일'}
-                    <KoreanDateInput
-                      onChange={setMembershipDate}
-                      value={membershipDate}
-                    />
-                  </label>
-                  <button
-                    className="danger-button"
-                    disabled={isReadOnly}
-                    onClick={handleMembershipStatusChange}
-                    type="button"
-                  >
-                    {selectedMember.membershipStatus === 'ACTIVE'
-                      ? '탈퇴 처리'
-                      : '재활성화'}
-                  </button>
-                </div>
-              </section>
-
-              <section
-                className="subsection"
-                aria-labelledby="activity-exclusion-heading"
-              >
-                <h3 id="activity-exclusion-heading">활동 중단 기간</h3>
-                <p className="description">
-                  종료일을 등록하기 전까지 무기한 활동 중단으로 유지됩니다. 기존
-                  기간은 사유·시작일·메모를 수정할 수 있습니다.
-                </p>
-                {isLoadingExclusions ? (
-                  <p className="description">활동 중단 기간을 확인하고 있습니다.</p>
-                ) : isSelectedMemberActivityPaused && editingExclusion === null ? (
-                  <p className="description">
-                    현재 활동 중단 기간입니다. 아래 목록에서 종료 처리하거나
-                    기간을 수정해 주세요.
-                  </p>
-                ) : (
-                  <form className="form" onSubmit={handleStartExclusion}>
-                    <SelectField
-                      label="사유"
-                      onChange={(value) =>
-                        setExclusionReason(value as ActivityExclusionReason)
+                submitLabel="저장"
+                actions={!isReadOnly && (
+                  <>
+                    <button
+                      className="secondary-button"
+                      onClick={() => setIsActivityExclusionModalOpen(true)}
+                      type="button"
+                    >
+                      {isSelectedMemberActivityPaused
+                        ? '활동 중단 관리'
+                        : '활동 중단'}
+                    </button>
+                    <button
+                      className={
+                        selectedMember.membershipStatus === 'ACTIVE'
+                          ? 'danger-button'
+                          : 'secondary-button'
                       }
-                      options={Object.entries(
-                        activityExclusionReasonLabels,
-                      ).map(([value, label]) => ({ value, label }))}
-                      value={exclusionReason}
-                    />
-                    <label>
-                      시작일
-                      <KoreanDateInput
-                        onChange={setExclusionStartDate}
-                        required
-                        value={exclusionStartDate}
-                      />
-                    </label>
-                    <fieldset className="exclusion-end-date-field">
-                      <legend>
-                        종료일 <span className="optional">(선택)</span>
-                      </legend>
-                      <label className="exclusion-end-date-toggle">
-                        <input
-                          checked={isExclusionEndDateSet}
-                          onChange={(event) =>
-                            setIsExclusionEndDateSet(event.target.checked)
-                          }
-                          type="checkbox"
-                        />
-                        종료일 설정
-                      </label>
-                      <KoreanDateInput
-                        disabled={!isExclusionEndDateSet}
-                        onChange={setExclusionEndDate}
-                        value={exclusionEndDate}
-                      />
-                    </fieldset>
-                    <label>
-                      메모 <span className="optional">(선택)</span>
-                      <textarea
-                        onChange={(event) =>
-                          setExclusionNote(event.target.value)
-                        }
-                        value={exclusionNote}
-                      />
-                    </label>
-                    <div className="form-actions">
-                      <button disabled={isReadOnly} type="submit">
-                        {editingExclusion === null
-                          ? '활동 중단 시작'
-                          : '활동 중단 기간 저장'}
-                      </button>
-                      {editingExclusion && (
-                        <button
-                          className="secondary-button"
-                          disabled={isReadOnly}
-                          onClick={cancelExclusionEdit}
-                          type="button"
-                        >
-                          수정 취소
-                        </button>
-                      )}
-                    </div>
-                  </form>
+                      onClick={() => setIsMembershipModalOpen(true)}
+                      type="button"
+                    >
+                      {selectedMember.membershipStatus === 'ACTIVE'
+                        ? '탈퇴 처리'
+                        : '재활성화'}
+                    </button>
+                  </>
                 )}
-
-                {exclusions.length === 0 ? (
-                  <p className="empty-state">
-                    등록된 활동 중단 기간이 없습니다.
-                  </p>
-                ) : (
-                  <ul className="exclusion-list">
-                    {exclusions.map((exclusion) => (
-                      <li key={exclusion.id}>
-                        <div>
-                          <strong>
-                            {activityExclusionReasonLabels[exclusion.reason]}
-                          </strong>
-                          <span>
-                            {exclusion.startDate} ~{' '}
-                            {exclusion.endDate ?? '무기한'}
-                          </span>
-                          {exclusion.note && <span>{exclusion.note}</span>}
-                        </div>
-                        <div className="exclusion-actions">
-                          <button
-                            className="edit-button"
-                            disabled={isReadOnly}
-                            onClick={() => beginExclusionEdit(exclusion)}
-                            type="button"
-                          >
-                            수정
-                          </button>
-                          {isActivityExclusionActive(exclusion) && (
-                            <button
-                              className="secondary-button"
-                              disabled={isReadOnly}
-                              onClick={() => void handleEndExclusion(exclusion)}
-                              type="button"
-                            >
-                              종료
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+              />
               {message && (
                 <p className="message" role="status">
                   {message}
                 </p>
               )}
             </section>
+          )}
+
+          {selectedMember && !isMemberSheetOpen && isMemberParticipationPage && (
+            <section
+              aria-labelledby="member-participation-page-heading"
+              className="panel member-detail"
+            >
+              <div className="panel-heading">
+                <div>
+                  <h2 id="member-participation-page-heading">참여 이력</h2>
+                  <p>{selectedMember.displayName}님의 수업과 행사 참여 기록입니다.</p>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setIsMemberParticipationPage(false)
+                    setSelectedMember(null)
+                  }}
+                  type="button"
+                >
+                  목록으로
+                </button>
+              </div>
+              <MemberParticipationHistory memberId={selectedMember.id} standalone />
+            </section>
+          )}
+
+          {isMembershipModalOpen && selectedMember && (
+            <div
+              className="modal-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setIsMembershipModalOpen(false)
+              }}
+            >
+              <section
+                aria-labelledby="membership-status-heading"
+                aria-modal="true"
+                className="modal-content member-action-modal"
+                role="dialog"
+              >
+                <div className="modal-scroll-content">
+                  <div className="modal-header">
+                    <button
+                      aria-label="회원 상태 변경 닫기"
+                      className="modal-close-button"
+                      onClick={() => setIsMembershipModalOpen(false)}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="modal-heading">
+                    <h3 id="membership-status-heading">회원 상태 변경</h3>
+                    <p>
+                      현재 상태: {' '}
+                      <strong>
+                        {selectedMember.membershipStatus === 'ACTIVE'
+                          ? '활동 중'
+                          : '탈퇴'}
+                      </strong>
+                    </p>
+                  </div>
+                  <div className="form">
+                    <label>
+                      {selectedMember.membershipStatus === 'ACTIVE'
+                        ? '탈퇴일'
+                        : '재활성화일'}
+                      <KoreanDateInput
+                        onChange={setMembershipDate}
+                        value={membershipDate}
+                      />
+                    </label>
+                    <div className="form-actions">
+                      <button
+                        className={
+                          selectedMember.membershipStatus === 'ACTIVE'
+                            ? 'danger-button'
+                            : undefined
+                        }
+                        onClick={() => void handleMembershipStatusChange()}
+                        type="button"
+                      >
+                        {selectedMember.membershipStatus === 'ACTIVE'
+                          ? '탈퇴 처리'
+                          : '재활성화'}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => setIsMembershipModalOpen(false)}
+                        type="button"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {isActivityExclusionModalOpen && selectedMember && (
+            <div
+              className="modal-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  closeActivityExclusionModal()
+                }
+              }}
+            >
+              <section
+                aria-labelledby="activity-exclusion-heading"
+                aria-modal="true"
+                className="modal-content member-action-modal"
+                role="dialog"
+              >
+                <div className="modal-scroll-content">
+                  <div className="modal-header">
+                    <button
+                      aria-label="활동 중단 관리 닫기"
+                      className="modal-close-button"
+                      onClick={closeActivityExclusionModal}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="modal-heading">
+                    <h3 id="activity-exclusion-heading">활동 중단 관리</h3>
+                    <p>시작·수정·종료와 기간 이력을 관리합니다.</p>
+                  </div>
+                  {isLoadingExclusions ? (
+                    <p className="description">활동 중단 기간을 확인하고 있습니다.</p>
+                  ) : isSelectedMemberActivityPaused && editingExclusion === null ? (
+                    <p className="description">
+                      현재 활동 중단 기간입니다. 아래 목록에서 종료 처리하거나 기간을 수정해 주세요.
+                    </p>
+                  ) : (
+                    <form className="form" onSubmit={handleStartExclusion}>
+                      <SelectField
+                        label="사유"
+                        onChange={(value) =>
+                          setExclusionReason(value as ActivityExclusionReason)
+                        }
+                        options={Object.entries(activityExclusionReasonLabels).map(
+                          ([value, label]) => ({ value, label }),
+                        )}
+                        value={exclusionReason}
+                      />
+                      <label>
+                        시작일
+                        <KoreanDateInput
+                          onChange={setExclusionStartDate}
+                          required
+                          value={exclusionStartDate}
+                        />
+                      </label>
+                      <fieldset className="exclusion-end-date-field">
+                        <legend>
+                          종료일 <span className="optional">(선택)</span>
+                        </legend>
+                        <label className="exclusion-end-date-toggle">
+                          <input
+                            checked={isExclusionEndDateSet}
+                            onChange={(event) =>
+                              setIsExclusionEndDateSet(event.target.checked)
+                            }
+                            type="checkbox"
+                          />
+                          종료일 설정
+                        </label>
+                        <KoreanDateInput
+                          disabled={!isExclusionEndDateSet}
+                          onChange={setExclusionEndDate}
+                          value={exclusionEndDate}
+                        />
+                      </fieldset>
+                      <label>
+                        메모 <span className="optional">(선택)</span>
+                        <textarea
+                          onChange={(event) => setExclusionNote(event.target.value)}
+                          value={exclusionNote}
+                        />
+                      </label>
+                      <div className="form-actions">
+                        <button disabled={isReadOnly} type="submit">
+                          {editingExclusion === null
+                            ? '활동 중단 시작'
+                            : '활동 중단 기간 저장'}
+                        </button>
+                        {editingExclusion && (
+                          <button
+                            className="secondary-button"
+                            disabled={isReadOnly}
+                            onClick={cancelExclusionEdit}
+                            type="button"
+                          >
+                            수정 취소
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  )}
+                  {exclusions.length === 0 ? (
+                    <p className="empty-state">등록된 활동 중단 기간이 없습니다.</p>
+                  ) : (
+                    <ul className="exclusion-list">
+                      {exclusions.map((exclusion) => (
+                        <li key={exclusion.id}>
+                          <div>
+                            <strong>{activityExclusionReasonLabels[exclusion.reason]}</strong>
+                            <span>
+                              {exclusion.startDate} ~ {exclusion.endDate ?? '무기한'}
+                            </span>
+                            {exclusion.note && <span>{exclusion.note}</span>}
+                          </div>
+                          <div className="exclusion-actions">
+                            <button
+                              className="edit-button"
+                              disabled={isReadOnly}
+                              onClick={() => beginExclusionEdit(exclusion)}
+                              type="button"
+                            >
+                              수정
+                            </button>
+                            {isActivityExclusionActive(exclusion) && (
+                              <button
+                                className="secondary-button"
+                                disabled={isReadOnly}
+                                onClick={() => void handleEndExclusion(exclusion)}
+                                type="button"
+                              >
+                                종료
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
+            </div>
           )}
 
           {isMemberSheetOpen && selectedMember && (
@@ -1524,9 +1626,7 @@ function App() {
                         aria-label={`직책 ${memberRoleLabels[selectedMember.memberRole]}`}
                         className={`member-role-badge member-role-${selectedMember.memberRole.toLowerCase()}`}
                       >
-                        <span aria-hidden="true">
-                          {memberRoleIcons[selectedMember.memberRole]}
-                        </span>
+                        <MemberRoleIcon decorative role={selectedMember.memberRole} />
                         {memberRoleLabels[selectedMember.memberRole]}
                       </span>{' '}
                       {selectedMember.membershipStatus === 'ACTIVE'
@@ -1537,12 +1637,12 @@ function App() {
                     </p>
                   </div>
                   <button
-                    aria-label="회원 빠른 정보 닫기"
+                    aria-label="회원 참여 이력 보기"
                     className="secondary-button"
-                    onClick={() => setIsMemberSheetOpen(false)}
+                    onClick={openMemberParticipationHistory}
                     type="button"
                   >
-                    닫기
+                    참여 이력
                   </button>
                 </div>
                 <dl className="member-sheet-summary">
@@ -1559,6 +1659,7 @@ function App() {
                   <button
                     onClick={() => {
                       setIsMemberSheetOpen(false)
+                      setIsMemberParticipationPage(false)
                       setIsMemberDetailPage(true)
                     }}
                     type="button"
