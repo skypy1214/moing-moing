@@ -320,7 +320,7 @@ function App() {
       )
 
       try {
-        const response = await globalThis.fetch(`${apiBaseUrl}/api/v1/health`, {
+        const response = await globalThis.fetch(`${apiBaseUrl}/api/v1/ready`, {
           signal: controller.signal,
         })
         if (!response.ok) {

@@ -47,7 +47,8 @@ class SecurityConfiguration {
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/guest-login",
-                                "/api/v1/health")
+                                "/api/v1/health",
+                                "/api/v1/ready")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
                         .hasAnyRole("ADMIN", "VIEWER")

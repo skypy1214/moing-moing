@@ -6,7 +6,7 @@ services:
     region: singapore
     rootDir: backend
     dockerfilePath: Dockerfile
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/ready
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod

@@ -16,7 +16,7 @@ Neon은 PostgreSQL 서비스이며 Spring Boot 또는 정적 React 파일을 실
 
 - Root Directory: `backend`
 - Runtime: Docker
-- Health Check Path: `/api/v1/health`
+- Health Check Path: `/api/v1/ready`
 - Plan: Free
 
 Render 환경변수/secret에 다음 값을 설정한다. `DB_*`, 초기 관리자 비밀번호는 secret으로 취급하며 Git에 넣지 않는다.
@@ -73,7 +73,7 @@ Cloudflare Pages 기본 도메인과 Render 기본 도메인은 서로 다른 �
 
 ## 운영 확인
 
-1. `https://<render-service>.onrender.com/api/v1/health`가 `{"status":"UP"}`을 반환하는지 확인한다.
+1. `https://<render-service>.onrender.com/api/v1/ready`가 `{"status":"UP"}`을 반환하는지 확인한다. `/api/v1/health`는 포트가 열렸는지 확인하는 liveness endpoint이고, `/api/v1/ready`는 DB 연결까지 확인하는 readiness endpoint다.
 2. Pages 환경변수에 `API_ORIGIN`을 설정한 뒤 Pages를 재배포한다. 로그인, 새로고침 후 세션 유지, 회원 조회/수정을 확인한다.
 3. iPhone Safari에서도 로그인 뒤 `/api/v1/members` 요청이 401 없이 유지되는지 확인한다.
 4. Cloudflare 운영 URL만 CORS가 허용되고 다른 origin은 차단되는지 확인한다.
