@@ -63,6 +63,14 @@ Cloudflare Pages 기본 도메인과 Render 기본 도메인은 서로 다른 �
 - 점검 순서: Pages의 `API_ORIGIN` 값, 기존 `VITE_API_BASE_URL` 제거 여부, Pages 재배포 여부, Render의 `SPRING_PROFILES_ACTIVE=prod`와 `CORS_ALLOWED_ORIGINS`를 확인한다.
 - 이 구조에서 프론트 코드가 Render URL을 직접 호출하도록 되돌리지 않는다. 자체 도메인을 도입하더라도 같은 등록 도메인의 하위 도메인 또는 이 프록시 구조를 유지한다.
 
+### Render cold start 계측
+
+서버 기동 때 Render 로그에 `startup-profile`을 남긴다. `application-ready durationMs`는 Java `main` 진입부터 모든 Spring 초기화·Flyway·JPA·초기 관리자 확인이 끝날 때까지의 시간이며, 이어지는 최대 12개 `step`은 가장 오래 걸린 Spring 초기화 단계다.
+
+- Render 로그에서 컨테이너 할당/이미지 준비 시각부터 애플리케이션 첫 로그까지가 길면 플랫폼 기동 구간이라 애플리케이션 코드 튜닝 효과가 제한적이다.
+- `application-ready durationMs`가 길면 `step`의 상위 항목을 기준으로 Spring bean, JPA/Flyway, 데이터베이스 연결 중 어떤 부분을 최적화할지 결정한다.
+- 계측은 로그만 남기며 요청 처리, DB migration, 스키마 검증 설정은 바꾸지 않는다. 분석 후 불필요해지면 제거한다.
+
 ## 운영 확인
 
 1. `https://<render-service>.onrender.com/api/v1/health`가 `{"status":"UP"}`을 반환하는지 확인한다.
