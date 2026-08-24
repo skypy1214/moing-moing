@@ -3,8 +3,8 @@
 ## 구성
 
 ```text
-Cloudflare Pages (React/Vite)
-  -- HTTPS API 요청 --> Render Web Service (Spring Boot)
+Cloudflare Pages (React/Vite + /api/* Pages Function)
+  -- HTTPS 서버 간 API 프록시 --> Render Web Service (Spring Boot)
   -- JDBC TLS 연결 --> Neon PostgreSQL
 ```
 
@@ -43,22 +43,33 @@ Git 연동으로 Pages 프로젝트를 만들고 monorepo root directory를 `fro
 - Build output directory: `dist`
 - Node.js: `24`
 
-Production 환경변수에 다음을 설정하고 재배포한다.
+Production 환경변수/secret에 다음을 설정하고 재배포한다.
 
 | 변수 | 값 |
 | --- | --- |
-| `VITE_API_BASE_URL` | `https://<render-service>.onrender.com` |
+| `API_ORIGIN` | `https://<render-service>.onrender.com` |
 
-`VITE_`로 시작하는 값은 브라우저에 포함된다. API URL만 넣고 DB URL, DB password, 관리자 비밀번호 같은 secret은 절대로 넣지 않는다.
+`API_ORIGIN`은 Pages Function에서만 읽는 서버 측 환경변수다. `VITE_API_BASE_URL`은 설정하거나 유지하지 않는다. 브라우저는 상대 경로 `/api/*`만 호출하므로 Render API 주소·DB URL·DB password·관리자 비밀번호는 브라우저 번들에 포함되지 않는다.
 
 Pages Preview URL도 사용할 경우 해당 URL을 `CORS_ALLOWED_ORIGINS`에 쉼표로 추가한다. 배포 URL은 끝의 `/` 없이 입력한다.
+
+### iPhone Safari 로그인 장애 대응
+
+Cloudflare Pages 기본 도메인과 Render 기본 도메인은 서로 다른 등록 도메인이다. 브라우저에서 Render를 직접 호출하면서 세션 쿠키를 사용하면 Safari의 제3자 쿠키 차단으로 로그인 직후 회원 목록 요청이 `401`이 될 수 있다.
+
+- 증상: iPhone에서만 로그인 실패 안내가 보이거나, 로그인 직후 자동 로그아웃된다.
+- 원인: 로그인 응답의 Render 세션 쿠키가 Safari에 저장·전송되지 않는다.
+- 해결 구조: 브라우저 → Pages의 동일 origin `/api/*` → Pages Function → Render API. 쿠키는 Pages origin의 first-party `Secure; SameSite=Lax` 쿠키로 저장된다.
+- 점검 순서: Pages의 `API_ORIGIN` 값, 기존 `VITE_API_BASE_URL` 제거 여부, Pages 재배포 여부, Render의 `SPRING_PROFILES_ACTIVE=prod`와 `CORS_ALLOWED_ORIGINS`를 확인한다.
+- 이 구조에서 프론트 코드가 Render URL을 직접 호출하도록 되돌리지 않는다. 자체 도메인을 도입하더라도 같은 등록 도메인의 하위 도메인 또는 이 프록시 구조를 유지한다.
 
 ## 운영 확인
 
 1. `https://<render-service>.onrender.com/api/v1/health`가 `{"status":"UP"}`을 반환하는지 확인한다.
-2. Pages에서 로그인, 새로고침 후 세션 유지, 회원 조회/수정을 확인한다.
-3. Cloudflare 운영 URL만 CORS가 허용되고 다른 origin은 차단되는지 확인한다.
-4. Neon에서 Flyway migration과 초기 관리자 계정을 확인한다.
-5. 실제 휴대폰 HTTPS 환경에서 QR 카메라 권한과 쿠폰 사용을 확인한다.
+2. Pages 환경변수에 `API_ORIGIN`을 설정한 뒤 Pages를 재배포한다. 로그인, 새로고침 후 세션 유지, 회원 조회/수정을 확인한다.
+3. iPhone Safari에서도 로그인 뒤 `/api/v1/members` 요청이 401 없이 유지되는지 확인한다.
+4. Cloudflare 운영 URL만 CORS가 허용되고 다른 origin은 차단되는지 확인한다.
+5. Neon에서 Flyway migration과 초기 관리자 계정을 확인한다.
+6. 실제 휴대폰 HTTPS 환경에서 QR 카메라 권한과 쿠폰 사용을 확인한다.
 
 Render Free는 휴면·월간 사용량 등의 제한이 있어 상시 운영 보장은 하지 않는다. 운영 데이터를 사용하기 전에 Neon 백업·복구 절차와 서비스 제한을 확인한다.

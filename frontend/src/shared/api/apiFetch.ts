@@ -1,12 +1,11 @@
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 export const apiLoadingChangeEvent = 'moingmoing:api-loading-change'
 export const apiUnauthorizedEvent = 'moingmoing:api-unauthorized'
 
 let pendingApiRequestCount = 0
 
-export const apiBaseUrl = configuredApiBaseUrl
-  ? configuredApiBaseUrl.replace(/\/$/, '')
-  : ''
+// Production requests are handled by the Cloudflare Pages /api proxy. Vite uses
+// the same relative path through its local development proxy.
+export const apiBaseUrl = ''
 
 export function isApiLoading() {
   return pendingApiRequestCount > 0

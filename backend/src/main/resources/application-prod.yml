@@ -13,6 +13,6 @@ server:
     session:
       cookie:
         http-only: true
-        same-site: none
+        same-site: lax
         secure: true
 

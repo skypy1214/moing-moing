@@ -112,7 +112,7 @@
 ## Phase 8 — 배포 준비
 
 - [~] Cloudflare Pages(React/Vite) + Render Free Web Service(Spring Boot) + Neon PostgreSQL 배포 구성과 환경변수 분리. 실제 플랫폼 연결과 운영 URL 입력은 계속 필요.
-- [~] Render `PORT`, production CORS origin, HTTPS 세션 쿠키 설정. 실제 브라우저의 cross-origin 세션·제3자 쿠키 동작과 CSRF·보안 헤더 점검은 계속 필요.
+- [~] Render `PORT`, production CORS origin, HTTPS 세션 쿠키 설정. Cloudflare Pages `/api/*` 프록시와 `API_ORIGIN` 설정을 추가했으며, 실제 iPhone Safari 로그인·세션 유지와 CSRF·보안 헤더 점검은 계속 필요.
 - [ ] DB 자동 백업과 복구 절차 작성 및 리허설.
 - [ ] migration/rollback(애플리케이션) 배포 절차와 healthcheck 구성.
 - [ ] 로그 개인정보/토큰 마스킹, 최소 모니터링과 장애 대응 문서 작성.
