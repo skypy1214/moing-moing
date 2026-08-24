@@ -16,12 +16,13 @@ record MemberResponse(
         LocalDate joinedOn,
         LocalDate withdrawnOn,
         String memo,
-        LocalDate lastAttendanceOn) {
+        LocalDate lastAttendanceOn,
+        boolean activityPaused) {
     static MemberResponse from(Member member) {
-        return from(member, null);
+        return from(member, null, false);
     }
 
-    static MemberResponse from(Member member, LocalDate lastAttendanceOn) {
+    static MemberResponse from(Member member, LocalDate lastAttendanceOn, boolean activityPaused) {
         return new MemberResponse(
                 member.getId(),
                 member.getDisplayName(),
@@ -31,6 +32,7 @@ record MemberResponse(
                 member.getJoinedOn(),
                 member.getWithdrawnOn(),
                 member.getMemo(),
-                lastAttendanceOn);
+                lastAttendanceOn,
+                activityPaused);
     }
 }

@@ -10,10 +10,15 @@ import { flushSync } from 'react-dom'
 
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { CouponPage } from './features/coupon/CouponPage'
+import {
+  MemberProfileForm,
+  type MemberRole as MemberProfileRole,
+} from './features/member/MemberProfileForm'
 import { MeetingNotePage } from './features/meetingnote/MeetingNotePage'
 import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPage'
 import {
   apiFetch as fetch,
+  apiBaseUrl,
   apiLoadingChangeEvent,
   apiUnauthorizedEvent,
   isApiLoading,
@@ -22,6 +27,7 @@ import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
 import { BottomNav } from './shared/ui/BottomNav'
 import { EmptyState } from './shared/ui/EmptyState'
 import { KoreanDateInput, formatKoreanDate } from './shared/ui/KoreanDateInput'
+import { RefreshIcon } from './shared/ui/RefreshIcon'
 import { Button, Card, Chip } from './shared/ui/ui'
 import { SelectField } from './shared/ui/SelectField'
 import './App.css'
@@ -36,6 +42,7 @@ export type Member = {
   withdrawnOn: string | null
   memo: string | null
   lastAttendanceOn?: string | null
+  activityPaused?: boolean
 }
 
 type ActivityExclusionReason =
@@ -59,18 +66,21 @@ type AuthAccount = {
   readOnly: boolean
 }
 
-type MemberStatusFilter = 'ALL' | Member['membershipStatus']
-type MemberRoleFilter = 'ALL' | Member['memberRole']
-type MemberSort = 'ROLE_PRIORITY' | 'NAME_ASC' | 'JOINED_ON_DESC'
+type ActivityFilter = 'ALL' | 'ACTIVE' | 'PAUSED'
+type SortDirection = 'ASC' | 'DESC' | null
 type MemberRole = Member['memberRole']
 type PageKey =
   'MEMBERS' | 'ATTENDANCE' | 'COUPONS' | 'STATISTICS' | 'MEETING_NOTES'
+
+type BackendStatus = 'CHECKING' | 'READY' | 'UNAVAILABLE'
 
 type DocumentWithViewTransition = Document & {
   startViewTransition?: (update: () => void) => void
 }
 
 const today = new Date().toISOString().slice(0, 10)
+const healthCheckTimeoutMs = 10_000
+const healthCheckRetryDelayMs = 5_000
 
 const activityExclusionReasonLabels: Record<ActivityExclusionReason, string> = {
   PERSONAL_BREAK: '개인 사정',
@@ -83,6 +93,15 @@ const memberRoleLabels: Record<MemberRole, string> = {
   MEMBER: '회원',
   STAFF: '운영진',
   LEADER: '모임장',
+}
+
+const memberRoleIconSources: Record<MemberRole, string> = {
+  MEMBER:
+    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f464.svg',
+  STAFF:
+    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg',
+  LEADER:
+    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg',
 }
 
 const memberRoleIcons: Record<MemberRole, string> = {
@@ -100,6 +119,13 @@ const memberRolePriority: Record<MemberRole, number> = {
 type InactivityBadge = {
   label: string
   tone: 'new-member' | 'inactive' | '1' | '2' | '3'
+}
+
+function isActivityExclusionActive(exclusion: ActivityExclusion) {
+  return (
+    exclusion.startDate <= today &&
+    (exclusion.endDate === null || exclusion.endDate >= today)
+  )
 }
 
 function getInactivityBadge(member: Member): InactivityBadge | null {
@@ -157,6 +183,8 @@ function App() {
   const [password, setPassword] = useState('')
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
   const [isReadOnly, setIsReadOnly] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>('CHECKING')
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
   const isRequestInProgress = useSyncExternalStore(
     subscribeToApiLoading,
     isApiLoading,
@@ -168,6 +196,7 @@ function App() {
   const [isMemberDetailPage, setIsMemberDetailPage] = useState(false)
   const [isMemberCreatePage, setIsMemberCreatePage] = useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
+  const [isLoadingExclusions, setIsLoadingExclusions] = useState(false)
   const [editingExclusion, setEditingExclusion] =
     useState<ActivityExclusion | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -181,15 +210,16 @@ function App() {
   const [exclusionStartDate, setExclusionStartDate] = useState(today)
   const [exclusionNote, setExclusionNote] = useState('')
   const [exclusionEndDate, setExclusionEndDate] = useState(today)
+  const [isExclusionEndDateSet, setIsExclusionEndDateSet] = useState(false)
   const [message, setMessage] = useState('')
-  const { showFeedbackDialog } = useFeedbackDialog()
+  const { confirm, showFeedbackDialog } = useFeedbackDialog()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [memberSearch, setMemberSearch] = useState('')
-  const [memberStatusFilter, setMemberStatusFilter] =
-    useState<MemberStatusFilter>('ALL')
-  const [memberRoleFilter, setMemberRoleFilter] =
-    useState<MemberRoleFilter>('ALL')
-  const [memberSort, setMemberSort] = useState<MemberSort>('ROLE_PRIORITY')
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL')
+  const [nameSortDirection, setNameSortDirection] =
+    useState<SortDirection>(null)
+  const [joinedOnSortDirection, setJoinedOnSortDirection] =
+    useState<SortDirection>('DESC')
   const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
 
   useEffect(() => {
@@ -201,7 +231,8 @@ function App() {
       setMessage('서버 세션이 만료되어 자동으로 로그아웃되었습니다.')
     }
     window.addEventListener(apiUnauthorizedEvent, handleUnauthorized)
-    return () => window.removeEventListener(apiUnauthorizedEvent, handleUnauthorized)
+    return () =>
+      window.removeEventListener(apiUnauthorizedEvent, handleUnauthorized)
   }, [])
 
   const navigationItems = [
@@ -209,7 +240,7 @@ function App() {
     { value: 'ATTENDANCE', label: '출석', icon: '✓' },
     { value: 'COUPONS', label: '쿠폰', icon: '◇' },
     { value: 'STATISTICS', label: '통계', icon: '▥' },
-    { value: 'MEETING_NOTES', label: '회의록', icon: '☰' },
+    { value: 'MEETING_NOTES', label: '게시판', icon: '☰' },
   ] satisfies { value: PageKey; label: string; icon: string }[]
 
   function navigateToPage(nextPage: PageKey) {
@@ -232,14 +263,13 @@ function App() {
   const visibleMembers = useMemo(() => {
     const normalizedSearch = memberSearch.trim().toLocaleLowerCase()
     return [...members]
+      .filter((member) => member.membershipStatus === 'ACTIVE')
       .filter(
         (member) =>
-          memberStatusFilter === 'ALL' ||
-          member.membershipStatus === memberStatusFilter,
-      )
-      .filter(
-        (member) =>
-          memberRoleFilter === 'ALL' || member.memberRole === memberRoleFilter,
+          activityFilter === 'ALL' ||
+          (activityFilter === 'PAUSED'
+            ? member.activityPaused
+            : !member.activityPaused),
       )
       .filter((member) => {
         if (normalizedSearch === '') {
@@ -250,20 +280,40 @@ function App() {
           .some((value) => value.toLocaleLowerCase().includes(normalizedSearch))
       })
       .sort((left, right) => {
-        if (memberSort === 'ROLE_PRIORITY') {
-          const roleDifference =
-            memberRolePriority[left.memberRole] -
-            memberRolePriority[right.memberRole]
-          if (roleDifference !== 0) {
-            return roleDifference
-          }
+        const roleDifference =
+          memberRolePriority[left.memberRole] -
+          memberRolePriority[right.memberRole]
+        if (roleDifference !== 0) {
+          return roleDifference
         }
-        if (memberSort === 'JOINED_ON_DESC') {
-          return right.joinedOn.localeCompare(left.joinedOn)
+        if (left.memberRole !== 'MEMBER') {
+          return 0
         }
-        return left.displayName.localeCompare(right.displayName, 'ko')
+        if (joinedOnSortDirection !== null) {
+          const comparison = left.joinedOn.localeCompare(right.joinedOn)
+          return joinedOnSortDirection === 'ASC' ? comparison : -comparison
+        }
+        const comparison = left.displayName.localeCompare(
+          right.displayName,
+          'ko',
+        )
+        return nameSortDirection === 'DESC' ? -comparison : comparison
       })
-  }, [memberRoleFilter, memberSearch, memberSort, memberStatusFilter, members])
+  }, [
+    activityFilter,
+    joinedOnSortDirection,
+    memberSearch,
+    members,
+    nameSortDirection,
+  ])
+
+  const isSelectedMemberActivityPaused =
+    selectedMember?.activityPaused === true ||
+    exclusions.some(isActivityExclusionActive)
+
+  function nextSortDirection(direction: SortDirection): SortDirection {
+    return direction === null ? 'ASC' : direction === 'ASC' ? 'DESC' : null
+  }
 
   const loadMembers = useCallback(async () => {
     const response = await fetch('/api/v1/members', { credentials: 'include' })
@@ -271,6 +321,47 @@ function App() {
       throw new Error('회원 목록을 불러오지 못했습니다.')
     }
     setMembers((await response.json()) as Member[])
+  }, [])
+
+  useEffect(() => {
+    let isDisposed = false
+    let retryTimer: number | undefined
+
+    async function checkBackendHealth() {
+      const controller = new AbortController()
+      const timeoutTimer = window.setTimeout(
+        () => controller.abort(),
+        healthCheckTimeoutMs,
+      )
+
+      try {
+        const response = await globalThis.fetch(`${apiBaseUrl}/api/v1/health`, {
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error('백엔드 상태 확인에 실패했습니다.')
+        }
+        if (!isDisposed) {
+          setBackendStatus('READY')
+        }
+      } catch {
+        if (!isDisposed) {
+          setBackendStatus('UNAVAILABLE')
+          retryTimer = window.setTimeout(
+            () => void checkBackendHealth(),
+            healthCheckRetryDelayMs,
+          )
+        }
+      } finally {
+        window.clearTimeout(timeoutTimer)
+      }
+    }
+
+    void checkBackendHealth()
+    return () => {
+      isDisposed = true
+      window.clearTimeout(retryTimer)
+    }
   }, [])
 
   const restoreSession = useCallback(async () => {
@@ -302,10 +393,14 @@ function App() {
   }
 
   useEffect(() => {
-    // Session restoration is an asynchronous server-state synchronization on initial render.
+    if (backendStatus !== 'READY') {
+      return
+    }
+
+    // Session restoration starts only after the public health endpoint confirms the API is ready.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void restoreSession()
-  }, [restoreSession])
+  }, [backendStatus, restoreSession])
 
   useEffect(() => {
     if (!isMemberSheetOpen) {
@@ -329,44 +424,68 @@ function App() {
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setMessage('')
-
-    const body = new URLSearchParams({ username: loginId, password })
-    const response = await fetch('/api/v1/auth/login', {
-      method: 'POST',
-      body,
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    })
-
-    if (!response.ok) {
-      setMessage('로그인 ID 또는 비밀번호를 확인해 주세요.')
+    if (backendStatus !== 'READY' || isAuthenticating) {
       return
     }
+    setMessage('')
+    setIsAuthenticating(true)
 
-    setCurrentLoginId(loginId)
-    setIsReadOnly(false)
-    setPassword('')
-    await loadMembers()
+    try {
+      const body = new URLSearchParams({ username: loginId, password })
+      const response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        body,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      if (!response.ok) {
+        setMessage('로그인 ID 또는 비밀번호를 확인해 주세요.')
+        return
+      }
+
+      setCurrentLoginId(loginId)
+      setIsReadOnly(false)
+      setPassword('')
+      await loadMembers()
+    } catch {
+      setMessage(
+        '로그인 요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      )
+    } finally {
+      setIsAuthenticating(false)
+    }
   }
 
   async function handleGuestLogin() {
+    if (backendStatus !== 'READY' || isAuthenticating) {
+      return
+    }
     setMessage('')
-    const response = await fetch('/api/v1/auth/guest-login', {
-      method: 'POST',
-      credentials: 'include',
-    })
+    setIsAuthenticating(true)
+    try {
+      const response = await fetch('/api/v1/auth/guest-login', {
+        method: 'POST',
+        credentials: 'include',
+      })
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setMessage(
+          '게스트 모드를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        )
+        return
+      }
+
+      setCurrentLoginId('guest')
+      setIsReadOnly(true)
+      await loadMembers()
+    } catch {
       setMessage(
         '게스트 모드를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
       )
-      return
+    } finally {
+      setIsAuthenticating(false)
     }
-
-    setCurrentLoginId('guest')
-    setIsReadOnly(true)
-    await loadMembers()
   }
 
   async function handleCreateMember(event: FormEvent<HTMLFormElement>) {
@@ -446,6 +565,7 @@ function App() {
     setMembershipDate(today)
     setExclusions([])
     setEditingExclusion(null)
+    setIsLoadingExclusions(true)
 
     try {
       const response = await fetch(
@@ -460,6 +580,8 @@ function App() {
       setExclusions((await response.json()) as ActivityExclusion[])
     } catch {
       setMessage('활동 중단 기간을 불러오지 못했습니다.')
+    } finally {
+      setIsLoadingExclusions(false)
     }
   }
 
@@ -590,6 +712,7 @@ function App() {
     const payload = {
       reason: exclusionReason,
       startDate: exclusionStartDate,
+      endDate: isExclusionEndDateSet ? exclusionEndDate : null,
       note: exclusionNote || null,
     }
 
@@ -616,13 +739,22 @@ function App() {
 
     const exclusion = (await response.json()) as ActivityExclusion
     setExclusions((previousExclusions) => [exclusion, ...previousExclusions])
+    setSelectedMember((member) =>
+      member === null ||
+      exclusion.startDate > today ||
+      (exclusion.endDate !== null && exclusion.endDate < today)
+        ? member
+        : { ...member, activityPaused: true },
+    )
     setExclusionNote('')
+    setIsExclusionEndDateSet(false)
     setMessage('활동 중단 기간을 등록했습니다.')
   }
 
   async function handleUpdateExclusion(payload: {
     reason: ActivityExclusionReason
     startDate: string
+    endDate: string | null
     note: string | null
   }) {
     if (isReadOnly) {
@@ -632,7 +764,7 @@ function App() {
       return
     }
 
-    const request = { ...payload, endDate: editingExclusion.endDate }
+    const request = payload
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/activity-exclusions/${editingExclusion.id}`,
       {
@@ -667,6 +799,8 @@ function App() {
     setEditingExclusion(exclusion)
     setExclusionReason(exclusion.reason)
     setExclusionStartDate(exclusion.startDate)
+    setExclusionEndDate(exclusion.endDate ?? today)
+    setIsExclusionEndDateSet(exclusion.endDate !== null)
     setExclusionNote(exclusion.note ?? '')
   }
 
@@ -674,6 +808,8 @@ function App() {
     setEditingExclusion(null)
     setExclusionReason('PERSONAL_BREAK')
     setExclusionStartDate(today)
+    setExclusionEndDate(today)
+    setIsExclusionEndDateSet(false)
     setExclusionNote('')
   }
 
@@ -685,13 +821,22 @@ function App() {
       return
     }
 
+    const confirmed = await confirm({
+      title: '활동 상태 변경',
+      message: `${selectedMember.displayName}님의 상태를 활동 중으로 변경하시겠습니까?`,
+      confirmLabel: '활동 중으로 변경',
+    })
+    if (!confirmed) {
+      return
+    }
+
     const response = await fetch(
       `/api/v1/members/${selectedMember.id}/activity-exclusions/${exclusion.id}/end`,
       {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endDate: exclusionEndDate }),
+        body: JSON.stringify({ endDate: today }),
       },
     )
     if (!response.ok) {
@@ -703,6 +848,16 @@ function App() {
     setExclusions((previousExclusions) =>
       previousExclusions.map((item) =>
         item.id === endedExclusion.id ? endedExclusion : item,
+      ),
+    )
+    setSelectedMember((member) =>
+      member === null ? member : { ...member, activityPaused: false },
+    )
+    setMembers((previousMembers) =>
+      previousMembers.map((member) =>
+        member.id === selectedMember.id
+          ? { ...member, activityPaused: false }
+          : member,
       ),
     )
     setMessage('활동 중단 기간을 종료했습니다.')
@@ -724,18 +879,26 @@ function App() {
   }
 
   if (currentLoginId === null) {
+    const backendStatusLabel = {
+      CHECKING: '서버 연결 확인 중',
+      READY: '서버 준비됨',
+      UNAVAILABLE: '서버를 시작 중입니다. 잠시 후 자동으로 다시 확인합니다.',
+    }[backendStatus]
+
     return (
       <main className="login-page">
-        {isRequestInProgress && (
-          <div aria-live="polite" className="api-loading-overlay" role="status">
-            <span aria-hidden="true" className="api-loading-spinner" />
-            처리 중입니다…
-          </div>
-        )}
         <Card className="login-card" aria-labelledby="login-heading">
           <p className="eyebrow">MOING MOING</p>
           <h1 id="login-heading">운영진 관리</h1>
           <p className="description">회원과 모임 운영 기록을 관리합니다.</p>
+          <p
+            aria-live="polite"
+            className={`backend-status backend-status-${backendStatus.toLowerCase()}`}
+            role="status"
+          >
+            <span aria-hidden="true" className="backend-status-indicator" />
+            {backendStatusLabel}
+          </p>
           <form className="form" onSubmit={handleLogin}>
             <label>
               로그인 ID
@@ -756,12 +919,18 @@ function App() {
                 value={password}
               />
             </label>
-            <button type="submit">로그인</button>
+            <button
+              disabled={backendStatus !== 'READY' || isAuthenticating}
+              type="submit"
+            >
+              {isAuthenticating ? '로그인 중…' : '로그인'}
+            </button>
           </form>
           <p className="guest-login-prompt">
             둘러보기만 원하시나요?{' '}
             <button
               className="guest-login-button"
+              disabled={backendStatus !== 'READY' || isAuthenticating}
               onClick={() => void handleGuestLogin()}
               type="button"
             >
@@ -865,7 +1034,7 @@ function App() {
           onClick={() => navigateToPage('MEETING_NOTES')}
           type="button"
         >
-          회의록
+          게시판
         </button>
       </nav>
 
@@ -904,98 +1073,21 @@ function App() {
                       목록으로
                     </button>
                   </div>
-                  <form className="form" onSubmit={handleCreateMember}>
-                    <label>
-                      이름
-                      <input
-                        onChange={(event) => setDisplayName(event.target.value)}
-                        required
-                        value={displayName}
-                      />
-                      {fieldErrors.displayName && selectedMember === null && (
-                        <span className="field-error">
-                          {fieldErrors.displayName}
-                        </span>
-                      )}
-                    </label>
-                    <label>
-                      소모임 닉네임 <span className="optional">(선택)</span>
-                      <input
-                        onChange={(event) =>
-                          setExternalNickname(event.target.value)
-                        }
-                        value={externalNickname}
-                      />
-                    </label>
-                    <fieldset className="member-role-selector">
-                      <legend>역할</legend>
-                      <div className="member-role-options">
-                        {Object.entries(memberRoleLabels).map(
-                          ([role, label]) => {
-                            const memberRoleOption = role as MemberRole
-                            const isSelected = memberRole === memberRoleOption
-
-                            return (
-                              <label
-                                className={`member-role-option member-role-option-${memberRoleOption.toLowerCase()}${
-                                  isSelected
-                                    ? ' member-role-option-selected'
-                                    : ''
-                                }`}
-                                key={role}
-                              >
-                                <input
-                                  checked={isSelected}
-                                  name="member-role"
-                                  onChange={() =>
-                                    setMemberRole(memberRoleOption)
-                                  }
-                                  type="radio"
-                                  value={memberRoleOption}
-                                />
-                                <span
-                                  className={`member-role-badge member-role-${memberRoleOption.toLowerCase()}`}
-                                >
-                                  <span aria-hidden="true">
-                                    {memberRoleIcons[memberRoleOption]}
-                                  </span>
-                                  {label}
-                                </span>
-                                <span className="member-role-description">
-                                  {memberRoleOption === 'LEADER'
-                                    ? '소모임 대표'
-                                    : memberRoleOption === 'STAFF'
-                                      ? '운영 보조'
-                                      : '일반 참여자'}
-                                </span>
-                              </label>
-                            )
-                          },
-                        )}
-                      </div>
-                    </fieldset>
-                    <label>
-                      가입일
-                      <KoreanDateInput
-                        onChange={setJoinedOn}
-                        required
-                        value={joinedOn}
-                      />
-                      {fieldErrors.joinedOn && selectedMember === null && (
-                        <span className="field-error">
-                          {fieldErrors.joinedOn}
-                        </span>
-                      )}
-                    </label>
-                    <label>
-                      메모 <span className="optional">(선택)</span>
-                      <textarea
-                        onChange={(event) => setMemo(event.target.value)}
-                        value={memo}
-                      />
-                    </label>
-                    <button type="submit">회원 등록</button>
-                  </form>
+                  <MemberProfileForm
+                    displayName={displayName}
+                    externalNickname={externalNickname}
+                    fieldErrors={fieldErrors}
+                    joinedOn={joinedOn}
+                    memo={memo}
+                    memberRole={memberRole as MemberProfileRole}
+                    onDisplayNameChange={setDisplayName}
+                    onExternalNicknameChange={setExternalNickname}
+                    onJoinedOnChange={setJoinedOn}
+                    onMemberRoleChange={(role) => setMemberRole(role)}
+                    onMemoChange={setMemo}
+                    onSubmit={handleCreateMember}
+                    submitLabel="회원 등록"
+                  />
                   {message && selectedMember === null && (
                     <p className="message" role="status">
                       {message}
@@ -1023,11 +1115,12 @@ function App() {
                         </button>
                       )}
                       <button
-                        className="secondary-button"
+                        aria-label="새로고침"
+                        className="secondary-button icon-button"
                         onClick={() => void loadMembers()}
                         type="button"
                       >
-                        새로고침
+                        <RefreshIcon />
                       </button>
                     </div>
                   </div>
@@ -1042,42 +1135,85 @@ function App() {
                         value={memberSearch}
                       />
                     </label>
-                    <SelectField
-                      label="회원 상태"
-                      onChange={(value) =>
-                        setMemberStatusFilter(value as MemberStatusFilter)
-                      }
-                      options={[
-                        { value: 'ALL', label: '전체' },
-                        { value: 'ACTIVE', label: '활동 중' },
-                        { value: 'WITHDRAWN', label: '탈퇴' },
-                      ]}
-                      value={memberStatusFilter}
-                    />
-                    <SelectField
-                      label="회원 역할"
-                      onChange={(value) =>
-                        setMemberRoleFilter(value as MemberRoleFilter)
-                      }
-                      options={[
-                        { value: 'ALL', label: '전체' },
-                        ...Object.entries(memberRoleLabels).map(([value, label]) => ({
-                          value,
-                          label,
-                        })),
-                      ]}
-                      value={memberRoleFilter}
-                    />
-                    <SelectField
-                      label="정렬"
-                      onChange={(value) => setMemberSort(value as MemberSort)}
-                      options={[
-                        { value: 'ROLE_PRIORITY', label: '역할 우선' },
-                        { value: 'NAME_ASC', label: '이름순' },
-                        { value: 'JOINED_ON_DESC', label: '가입일 최신순' },
-                      ]}
-                      value={memberSort}
-                    />
+                    <div
+                      className="member-filter-buttons"
+                      role="group"
+                      aria-label="활동 상태 필터"
+                    >
+                      <button
+                        className={
+                          activityFilter === 'ALL'
+                            ? 'member-filter-all is-active'
+                            : 'member-filter-all secondary-button'
+                        }
+                        onClick={() => setActivityFilter('ALL')}
+                        type="button"
+                      >
+                        전체
+                      </button>
+                      <button
+                        className={
+                          activityFilter === 'ACTIVE'
+                            ? 'member-filter-active is-active is-active-green'
+                            : 'member-filter-active secondary-button'
+                        }
+                        onClick={() => setActivityFilter('ACTIVE')}
+                        type="button"
+                      >
+                        활동 중
+                      </button>
+                      <button
+                        className={
+                          activityFilter === 'PAUSED'
+                            ? 'member-filter-paused is-active is-active-gray'
+                            : 'member-filter-paused secondary-button'
+                        }
+                        onClick={() => setActivityFilter('PAUSED')}
+                        type="button"
+                      >
+                        활동 중단
+                      </button>
+                    </div>
+                    <div
+                      className="member-sort-buttons"
+                      role="group"
+                      aria-label="회원 정렬"
+                    >
+                      <button
+                        className={`secondary-button member-sort-${nameSortDirection?.toLowerCase() ?? 'none'}`}
+                        onClick={() => {
+                          setNameSortDirection(
+                            nextSortDirection(nameSortDirection),
+                          )
+                          setJoinedOnSortDirection(null)
+                        }}
+                        type="button"
+                      >
+                        이름{' '}
+                        {nameSortDirection === 'ASC'
+                          ? '↑'
+                          : nameSortDirection === 'DESC'
+                            ? '↓'
+                            : '↕'}
+                      </button>
+                      <button
+                        className={`secondary-button member-sort-${joinedOnSortDirection?.toLowerCase() ?? 'none'}`}
+                        onClick={() => {
+                          setJoinedOnSortDirection(
+                            nextSortDirection(joinedOnSortDirection),
+                          )
+                          setNameSortDirection(null)
+                        }}
+                        type="button"
+                      >
+                        가입일{' '}
+                        {joinedOnSortDirection === 'ASC'
+                          ? '↑'
+                          : joinedOnSortDirection === 'DESC'
+                            ? '↓'
+                            : '↕'}
+                      </button>
+                    </div>
                   </div>
                   {visibleMembers.length === 0 ? (
                     <EmptyState
@@ -1097,25 +1233,32 @@ function App() {
                               onClick={() => void selectMember(member)}
                               type="button"
                             >
-                              <div>
+                              <div className="member-identity">
                                 <div className="member-name-line">
+                                  <img
+                                    alt={memberRoleLabels[member.memberRole]}
+                                    className={`member-role-icon member-role-icon-${member.memberRole.toLowerCase()}`}
+                                    src={
+                                      memberRoleIconSources[member.memberRole]
+                                    }
+                                  />
                                   <strong>{member.displayName}</strong>
                                   <span
-                                    aria-label={`직책 ${memberRoleLabels[member.memberRole]}`}
-                                    className={`member-role-badge member-role-${member.memberRole.toLowerCase()}`}
+                                    className={`member-activity-status ${member.activityPaused ? 'is-paused' : 'is-active'}`}
                                   >
-                                    <span aria-hidden="true">
-                                      {memberRoleIcons[member.memberRole]}
-                                    </span>
-                                    {memberRoleLabels[member.memberRole]}
+                                    {member.activityPaused
+                                      ? '활동 중단'
+                                      : '활동 중'}
                                   </span>
                                 </div>
-                                <span>
-                                  {member.externalNickname ??
-                                    '소모임 닉네임 없음'}
-                                </span>
+                                <div className="member-meta-line">
+                                  <span>
+                                    {member.externalNickname ??
+                                      '소모임 닉네임 없음'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="member-row-badges">
+                              <div className="member-inactivity-column">
                                 {inactivityBadge && (
                                   <span
                                     className={`inactivity-badge inactivity-badge-${inactivityBadge.tone}`}
@@ -1123,13 +1266,6 @@ function App() {
                                     {inactivityBadge.label}
                                   </span>
                                 )}
-                                <span
-                                  className={`status status-${member.membershipStatus.toLowerCase()}`}
-                                >
-                                  {member.membershipStatus === 'ACTIVE'
-                                    ? '활동 중'
-                                    : '탈퇴'}
-                                </span>
                               </div>
                             </button>
                           </li>
@@ -1172,59 +1308,22 @@ function App() {
                 </button>
               </div>
 
-              <form className="form" onSubmit={handleUpdateMember}>
-                <label>
-                  이름
-                  <input
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    required
-                    value={displayName}
-                  />
-                  {fieldErrors.displayName && (
-                    <span className="field-error">
-                      {fieldErrors.displayName}
-                    </span>
-                  )}
-                </label>
-                <label>
-                  소모임 닉네임 <span className="optional">(선택)</span>
-                  <input
-                    onChange={(event) =>
-                      setExternalNickname(event.target.value)
-                    }
-                    value={externalNickname}
-                  />
-                </label>
-                <SelectField
-                  label="역할"
-                  onChange={(value) => setMemberRole(value as MemberRole)}
-                  options={Object.entries(memberRoleLabels).map(
-                    ([value, label]) => ({ value, label }),
-                  )}
-                  value={memberRole}
-                />
-                <label>
-                  가입일
-                  <KoreanDateInput
-                    onChange={setJoinedOn}
-                    required
-                    value={joinedOn}
-                  />
-                  {fieldErrors.joinedOn && (
-                    <span className="field-error">{fieldErrors.joinedOn}</span>
-                  )}
-                </label>
-                <label>
-                  메모 <span className="optional">(선택)</span>
-                  <textarea
-                    onChange={(event) => setMemo(event.target.value)}
-                    value={memo}
-                  />
-                </label>
-                <button disabled={isReadOnly} type="submit">
-                  회원 정보 저장
-                </button>
-              </form>
+              <MemberProfileForm
+                displayName={displayName}
+                externalNickname={externalNickname}
+                fieldErrors={fieldErrors}
+                joinedOn={joinedOn}
+                memo={memo}
+                memberRole={memberRole as MemberProfileRole}
+                onDisplayNameChange={setDisplayName}
+                onExternalNicknameChange={setExternalNickname}
+                onJoinedOnChange={setJoinedOn}
+                onMemberRoleChange={(role) => setMemberRole(role)}
+                onMemoChange={setMemo}
+                onSubmit={handleUpdateMember}
+                readOnly={isReadOnly}
+                submitLabel="회원 정보 저장"
+              />
 
               <section
                 className="subsection"
@@ -1271,58 +1370,82 @@ function App() {
                   종료일을 등록하기 전까지 무기한 활동 중단으로 유지됩니다. 기존
                   기간은 사유·시작일·메모를 수정할 수 있습니다.
                 </p>
-                <form className="form" onSubmit={handleStartExclusion}>
-                  <SelectField
-                    label="사유"
-                    onChange={(value) =>
-                      setExclusionReason(value as ActivityExclusionReason)
-                    }
-                    options={Object.entries(activityExclusionReasonLabels).map(
-                      ([value, label]) => ({ value, label }),
-                    )}
-                    value={exclusionReason}
-                  />
-                  <label>
-                    시작일
-                    <KoreanDateInput
-                      onChange={setExclusionStartDate}
-                      required
-                      value={exclusionStartDate}
+                {isLoadingExclusions ? (
+                  <p className="description">활동 중단 기간을 확인하고 있습니다.</p>
+                ) : isSelectedMemberActivityPaused && editingExclusion === null ? (
+                  <p className="description">
+                    현재 활동 중단 기간입니다. 아래 목록에서 종료 처리하거나
+                    기간을 수정해 주세요.
+                  </p>
+                ) : (
+                  <form className="form" onSubmit={handleStartExclusion}>
+                    <SelectField
+                      label="사유"
+                      onChange={(value) =>
+                        setExclusionReason(value as ActivityExclusionReason)
+                      }
+                      options={Object.entries(
+                        activityExclusionReasonLabels,
+                      ).map(([value, label]) => ({ value, label }))}
+                      value={exclusionReason}
                     />
-                  </label>
-                  <label>
-                    메모 <span className="optional">(선택)</span>
-                    <textarea
-                      onChange={(event) => setExclusionNote(event.target.value)}
-                      value={exclusionNote}
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button disabled={isReadOnly} type="submit">
-                      {editingExclusion === null
-                        ? '활동 중단 시작'
-                        : '활동 중단 기간 저장'}
-                    </button>
-                    {editingExclusion && (
-                      <button
-                        className="secondary-button"
-                        disabled={isReadOnly}
-                        onClick={cancelExclusionEdit}
-                        type="button"
-                      >
-                        수정 취소
+                    <label>
+                      시작일
+                      <KoreanDateInput
+                        onChange={setExclusionStartDate}
+                        required
+                        value={exclusionStartDate}
+                      />
+                    </label>
+                    <fieldset className="exclusion-end-date-field">
+                      <legend>
+                        종료일 <span className="optional">(선택)</span>
+                      </legend>
+                      <label className="exclusion-end-date-toggle">
+                        <input
+                          checked={isExclusionEndDateSet}
+                          onChange={(event) =>
+                            setIsExclusionEndDateSet(event.target.checked)
+                          }
+                          type="checkbox"
+                        />
+                        종료일 설정
+                      </label>
+                      <KoreanDateInput
+                        disabled={!isExclusionEndDateSet}
+                        onChange={setExclusionEndDate}
+                        value={exclusionEndDate}
+                      />
+                    </fieldset>
+                    <label>
+                      메모 <span className="optional">(선택)</span>
+                      <textarea
+                        onChange={(event) =>
+                          setExclusionNote(event.target.value)
+                        }
+                        value={exclusionNote}
+                      />
+                    </label>
+                    <div className="form-actions">
+                      <button disabled={isReadOnly} type="submit">
+                        {editingExclusion === null
+                          ? '활동 중단 시작'
+                          : '활동 중단 기간 저장'}
                       </button>
-                    )}
-                  </div>
-                </form>
+                      {editingExclusion && (
+                        <button
+                          className="secondary-button"
+                          disabled={isReadOnly}
+                          onClick={cancelExclusionEdit}
+                          type="button"
+                        >
+                          수정 취소
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                )}
 
-                <label className="end-date-field">
-                  종료 처리일
-                  <KoreanDateInput
-                    onChange={setExclusionEndDate}
-                    value={exclusionEndDate}
-                  />
-                </label>
                 {exclusions.length === 0 ? (
                   <p className="empty-state">
                     등록된 활동 중단 기간이 없습니다.
@@ -1343,14 +1466,14 @@ function App() {
                         </div>
                         <div className="exclusion-actions">
                           <button
-                            className="secondary-button"
+                            className="edit-button"
                             disabled={isReadOnly}
                             onClick={() => beginExclusionEdit(exclusion)}
                             type="button"
                           >
                             수정
                           </button>
-                          {exclusion.endDate === null && (
+                          {isActivityExclusionActive(exclusion) && (
                             <button
                               className="secondary-button"
                               disabled={isReadOnly}

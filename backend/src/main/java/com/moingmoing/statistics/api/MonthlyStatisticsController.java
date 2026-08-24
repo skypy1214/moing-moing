@@ -43,7 +43,6 @@ class MonthlyStatisticsController {
 }
 
 record MonthlyStatisticsResponse(
-        String policyVersion,
         String month,
         int attendanceNumerator,
         int activityNumerator,
@@ -55,7 +54,6 @@ record MonthlyStatisticsResponse(
         List<UUID> activityExcludedMemberIds) {
     static MonthlyStatisticsResponse from(MonthlyStatisticsResult result) {
         return new MonthlyStatisticsResponse(
-                "draft-v1",
                 result.month().toString(),
                 result.attendanceNumerator(),
                 result.activityNumerator(),

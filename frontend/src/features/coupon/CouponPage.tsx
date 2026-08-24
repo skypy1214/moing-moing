@@ -10,6 +10,7 @@ import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialo
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { KoreanDateInput, formatKoreanDate } from '../../shared/ui/KoreanDateInput'
+import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { SelectField } from '../../shared/ui/SelectField'
 
 type CouponStatus = 'ISSUED' | 'SUSPENDED' | 'EXPIRED' | 'FULLY_USED' | 'VOIDED'
@@ -667,11 +668,12 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
                 </button>
               )}
               <button
-                className="secondary-button"
+                aria-label="목록 새로고침"
+                className="secondary-button icon-button"
                 onClick={() => void loadCoupons()}
                 type="button"
               >
-                {'목록 새로고침'}
+                <RefreshIcon />
               </button>
             </>
           )}

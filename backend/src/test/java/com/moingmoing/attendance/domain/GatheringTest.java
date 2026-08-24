@@ -45,4 +45,29 @@ class GatheringTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("취소 사유");
     }
+
+    @Test
+    void createsAnEventWithItsInclusivePeriod() {
+        Gathering gathering = new Gathering(
+                LocalDate.of(2026, 8, 29),
+                GatheringType.EVENT,
+                LocalDate.of(2026, 8, 30),
+                "여름 MT",
+                null,
+                null);
+
+        assertThat(gathering.getGatheringType()).isEqualTo(GatheringType.EVENT);
+        assertThat(gathering.getEndsOn()).isEqualTo(LocalDate.of(2026, 8, 30));
+    }
+
+    @Test
+    void rejectsAnEventWhoseEndDateIsBeforeItsStartDate() {
+        assertThatThrownBy(() -> new Gathering(
+                LocalDate.of(2026, 8, 30),
+                GatheringType.EVENT,
+                LocalDate.of(2026, 8, 29),
+                "여름 MT",
+                null,
+                null)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

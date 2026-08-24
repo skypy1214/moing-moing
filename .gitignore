@@ -13,6 +13,7 @@ Thumbs.db
 
 # Build outputs
 .gradle-user-home/
+.gradle-agent/
 backend/.gradle/
 backend/build/
 frontend/node_modules/

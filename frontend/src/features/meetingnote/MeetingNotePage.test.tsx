@@ -20,13 +20,21 @@ describe('MeetingNotePage', () => {
 
     render(<MeetingNotePage />)
 
+    fireEvent.click(screen.getByRole('button', { name: '글 작성' }))
+
+    const markdownInput = screen.getByRole('textbox', {
+      name: 'Markdown 본문',
+    })
+    fireEvent.change(markdownInput, {
+      target: {
+        value:
+          '- [ ] 논의할 내용\n- [x] 완료한 내용\n\n| 담당 | 할 일 |\n| --- | --- |\n| 운영진 | 다음 모임 준비 |',
+      },
+    })
+
     expect(screen.getAllByRole('checkbox')).toHaveLength(2)
     expect(screen.getByRole('table')).toBeInTheDocument()
 
-    const markdownInput = screen.getAllByRole('textbox').at(-1)
-    if (markdownInput === undefined) {
-      throw new Error('Markdown editor was not rendered.')
-    }
     fireEvent.change(markdownInput, {
       target: { value: '<script>alert("unsafe")</script>' },
     })

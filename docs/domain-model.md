@@ -65,12 +65,13 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 
 날짜별 출석부/모임을 나타낸다.
 
-- `id`, `heldOn`.
+- `id`, `heldOn`, `type: CLASS | EVENT`.
+- 행사는 필수 `endsOn`을 가지며, `endsOn >= heldOn`이다. 수업은 `endsOn`을 갖지 않는다.
 - 선택 필드 `title`, `startsAt`, `location`.
 - `status`: `DRAFT | OPEN | CLOSED | CANCELLED` 후보.
 - `createdBy`, `createdAt`, `updatedAt`.
 
-하루에 모임이 반드시 하나라는 규칙이 확정되면 `heldOn`을 unique로 둔다. 아니면 날짜+순번 또는 시작 시각 기준 unique가 필요하다.
+하루에 모임이 반드시 하나라는 규칙이 확정되면 `heldOn`을 unique로 둔다. 아니면 날짜+순번 또는 시작 시각 기준 unique가 필요하다. 행사는 달력에서 `heldOn`부터 `endsOn`까지 표시하지만 출석 기록은 시작일에 해당하는 하나의 Gathering에 연결한다.
 
 취소된 `Gathering`은 `cancelledAt`와 필수 `cancellationReason`을 남긴다. 기본 목록·캘린더 조회에서는 제외하고, 별도의 취소 이력 조회에서만 최근 취소 순으로 확인한다.
 
@@ -81,6 +82,8 @@ AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수
 - `couponUsageId`: 무료 참여가 쿠폰에 의해 발생하면 연결.
 - `recordedBy`, `recordedAt`.
 - 정정 지원 시 `status: RECORDED | CANCELLED`, `cancelledAt`, `cancelledBy`, `cancellationReason`.
+
+출석 취소·삭제와 쿠폰 사용 취소는 정모가 `OPEN`인 동안에만 할 수 있다. 일반·진행자 출석은 운영자의 명시적 삭제 확인 후 입력 오류를 정정하기 위해 물리 삭제할 수 있다. 쿠폰 출석은 `CouponUsage` 이력과 연결되므로 삭제하지 않고 쿠폰 관리의 사용 취소로만 되돌린다.
 
 Phase 3의 최초 schema에는 `gatheringId`, `memberId`, `participationType`, `status`, `recordedAt`, `cancelledAt`, `cancellationReason`만 둔다. `couponUsageId`는 CouponUsage가 도입되는 Phase 5 migration에서 외래 키로 추가하고, 수행 운영자 ID는 감사 로그 범위와 함께 후속 확장한다.
 
@@ -133,21 +136,21 @@ Coupon 한 장에 2회 잔액을 담는다면 1:N이 필수다. 1회권만 발�
 
 `policyVersion`과 `rewardUses`는 발급 당시의 정책과 실제 보상 횟수를 보존하는 스냅샷이다. `(targetMonth, memberId)`에 unique 제약을 두어 정책이 바뀐 뒤 재실행해도 같은 월·같은 회원에게 중복 보상하지 않는다. 쿠폰은 이 보상 결과를 참조한다. 집계 대상 월과 쿠폰 유효 월을 구분한다.
 
-### MeetingNoteCategory
+### MeetingNoteCategory (게시판 카테고리)
 
 - `id`, `name`, `color`, `displayOrder`.
 - `active`, `createdAt`, `updatedAt`.
 
 이름 또는 slug의 중복 정책과 이미 사용된 카테고리의 삭제 대신 비활성화 규칙이 필요하다. 색상은 허용 형식(예: hex)을 검증한다.
 
-### MeetingNote
+### MeetingNote (게시글)
 
 - `id`, `categoryId`, `title`, `markdownContent`.
 - `visibilityStatus`: `VISIBLE | HIDDEN`.
 - `meetingDate`(실제 회의일), `createdBy`, `updatedBy`.
 - `createdAt`, `updatedAt`, `hiddenAt`.
 
-Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행한다. HTML 결과를 DB에 함께 저장하는 것은 캐시 필요성이 확인되기 전까지 하지 않는다. 수정 이력이 필요하면 향후 `MeetingNoteRevision`을 추가한다.
+구현·저장소 이름은 기존 데이터 호환을 위해 `MeetingNote`를 유지하지만, 사용자 화면에서는 범용 게시글을 의미한다. Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행한다. HTML 결과를 DB에 함께 저장하는 것은 캐시 필요성이 확인되기 전까지 하지 않는다. 수정 이력이 필요하면 향후 `MeetingNoteRevision`을 추가한다.
 
 ### UserAccount
 

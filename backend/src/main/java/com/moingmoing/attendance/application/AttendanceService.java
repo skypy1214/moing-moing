@@ -15,6 +15,7 @@ import com.moingmoing.attendance.domain.AttendanceParticipationType;
 import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
+import com.moingmoing.attendance.domain.GatheringType;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
 import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.application.MemberService;
@@ -48,15 +49,70 @@ public class AttendanceService {
                 GatheringStatus.CANCELLED, PageRequest.of(page, size));
     }
 
-    public Gathering createGathering(LocalDate heldOn, String title, Instant startsAt, String location) {
-        return gatheringRepository.save(new Gathering(heldOn, title, startsAt, location));
+    public Gathering createGathering(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            UUID hostMemberId,
+            String title,
+            Instant startsAt,
+            String location) {
+        if (gatheringType == GatheringType.EVENT && hostMemberId != null) {
+            throw new IllegalArgumentException("Only classes can have a host.");
+        }
+        Gathering gathering = gatheringRepository.save(
+                new Gathering(heldOn, gatheringType, endsOn, title, startsAt, location));
+        if (hostMemberId != null) {
+            Member host = memberService.findById(hostMemberId);
+            validateMemberCanAttend(gathering, host);
+            attendanceRepository.save(new Attendance(
+                    gathering.getId(), hostMemberId, AttendanceParticipationType.HOST));
+        }
+        return gathering;
     }
 
     public Gathering updateGathering(
-            UUID gatheringId, LocalDate heldOn, String title, Instant startsAt, String location) {
+            UUID gatheringId,
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            UUID hostMemberId,
+            String title,
+            Instant startsAt,
+            String location) {
+        if (gatheringType == GatheringType.EVENT && hostMemberId != null) {
+            throw new IllegalArgumentException("Only classes can have a host.");
+        }
         Gathering gathering = findGathering(gatheringId);
-        gathering.updateDetails(heldOn, title, startsAt, location);
+        gathering.updateDetails(heldOn, gatheringType, endsOn, title, startsAt, location);
+        updateHostAttendance(gathering, hostMemberId);
         return gathering;
+    }
+
+    private void updateHostAttendance(Gathering gathering, UUID hostMemberId) {
+        List<Attendance> existingHostAttendances = attendanceRepository
+                .findByGatheringIdOrderByRecordedAtAsc(gathering.getId()).stream()
+                .filter(attendance -> attendance.getParticipationType() == AttendanceParticipationType.HOST)
+                .toList();
+        if (hostMemberId == null) {
+            attendanceRepository.deleteAll(existingHostAttendances);
+            return;
+        }
+
+        Member host = memberService.findById(hostMemberId);
+        validateMemberCanAttend(gathering, host);
+        Attendance hostAttendance = attendanceRepository
+                .findByGatheringIdAndMemberId(gathering.getId(), hostMemberId)
+                .orElseGet(() -> attendanceRepository.save(new Attendance(
+                        gathering.getId(), hostMemberId, AttendanceParticipationType.HOST)));
+        if (hostAttendance.getAttendanceStatus() == AttendanceStatus.CANCELLED) {
+            hostAttendance.recordAgain(AttendanceParticipationType.HOST);
+        } else if (hostAttendance.getParticipationType() != AttendanceParticipationType.HOST) {
+            hostAttendance.changeParticipationType(AttendanceParticipationType.HOST);
+        }
+        attendanceRepository.deleteAll(existingHostAttendances.stream()
+                .filter(attendance -> !attendance.getId().equals(hostAttendance.getId()))
+                .toList());
     }
 
     public Gathering openGathering(UUID gatheringId) {
@@ -102,10 +158,7 @@ public class AttendanceService {
             throw new IllegalArgumentException("열린 모임에만 출석을 기록할 수 있습니다.");
         }
         Member member = memberService.findById(memberId);
-        if (member.getMembershipStatus() == MembershipStatus.WITHDRAWN
-                && gathering.getHeldOn().isAfter(member.getWithdrawnOn())) {
-            throw new IllegalArgumentException("탈퇴일 이후에는 출석을 기록할 수 없습니다.");
-        }
+        validateMemberCanAttend(gathering, member);
         Attendance existingAttendance = attendanceRepository
                 .findByGatheringIdAndMemberId(gatheringId, memberId)
                 .orElse(null);
@@ -121,7 +174,8 @@ public class AttendanceService {
     }
 
     public Attendance cancelAttendance(UUID gatheringId, UUID attendanceId, String cancellationReason) {
-        findGathering(gatheringId);
+        Gathering gathering = findGathering(gatheringId);
+        requireOpenGathering(gathering);
         Attendance attendance = attendanceRepository.findById(attendanceId)
                 .filter(found -> found.getGatheringId().equals(gatheringId))
                 .orElseThrow(() -> new AttendanceNotFoundException(attendanceId));
@@ -133,8 +187,34 @@ public class AttendanceService {
         return attendance;
     }
 
+    public void deleteAttendance(UUID gatheringId, UUID attendanceId) {
+        Gathering gathering = findGathering(gatheringId);
+        requireOpenGathering(gathering);
+        Attendance attendance = attendanceRepository.findById(attendanceId)
+                .filter(found -> found.getGatheringId().equals(gatheringId))
+                .orElseThrow(() -> new AttendanceNotFoundException(attendanceId));
+        if (attendance.getParticipationType() == AttendanceParticipationType.COUPON) {
+            // Coupon attendance must retain its linked coupon-usage audit trail.
+            throw new IllegalArgumentException("Coupon attendance must be reversed from the coupon usage.");
+        }
+        attendanceRepository.delete(attendance);
+    }
+
     private Gathering findGathering(UUID gatheringId) {
         return gatheringRepository.findById(gatheringId)
                 .orElseThrow(() -> new GatheringNotFoundException(gatheringId));
+    }
+
+    private void requireOpenGathering(Gathering gathering) {
+        if (gathering.getGatheringStatus() != GatheringStatus.OPEN) {
+            throw new IllegalArgumentException("Attendance can only be changed while the gathering is open.");
+        }
+    }
+
+    private void validateMemberCanAttend(Gathering gathering, Member member) {
+        if (member.getMembershipStatus() == MembershipStatus.WITHDRAWN
+                && gathering.getHeldOn().isAfter(member.getWithdrawnOn())) {
+            throw new IllegalArgumentException("탈퇴일 이후에는 출석을 기록할 수 없습니다.");
+        }
     }
 }

@@ -29,7 +29,7 @@ class MemberController {
     @GetMapping
     List<MemberResponse> list() {
         return memberService.findAllWithLastAttendance().stream()
-                .map(summary -> MemberResponse.from(summary.member(), summary.lastAttendanceOn()))
+                .map(summary -> MemberResponse.from(summary.member(), summary.lastAttendanceOn(), summary.activityPaused()))
                 .toList();
     }
 
@@ -75,7 +75,7 @@ class MemberController {
     ResponseEntity<ActivityExclusionResponse> startExclusion(
             @PathVariable UUID id, @Valid @RequestBody StartActivityExclusionRequest request) {
         ActivityExclusionResponse response = ActivityExclusionResponse.from(memberService.startExclusion(
-                id, request.reason(), request.startDate(), request.note()));
+                id, request.reason(), request.startDate(), request.endDate(), request.note()));
         return ResponseEntity.created(URI.create("/api/v1/members/" + id + "/activity-exclusions/" + response.id()))
                 .body(response);
     }

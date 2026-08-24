@@ -43,18 +43,19 @@ export function SearchableMemberSelect({
 
   const visibleMembers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (normalizedQuery === '') {
+      return []
+    }
+
     return members
       .filter(
         (member) => includeWithdrawn || member.membershipStatus === 'ACTIVE',
       )
-      .filter((member) => {
-        if (normalizedQuery === '') {
-          return true
-        }
-        return [member.displayName, member.externalNickname]
+      .filter((member) =>
+        [member.displayName, member.externalNickname]
           .filter((field): field is string => field !== null)
-          .some((field) => field.toLocaleLowerCase().includes(normalizedQuery))
-      })
+          .some((field) => field.toLocaleLowerCase().includes(normalizedQuery)),
+      )
       .slice(0, 8)
   }, [includeWithdrawn, members, query])
 
@@ -135,7 +136,7 @@ export function SearchableMemberSelect({
             ×
           </button>
         )}
-        {isOpen &&
+        {isOpen && query.trim() !== '' &&
           createPortal(
             <div
               className="member-autocomplete-options member-autocomplete-options-floating"

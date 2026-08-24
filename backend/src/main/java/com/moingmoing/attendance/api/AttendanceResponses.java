@@ -9,10 +9,13 @@ import com.moingmoing.attendance.domain.AttendanceParticipationType;
 import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
+import com.moingmoing.attendance.domain.GatheringType;
 
 record GatheringResponse(
         UUID id,
         LocalDate heldOn,
+        GatheringType gatheringType,
+        LocalDate endsOn,
         String title,
         Instant startsAt,
         String location,
@@ -23,6 +26,8 @@ record GatheringResponse(
         return new GatheringResponse(
                 gathering.getId(),
                 gathering.getHeldOn(),
+                gathering.getGatheringType(),
+                gathering.getEndsOn(),
                 gathering.getTitle(),
                 gathering.getStartsAt(),
                 gathering.getLocation(),

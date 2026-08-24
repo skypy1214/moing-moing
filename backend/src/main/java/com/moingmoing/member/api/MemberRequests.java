@@ -31,6 +31,7 @@ record ChangeMembershipDateRequest(@NotNull LocalDate date) {
 record StartActivityExclusionRequest(
         @NotNull ActivityExclusionReason reason,
         @NotNull LocalDate startDate,
+        LocalDate endDate,
         @Size(max = 1000) String note) {
 }
 

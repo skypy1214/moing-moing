@@ -4,5 +4,5 @@ import java.time.LocalDate;
 
 import com.moingmoing.member.domain.Member;
 
-public record MemberAttendanceSummary(Member member, LocalDate lastAttendanceOn) {
+public record MemberAttendanceSummary(Member member, LocalDate lastAttendanceOn, boolean activityPaused) {
 }

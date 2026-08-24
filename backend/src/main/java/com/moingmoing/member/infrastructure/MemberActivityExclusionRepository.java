@@ -25,4 +25,11 @@ public interface MemberActivityExclusionRepository extends JpaRepository<MemberA
             @Param("excludedId") UUID excludedId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            select exclusion.memberId from MemberActivityExclusion exclusion
+            where exclusion.startDate <= :today
+              and (exclusion.endDate is null or exclusion.endDate >= :today)
+            """)
+    List<UUID> findMemberIdsActiveOn(@Param("today") LocalDate today);
 }

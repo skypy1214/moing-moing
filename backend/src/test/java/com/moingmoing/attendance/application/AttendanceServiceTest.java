@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -49,6 +50,60 @@ class AttendanceServiceTest {
         assertThat(attendance.getGatheringId()).isEqualTo(gathering.getId());
         assertThat(attendance.getMemberId()).isEqualTo(member.getId());
         assertThat(attendance.getParticipationType()).isEqualTo(AttendanceParticipationType.NORMAL);
+    }
+
+    @Test
+    void recordsTheSelectedHostWhenCreatingAClass() {
+        Member host = new Member("진행자", null, LocalDate.of(2026, 1, 1), null);
+        AttendanceService attendanceService = service();
+        when(gatheringRepository.save(any(Gathering.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(memberService.findById(host.getId())).thenReturn(host);
+        when(attendanceRepository.save(any(Attendance.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Gathering gathering = attendanceService.createGathering(
+                LocalDate.of(2026, 8, 20),
+                com.moingmoing.attendance.domain.GatheringType.CLASS,
+                null,
+                host.getId(),
+                "정기 수업",
+                null,
+                null);
+
+        assertThat(gathering.getGatheringStatus()).isEqualTo(com.moingmoing.attendance.domain.GatheringStatus.DRAFT);
+        verify(attendanceRepository).save(any(Attendance.class));
+    }
+
+    @Test
+    void replacesTheHostWhenUpdatingAClass() {
+        Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
+        Member previousHost = new Member("기존 진행자", null, LocalDate.of(2026, 1, 1), null);
+        Member newHost = new Member("새 진행자", null, LocalDate.of(2026, 1, 1), null);
+        Attendance previousHostAttendance = new Attendance(
+                gathering.getId(), previousHost.getId(), AttendanceParticipationType.HOST);
+        AttendanceService attendanceService = service();
+        when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
+        when(attendanceRepository.findByGatheringIdOrderByRecordedAtAsc(gathering.getId()))
+                .thenReturn(List.of(previousHostAttendance));
+        when(memberService.findById(newHost.getId())).thenReturn(newHost);
+        when(attendanceRepository.findByGatheringIdAndMemberId(gathering.getId(), newHost.getId()))
+                .thenReturn(Optional.empty());
+        when(attendanceRepository.save(any(Attendance.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.updateGathering(
+                gathering.getId(),
+                LocalDate.of(2026, 8, 20),
+                com.moingmoing.attendance.domain.GatheringType.CLASS,
+                null,
+                newHost.getId(),
+                "정기 수업",
+                null,
+                null);
+
+        verify(attendanceRepository).deleteAll(List.of(previousHostAttendance));
+        verify(attendanceRepository).save(any(Attendance.class));
     }
 
     @Test
@@ -110,6 +165,35 @@ class AttendanceServiceTest {
                 .thenReturn(List.of(attendance));
 
         assertThat(attendanceService.findMemberAttendanceHistory(member.getId())).containsExactly(attendance);
+    }
+
+    @Test
+    void physicallyDeletesANormalAttendanceAfterItIsExplicitlyRequested() {
+        Gathering gathering = openGathering();
+        Attendance attendance = new Attendance(
+                gathering.getId(), UUID.randomUUID(), AttendanceParticipationType.NORMAL);
+        AttendanceService attendanceService = service();
+        when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
+        when(attendanceRepository.findById(attendance.getId())).thenReturn(Optional.of(attendance));
+
+        attendanceService.deleteAttendance(gathering.getId(), attendance.getId());
+
+        verify(attendanceRepository).delete(attendance);
+    }
+
+    @Test
+    void rejectsCancellingAttendanceAfterTheGatheringIsClosed() {
+        Gathering gathering = openGathering();
+        gathering.close();
+        Attendance attendance = new Attendance(
+                gathering.getId(), UUID.randomUUID(), AttendanceParticipationType.NORMAL);
+        AttendanceService attendanceService = service();
+        when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
+
+        assertThatThrownBy(() -> attendanceService.cancelAttendance(
+                gathering.getId(), attendance.getId(), "입력 오류"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("open");
     }
 
     private AttendanceService service() {

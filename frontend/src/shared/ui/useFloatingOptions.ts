@@ -43,18 +43,24 @@ export function useFloatingOptions({
       const viewportPadding = 8
       const below = window.innerHeight - rect.bottom - viewportPadding
       const above = rect.top - viewportPadding
-      const opensUpward = below < 180 && above > below
+      const contentHeight = Math.min(
+        296,
+        Math.max(44, optionsRef.current?.scrollHeight ?? 104),
+      )
+      const preferredHeight = Math.max(104, contentHeight)
+      const opensUpward = below < preferredHeight && above > below
       const availableHeight = Math.max(
-        120,
-        Math.min(296, opensUpward ? above : below),
+        44,
+        Math.min(preferredHeight, opensUpward ? above : below),
       )
 
       setStyle({
-        left: Math.max(viewportPadding, rect.left),
+        height: availableHeight,
+        left: window.scrollX + Math.max(viewportPadding, rect.left),
         maxHeight: availableHeight,
         top: opensUpward
-          ? Math.max(viewportPadding, rect.top - availableHeight)
-          : rect.bottom,
+          ? window.scrollY + Math.max(viewportPadding, rect.top - availableHeight)
+          : window.scrollY + rect.bottom,
         width: Math.min(
           rect.width,
           window.innerWidth - rect.left - viewportPadding,

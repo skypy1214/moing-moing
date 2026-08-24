@@ -20,7 +20,7 @@ describe('App', () => {
   })
 
   it('renders the administrator login form', () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
 
     renderApp()
 
@@ -41,6 +41,7 @@ describe('App', () => {
       'fetch',
       vi
         .fn()
+        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: false })
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
@@ -77,6 +78,7 @@ describe('App', () => {
       'fetch',
       vi
         .fn()
+        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: false })
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
@@ -151,6 +153,7 @@ describe('App', () => {
       'fetch',
       vi
         .fn()
+        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: false })
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({

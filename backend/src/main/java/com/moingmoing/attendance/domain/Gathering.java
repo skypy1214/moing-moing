@@ -16,6 +16,9 @@ public class Gathering {
     @Id
     private UUID id;
     private LocalDate heldOn;
+    @Enumerated(EnumType.STRING)
+    private GatheringType gatheringType;
+    private LocalDate endsOn;
     private String title;
     private Instant startsAt;
     private String location;
@@ -30,8 +33,19 @@ public class Gathering {
     }
 
     public Gathering(LocalDate heldOn, String title, Instant startsAt, String location) {
+        this(heldOn, GatheringType.CLASS, null, title, startsAt, location);
+    }
+
+    public Gathering(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            String title,
+            Instant startsAt,
+            String location) {
         this.id = UUID.randomUUID();
         this.heldOn = heldOn;
+        updateTypeAndPeriod(gatheringType, endsOn);
         this.title = title;
         this.startsAt = startsAt;
         this.location = location;
@@ -46,6 +60,14 @@ public class Gathering {
 
     public LocalDate getHeldOn() {
         return heldOn;
+    }
+
+    public GatheringType getGatheringType() {
+        return gatheringType;
+    }
+
+    public LocalDate getEndsOn() {
+        return endsOn;
     }
 
     public String getTitle() {
@@ -112,14 +134,46 @@ public class Gathering {
         updatedAt = Instant.now();
     }
 
-    public void updateDetails(LocalDate heldOn, String title, Instant startsAt, String location) {
+    public void updateDetails(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            String title,
+            Instant startsAt,
+            String location) {
         if (gatheringStatus == GatheringStatus.CANCELLED) {
             throw new IllegalArgumentException("Cancelled gatherings cannot be changed.");
         }
+        validateTypeAndPeriod(heldOn, gatheringType, endsOn);
         this.heldOn = heldOn;
+        this.gatheringType = gatheringType;
+        this.endsOn = endsOn;
         this.title = title;
         this.startsAt = startsAt;
         this.location = location;
         updatedAt = Instant.now();
+    }
+
+    private void updateTypeAndPeriod(GatheringType gatheringType, LocalDate endsOn) {
+        validateTypeAndPeriod(heldOn, gatheringType, endsOn);
+        this.gatheringType = gatheringType;
+        this.endsOn = endsOn;
+    }
+
+    private void validateTypeAndPeriod(
+            LocalDate heldOn, GatheringType gatheringType, LocalDate endsOn) {
+        if (heldOn == null) {
+            throw new IllegalArgumentException("Gathering date is required.");
+        }
+        if (gatheringType == null) {
+            throw new IllegalArgumentException("Gathering type is required.");
+        }
+        if (gatheringType == GatheringType.CLASS && endsOn != null) {
+            throw new IllegalArgumentException("Classes cannot have an end date.");
+        }
+        if (gatheringType == GatheringType.EVENT
+                && (endsOn == null || endsOn.isBefore(heldOn))) {
+            throw new IllegalArgumentException("An event end date must not be before its start date.");
+        }
     }
 }

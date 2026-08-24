@@ -1,10 +1,10 @@
 import { useState } from 'react'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { KoreanMonthInput } from '../../shared/ui/KoreanMonthInput'
 
 type MonthlyStatistics = {
   month: string
-  policyVersion: string
   attendanceNumerator: number
   activityNumerator: number
   denominator: number
@@ -47,9 +47,9 @@ export function MonthlyStatisticsPage() {
         <div className="inline-form">
           <label>
             {'대상 월'}
-            <input
-              onChange={(event) => setMonth(event.target.value)}
-              type="month"
+            <KoreanMonthInput
+              onChange={setMonth}
+              required
               value={month}
             />
           </label>
@@ -80,9 +80,9 @@ export function MonthlyStatisticsPage() {
               </span>
             </article>
             <article>
-              <strong>{'적용 정책'}</strong>
-              <b>{statistics.policyVersion}</b>
-              <span>{'현재 초안 정책 버전'}</span>
+              <strong>{'해당 월 모임원'}</strong>
+              <b>{statistics.denominator}{'명'}</b>
+              <span>{'가입·탈퇴 기간이 해당 월과 겹친 회원'}</span>
             </article>
           </div>
         )}

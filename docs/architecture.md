@@ -10,7 +10,7 @@
               HTTPS REST
                  |
 [Spring Boot: auth, member, attendance, statistics,
-              coupon, meeting-note]
+              coupon, board (internal package: meetingnote)]
                  |
               JPA/Flyway
                  |

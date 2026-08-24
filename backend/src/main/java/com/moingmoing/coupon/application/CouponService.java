@@ -17,6 +17,7 @@ import com.moingmoing.coupon.infrastructure.CouponUsageRepository;
 import com.moingmoing.attendance.application.AttendanceService;
 import com.moingmoing.attendance.domain.Attendance;
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.GatheringStatus;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
 import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.application.MemberService;
@@ -151,6 +152,12 @@ public class CouponService {
         Coupon coupon = findById(couponId);
         Attendance attendance = attendanceRepository.findById(usage.getAttendanceId())
                 .orElseThrow(() -> new IllegalArgumentException("Attendance not found."));
+        GatheringStatus gatheringStatus = gatheringRepository.findById(attendance.getGatheringId())
+                .orElseThrow(() -> new IllegalArgumentException("Gathering not found."))
+                .getGatheringStatus();
+        if (gatheringStatus != GatheringStatus.OPEN) {
+            throw new IllegalArgumentException("Coupon attendance can only be reversed while the gathering is open.");
+        }
         attendance.cancel(reason);
         coupon.restoreOneUse();
         usage.reverse(reason);

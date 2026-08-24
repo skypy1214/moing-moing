@@ -27,6 +27,8 @@ import com.moingmoing.coupon.infrastructure.AttendanceChampionAwardRepository;
 import com.moingmoing.coupon.infrastructure.ChampionRewardPolicyRepository;
 import com.moingmoing.coupon.infrastructure.ChampionRewardPolicyTierRepository;
 import com.moingmoing.coupon.infrastructure.CouponRepository;
+import com.moingmoing.member.domain.MemberRole;
+import com.moingmoing.member.infrastructure.MemberRepository;
 
 @Service
 @Transactional
@@ -37,6 +39,7 @@ public class AttendanceChampionAwardService {
     private final ChampionRewardPolicyRepository policyRepository;
     private final ChampionRewardPolicyTierRepository tierRepository;
     private final CouponRepository couponRepository;
+    private final MemberRepository memberRepository;
 
     public AttendanceChampionAwardService(
             AttendanceRepository attendanceRepository,
@@ -44,13 +47,15 @@ public class AttendanceChampionAwardService {
             AttendanceChampionAwardRepository awardRepository,
             ChampionRewardPolicyRepository policyRepository,
             ChampionRewardPolicyTierRepository tierRepository,
-            CouponRepository couponRepository) {
+            CouponRepository couponRepository,
+            MemberRepository memberRepository) {
         this.attendanceRepository = attendanceRepository;
         this.gatheringRepository = gatheringRepository;
         this.awardRepository = awardRepository;
         this.policyRepository = policyRepository;
         this.tierRepository = tierRepository;
         this.couponRepository = couponRepository;
+        this.memberRepository = memberRepository;
     }
 
     /**
@@ -66,8 +71,10 @@ public class AttendanceChampionAwardService {
 
         Map<UUID, Gathering> gatherings = gatheringRepository.findAll().stream()
                 .collect(Collectors.toMap(Gathering::getId, Function.identity()));
+        Map<UUID, MemberRole> memberRoles = memberRepository.findAll().stream()
+                .collect(Collectors.toMap(member -> member.getId(), member -> member.getMemberRole()));
         Map<UUID, Long> counts = attendanceRepository.findAll().stream()
-                .filter(attendance -> qualifies(attendance, gatherings, month))
+                .filter(attendance -> qualifies(attendance, gatherings, memberRoles, month))
                 .collect(Collectors.groupingBy(Attendance::getMemberId, Collectors.counting()));
         if (counts.isEmpty()) {
             return List.of();
@@ -137,10 +144,15 @@ public class AttendanceChampionAwardService {
         return award;
     }
 
-    private boolean qualifies(Attendance attendance, Map<UUID, Gathering> gatherings, YearMonth month) {
+    private boolean qualifies(
+            Attendance attendance,
+            Map<UUID, Gathering> gatherings,
+            Map<UUID, MemberRole> memberRoles,
+            YearMonth month) {
         Gathering gathering = gatherings.get(attendance.getGatheringId());
         return attendance.getAttendanceStatus() == AttendanceStatus.RECORDED
                 && attendance.getParticipationType() == AttendanceParticipationType.NORMAL
+                && memberRoles.get(attendance.getMemberId()) == MemberRole.MEMBER
                 && gathering != null
                 && gathering.getGatheringStatus() != GatheringStatus.CANCELLED
                 && YearMonth.from(gathering.getHeldOn()).equals(month);

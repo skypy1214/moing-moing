@@ -28,10 +28,20 @@ public class MemberActivityExclusion {
     }
 
     public MemberActivityExclusion(UUID memberId, ActivityExclusionReason reason, LocalDate startDate, String note) {
+        this(memberId, reason, startDate, null, note);
+    }
+
+    public MemberActivityExclusion(
+            UUID memberId,
+            ActivityExclusionReason reason,
+            LocalDate startDate,
+            LocalDate endDate,
+            String note) {
         this.id = UUID.randomUUID();
         this.memberId = memberId;
         this.reason = reason;
         this.startDate = startDate;
+        this.endDate = endDate;
         this.note = note;
         this.createdAt = Instant.now();
         this.updatedAt = createdAt;

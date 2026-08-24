@@ -60,4 +60,17 @@ class MonthlyStatisticsPolicyTest {
         assertThat(result.attendanceNumerator()).isZero();
         assertThat(result.activityNumerator()).isZero();
     }
+
+    @Test
+    void includesAMemberWhoseEntireMembershipPeriodFallsWithinTheMonth() {
+        Member member = new Member("7월 회원", null, LocalDate.of(2026, 7, 1), null);
+        member.withdraw(LocalDate.of(2026, 7, 5));
+
+        MonthlyStatisticsResult result = policy.calculate(
+                YearMonth.of(2026, 7), List.of(member), List.of(), List.of(), List.of());
+
+        assertThat(result.denominator()).isEqualTo(1);
+        assertThat(result.attendanceRate()).isZero();
+        assertThat(result.activityRate()).isZero();
+    }
 }

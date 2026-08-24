@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,8 @@ import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
 import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.domain.Member;
+import com.moingmoing.member.domain.MemberActivityExclusion;
+import com.moingmoing.member.domain.ActivityExclusionReason;
 import com.moingmoing.member.infrastructure.MemberActivityExclusionRepository;
 import com.moingmoing.member.infrastructure.MemberRepository;
 
@@ -61,6 +64,23 @@ class MemberServiceTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(attendedMember.getId(), latestGathering.getHeldOn()),
                         org.assertj.core.groups.Tuple.tuple(noAttendanceMember.getId(), null));
+    }
+
+    @Test
+    void savesTheSpecifiedEndDateWhenStartingAnActivityExclusion() {
+        Member member = new Member("기간 회원", null, LocalDate.of(2025, 1, 1), null);
+        LocalDate startDate = LocalDate.of(2026, 8, 1);
+        LocalDate endDate = LocalDate.of(2026, 8, 31);
+
+        when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+        when(exclusionRepository.existsOverlapping(member.getId(), null, startDate, endDate)).thenReturn(false);
+        when(exclusionRepository.save(org.mockito.ArgumentMatchers.any(MemberActivityExclusion.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MemberActivityExclusion exclusion = service().startExclusion(
+                member.getId(), ActivityExclusionReason.MEDICAL, startDate, endDate, "치료 일정");
+
+        assertThat(exclusion.getEndDate()).isEqualTo(endDate);
     }
 
     private MemberService service() {

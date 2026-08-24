@@ -63,6 +63,12 @@ repository: git diff --check, git status --short
 - 회사 PC에서 Docker/WSL2가 제한되면 Docker 없는 compile, unit test, lint, frontend build만 실행하고, 실제 PostgreSQL/Flyway/Testcontainers 검증은 `docs/todo.md`의 "집 PC에서 검증 필요"에 기록한다. 제한 우회용 개발 환경이나 dependency는 추가하지 않는다.
 - 로컬에서 실행하지 못한 검증이 있으면 완료 보고에 명시한다.
 
+### 검증 실행 승인
+
+- 모든 테스트는 기능 변경 직후 자동으로 실행하지 않는다. 테스트, build, lint, 전체 검증 스크립트처럼 시간이 걸리는 검증은 실행 전에 반드시 사용자에게 확인을 받는다.
+- 변경 중 필요한 테스트 항목과 명령은 에이전트가 누적해서 기억하고, 사용자가 `테스트해줘`처럼 검증 실행을 요청하면 가능한 항목을 묶어서 한 번에 실행한다.
+- 누적한 테스트 항목은 사용자가 요청한 검증이 실제로 끝난 뒤에만 완료로 처리한다. 실행하지 못했거나 실패한 항목은 완료로 지우지 않고 결과와 함께 계속 보고한다.
+
 현재는 애플리케이션이 생성되지 않았으므로 위 명령과 스크립트도 아직 존재하지 않는다. 빈 스크립트를 먼저 만들지 말고 Phase 1에서 실제 프로젝트 명령과 함께 추가한다.
 
 ## Git 규칙
@@ -71,7 +77,7 @@ repository: git diff --check, git status --short
 - 한 변경은 한 목적에 집중하며 생성물, 비밀값, IDE 개인 설정을 커밋하지 않는다.
 - 사용자가 요청하지 않은 `reset --hard`, 강제 push, 기존 변경 삭제를 하지 않는다.
 - 커밋은 사용자가 요청한 경우에만 만들고, 메시지에는 변경 목적이 드러나게 한다.
-- 완료 전에 전체 검증 명령과 `git diff --check`, `git diff`, `git status --short`를 확인한다.
+- 완료 전에 필요한 테스트·build·lint는 위의 검증 실행 승인 규칙에 따라 사용자 확인 후 실행한다. `git diff --check`, `git diff`, `git status --short` 확인은 변경 검토에 필요할 때 수행한다.
 
 ## 자동화 도입 원칙
 

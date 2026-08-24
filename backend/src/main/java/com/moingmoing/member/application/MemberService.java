@@ -70,9 +70,10 @@ public class MemberService {
                     (current, candidate) -> current.isAfter(candidate) ? current : candidate);
         });
 
+        var pausedMemberIds = new java.util.HashSet<>(exclusionRepository.findMemberIdsActiveOn(today));
         return members.stream()
                 .map(member -> new MemberAttendanceSummary(
-                        member, lastAttendanceByMemberId.get(member.getId())))
+                        member, lastAttendanceByMemberId.get(member.getId()), pausedMemberIds.contains(member.getId())))
                 .toList();
     }
 
@@ -111,13 +112,22 @@ public class MemberService {
     }
 
     public MemberActivityExclusion startExclusion(
-            UUID memberId, ActivityExclusionReason reason, LocalDate startDate, String note) {
+            UUID memberId,
+            ActivityExclusionReason reason,
+            LocalDate startDate,
+            LocalDate endDate,
+            String note) {
         findById(memberId);
+        if (endDate != null && endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("종료일은 시작일보다 이를 수 없습니다.");
+        }
+        LocalDate effectiveEndDate = endDate == null ? OPEN_ENDED_EXCLUSION_END_DATE : endDate;
         if (exclusionRepository.existsOverlapping(
-                memberId, null, startDate, OPEN_ENDED_EXCLUSION_END_DATE)) {
+                memberId, null, startDate, effectiveEndDate)) {
             throw new IllegalArgumentException("기존 활동 제외 기간과 겹칩니다.");
         }
-        return exclusionRepository.save(new MemberActivityExclusion(memberId, reason, startDate, note));
+        return exclusionRepository.save(new MemberActivityExclusion(
+                memberId, reason, startDate, endDate, note));
     }
 
     @Transactional(readOnly = true)

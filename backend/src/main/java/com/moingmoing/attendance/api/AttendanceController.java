@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -38,7 +39,13 @@ class AttendanceController {
     @PostMapping
     ResponseEntity<GatheringResponse> createGathering(@Valid @RequestBody CreateGatheringRequest request) {
         GatheringResponse response = GatheringResponse.from(attendanceService.createGathering(
-                request.heldOn(), request.title(), request.startsAt(), request.location()));
+                request.heldOn(),
+                request.gatheringType(),
+                request.endsOn(),
+                request.hostMemberId(),
+                request.title(),
+                request.startsAt(),
+                request.location()));
         return ResponseEntity.created(URI.create("/api/v1/gatherings/" + response.id())).body(response);
     }
 
@@ -56,7 +63,14 @@ class AttendanceController {
     GatheringResponse updateGathering(
             @PathVariable UUID id, @Valid @RequestBody UpdateGatheringRequest request) {
         return GatheringResponse.from(attendanceService.updateGathering(
-                id, request.heldOn(), request.title(), request.startsAt(), request.location()));
+                id,
+                request.heldOn(),
+                request.gatheringType(),
+                request.endsOn(),
+                request.hostMemberId(),
+                request.title(),
+                request.startsAt(),
+                request.location()));
     }
 
     @PostMapping("/{id}/reopen")
@@ -106,5 +120,13 @@ class AttendanceController {
             @Valid @RequestBody CancelAttendanceRequest request) {
         return AttendanceResponse.from(
                 attendanceService.cancelAttendance(gatheringId, attendanceId, request.cancellationReason()));
+    }
+
+    @DeleteMapping("/{gatheringId}/attendances/{attendanceId}")
+    ResponseEntity<Void> deleteAttendance(
+            @PathVariable UUID gatheringId,
+            @PathVariable UUID attendanceId) {
+        attendanceService.deleteAttendance(gatheringId, attendanceId);
+        return ResponseEntity.noContent().build();
     }
 }
