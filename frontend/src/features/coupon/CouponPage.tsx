@@ -136,7 +136,6 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
       return
     }
     setCoupons((await response.json()) as Coupon[])
-    setMessage('쿠폰 목록을 새로고침했습니다.')
   }, [])
 
   useEffect(() => {

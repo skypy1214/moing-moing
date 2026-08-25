@@ -32,7 +32,6 @@ export function MonthlyStatisticsPage() {
       return
     }
     setStatistics((await response.json()) as MonthlyStatistics)
-    setMessage('월별 통계를 조회했습니다.')
   }
 
   return (

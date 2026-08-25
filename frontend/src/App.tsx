@@ -281,23 +281,6 @@ function App() {
     icon: string
   }[]
 
-  function navigateToPage(nextPage: PageKey) {
-    if (nextPage === currentPage) {
-      return
-    }
-
-    const documentWithViewTransition = document as DocumentWithViewTransition
-    if (documentWithViewTransition.startViewTransition) {
-      documentWithViewTransition.startViewTransition(() => {
-        flushSync(() => {
-          setCurrentPage(nextPage)
-        })
-      })
-      return
-    }
-    setCurrentPage(nextPage)
-  }
-
   const visibleMembers = useMemo(() => {
     const normalizedSearch = memberSearch.trim().toLocaleLowerCase()
     return [...members]
@@ -361,6 +344,29 @@ function App() {
     setMembers((await response.json()) as Member[])
   }, [])
 
+  function navigateToPage(nextPage: PageKey) {
+    if (nextPage === 'MEMBERS' && currentLoginId !== null) {
+      void loadMembers().catch(() =>
+        setMessage('회원 목록을 불러오지 못했습니다.'),
+      )
+    }
+
+    if (nextPage === currentPage) {
+      return
+    }
+
+    const documentWithViewTransition = document as DocumentWithViewTransition
+    if (documentWithViewTransition.startViewTransition) {
+      documentWithViewTransition.startViewTransition(() => {
+        flushSync(() => {
+          setCurrentPage(nextPage)
+        })
+      })
+      return
+    }
+    setCurrentPage(nextPage)
+  }
+
   useEffect(() => {
     let isDisposed = false
     let retryTimer: number | undefined
@@ -415,6 +421,7 @@ function App() {
       setCurrentLoginId(account.loginId)
       setCurrentDisplayName(account.displayName)
       setIsAdmin(account.isAdmin)
+      setCurrentPage('MEMBERS')
       await loadMembers()
     } catch {
       setMessage('서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해 주세요.')

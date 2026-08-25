@@ -300,7 +300,6 @@ export function AttendancePage({
       setGatherings(
         ((await response.json()) as Gathering[]).map(normalizeGathering),
       )
-      setMessage('출석부 목록을 새로고침했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '출석부 목록을 불러오지 못했습니다.'))
     }
@@ -619,7 +618,6 @@ export function AttendancePage({
         ),
       )
       setHasLoadedMemberHistory(true)
-      setMessage('회원 출석 이력을 조회했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '회원 출석 이력을 불러오지 못했습니다.'))
     }
