@@ -83,6 +83,14 @@ describe('App', () => {
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
           ok: true,
+          json: async () => ({
+            loginId: 'administrator',
+            displayName: '관리자',
+            readOnly: false,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => [
             {
               id: 'member-1',
@@ -147,6 +155,40 @@ describe('App', () => {
     expect(screen.getByText('역할 정보를 저장했습니다.')).toBeInTheDocument()
   })
 
+  it('does not show operations to a non-admin after login', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            loginId: 'staff',
+            displayName: '운영진',
+            readOnly: true,
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => [] }),
+    )
+
+    renderApp()
+
+    await user.type(screen.getByLabelText('로그인 ID'), 'staff')
+    await user.type(screen.getByLabelText('비밀번호'), 'safe-password')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '회원 관리' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '운영 관리' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('prioritizes leadership roles in the member list', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
@@ -156,6 +198,14 @@ describe('App', () => {
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: false })
         .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            loginId: 'administrator',
+            displayName: '관리자',
+            readOnly: false,
+          }),
+        })
         .mockResolvedValueOnce({
           ok: true,
           json: async () => [

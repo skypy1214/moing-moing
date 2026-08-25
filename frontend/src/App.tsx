@@ -485,11 +485,10 @@ function App() {
         return
       }
 
-      setCurrentLoginId(loginId)
-      setCurrentDisplayName(loginId)
-      setIsReadOnly(false)
       setPassword('')
-      await loadMembers()
+      // The login response only confirms authentication. Fetch the session profile
+      // before rendering the app so non-admin accounts never briefly receive admin UI.
+      await restoreSession()
     } catch {
       setMessage(
         '로그인 요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.',

@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
@@ -59,13 +65,16 @@ describe('AttendancePage', () => {
     await user.click(screen.getAllByRole('button', { name: /선택/ })[0])
 
     const dialog = screen.getByRole('dialog', { name: '정모 개설' })
-    expect(dialog.querySelector('.modal-header')).toContainElement(
-      screen.getByRole('button', { name: '모달 닫기' }),
-    )
+    const closeControl = within(dialog).getByRole('button', {
+      name: '모달 닫기',
+    })
+    expect(dialog.querySelector('.modal-header')).toContainElement(closeControl)
 
-    await user.click(screen.getByRole('button', { name: '모달 닫기' }))
+    await user.click(closeControl)
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('dialog', { name: '정모 개설' }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows the gathering creation error inside the modal', async () => {
