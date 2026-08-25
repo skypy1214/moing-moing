@@ -55,7 +55,6 @@ class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/api/v1/auth/login",
-                                "/api/v1/auth/guest-login",
                                 "/api/v1/health",
                                 "/api/v1/ready")
                         .permitAll()
@@ -65,9 +64,12 @@ class SecurityConfiguration {
                         .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
                         .requestMatchers("/api/v1/admin/**")
                         .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/**")
-                        .hasAnyRole("ADMIN", "VIEWER", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
-                        .anyRequest().hasRole("ADMIN"))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/meeting-note-categories/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/meeting-note-categories/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers("/api/v1/**")
+                        .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF"))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) -> {
                             activityLogService.record(

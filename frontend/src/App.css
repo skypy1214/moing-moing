@@ -398,36 +398,6 @@
   }
 }
 
-.guest-login-prompt {
-  color: #637083;
-  font-size: 0.9rem;
-  margin: 18px 0 0;
-  text-align: center;
-}
-
-.guest-login-button {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  color: #2463a5;
-  min-height: 44px;
-  padding: 0 4px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.guest-login-button:hover {
-  background: transparent;
-  box-shadow: none;
-  color: #173f6c;
-  transform: none;
-}
-
-.guest-login-button:focus-visible {
-  box-shadow: none;
-}
-
 .app-header,
 .account-actions,
 .panel-heading,

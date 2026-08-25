@@ -39,7 +39,7 @@ import { RefreshIcon } from './shared/ui/RefreshIcon'
 import { ScrollTopIcon } from './shared/ui/ScrollTopIcon'
 import { SettingsIcon } from './shared/ui/SettingsIcon'
 import { useEscapeKey } from './shared/ui/useEscapeKey'
-import { Button, Card, Chip } from './shared/ui/ui'
+import { Button, Card } from './shared/ui/ui'
 import { SelectField } from './shared/ui/SelectField'
 import './App.css'
 
@@ -74,8 +74,8 @@ type ApiErrorResponse = {
 
 type AuthAccount = {
   displayName: string
+  isAdmin: boolean
   loginId: string
-  readOnly: boolean
 }
 
 type ActivityFilter = 'ALL' | 'ACTIVE' | 'PAUSED'
@@ -179,7 +179,7 @@ function App() {
   const [password, setPassword] = useState('')
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
   const [currentDisplayName, setCurrentDisplayName] = useState('')
-  const [isReadOnly, setIsReadOnly] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('CHECKING')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isOwnPasswordModalOpen, setIsOwnPasswordModalOpen] = useState(false)
@@ -227,12 +227,13 @@ function App() {
   const [joinedOnSortDirection, setJoinedOnSortDirection] =
     useState<SortDirection>('DESC')
   const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
+  const canManage = currentLoginId !== null
 
   useEffect(() => {
     const handleUnauthorized = () => {
       setCurrentLoginId(null)
       setCurrentDisplayName('')
-      setIsReadOnly(false)
+      setIsAdmin(false)
       setMembers([])
       setSelectedMember(null)
       setMessage('서버 세션이 만료되어 자동으로 로그아웃되었습니다.')
@@ -263,7 +264,7 @@ function App() {
       desktopLabel: '게시판',
       icon: '☰',
     },
-    ...(!isReadOnly
+    ...(isAdmin
       ? [
           {
             value: 'OPERATIONS' as const,
@@ -413,7 +414,7 @@ function App() {
       const account = (await response.json()) as AuthAccount
       setCurrentLoginId(account.loginId)
       setCurrentDisplayName(account.displayName)
-      setIsReadOnly(account.readOnly)
+      setIsAdmin(account.isAdmin)
       await loadMembers()
     } catch {
       setMessage('서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해 주세요.')
@@ -498,41 +499,9 @@ function App() {
     }
   }
 
-  async function handleGuestLogin() {
-    if (backendStatus !== 'READY' || isAuthenticating) {
-      return
-    }
-    setMessage('')
-    setIsAuthenticating(true)
-    try {
-      const response = await fetch('/api/v1/auth/guest-login', {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        setMessage(
-          '게스트 모드를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
-        )
-        return
-      }
-
-      setCurrentLoginId('guest')
-      setCurrentDisplayName('게스트')
-      setIsReadOnly(true)
-      await loadMembers()
-    } catch {
-      setMessage(
-        '게스트 모드를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
-      )
-    } finally {
-      setIsAuthenticating(false)
-    }
-  }
-
   async function handleCreateMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     setMessage('')
@@ -630,7 +599,7 @@ function App() {
 
   async function handleUpdateMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     if (selectedMember === null) {
@@ -707,7 +676,7 @@ function App() {
   }
 
   async function handleMembershipStatusChange() {
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     if (selectedMember === null) {
@@ -745,7 +714,7 @@ function App() {
 
   async function handleStartExclusion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     if (selectedMember === null) {
@@ -800,7 +769,7 @@ function App() {
     endDate: string | null
     note: string | null
   }) {
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     if (selectedMember === null || editingExclusion === null) {
@@ -836,7 +805,7 @@ function App() {
   }
 
   function beginExclusionEdit(exclusion: ActivityExclusion) {
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     setEditingExclusion(exclusion)
@@ -868,7 +837,7 @@ function App() {
   }
 
   async function handleEndExclusion(exclusion: ActivityExclusion) {
-    if (isReadOnly) {
+    if (!canManage) {
       return
     }
     if (selectedMember === null) {
@@ -924,7 +893,7 @@ function App() {
     })
     setCurrentLoginId(null)
     setCurrentDisplayName('')
-    setIsReadOnly(false)
+    setIsAdmin(false)
     setMembers([])
     setSelectedMember(null)
     setIsMemberSheetOpen(false)
@@ -1024,17 +993,6 @@ function App() {
               {isAuthenticating ? '로그인 중…' : '로그인'}
             </button>
           </form>
-          <p className="guest-login-prompt">
-            둘러보기만 원하시나요?{' '}
-            <button
-              className="guest-login-button"
-              disabled={backendStatus !== 'READY' || isAuthenticating}
-              onClick={() => void handleGuestLogin()}
-              type="button"
-            >
-              게스트로 둘러보기
-            </button>
-          </p>
         </Card>
       </main>
     )
@@ -1054,24 +1012,15 @@ function App() {
           <h1>{currentPage === 'MEMBERS' ? '회원 관리' : '출석 관리'}</h1>
         </div>
         <div className="account-actions">
-          <span>
-            {currentLoginId === 'guest' ? '게스트' : currentDisplayName}
-          </span>
-          {isReadOnly && (
-            <Chip className="read-only-badge" tone="primary">
-              읽기 전용
-            </Chip>
-          )}
-          {currentLoginId !== 'guest' && (
-            <Button
-              aria-label="내 비밀번호 변경"
-              onClick={openOwnProfileModal}
-              type="button"
-              variant="secondary"
-            >
-              <SettingsIcon />
-            </Button>
-          )}
+          <span>{currentDisplayName}</span>
+          <Button
+            aria-label="내 비밀번호 변경"
+            onClick={openOwnProfileModal}
+            type="button"
+            variant="secondary"
+          >
+            <SettingsIcon />
+          </Button>
           <Button onClick={handleLogout} type="button" variant="secondary">
             로그아웃
           </Button>
@@ -1107,13 +1056,6 @@ function App() {
         ))}
       </nav>
 
-      {currentLoginId === 'guest' && (
-        <p className="read-only-notice" role="status">
-          게스트 모드에서는 데이터를 조회만 할 수 있습니다. 등록, 수정, 출석 및
-          쿠폰 처리는 관리자 로그인이 필요합니다.
-        </p>
-      )}
-
       {currentPage === 'MEMBERS' && (
         <section
           className={
@@ -1126,7 +1068,7 @@ function App() {
         >
           {!isMemberDetailPage && !isMemberParticipationPage && (
             <>
-              {!isReadOnly && isMemberCreatePage && (
+              {canManage && isMemberCreatePage && (
                 <section
                   className="panel member-create-page"
                   aria-labelledby="member-create-heading"
@@ -1175,7 +1117,7 @@ function App() {
                       </p>
                     </div>
                     <div className="header-actions">
-                      {!isReadOnly && (
+                      {canManage && (
                         <button onClick={openMemberCreatePage} type="button">
                           회원 추가
                         </button>
@@ -1382,10 +1324,10 @@ function App() {
                 onMemberRoleChange={(role) => setMemberRole(role)}
                 onMemoChange={setMemo}
                 onSubmit={handleUpdateMember}
-                readOnly={isReadOnly}
+                readOnly={!canManage}
                 submitLabel="저장"
                 actions={
-                  !isReadOnly && (
+                  canManage && (
                     <>
                       <button
                         className="secondary-button"
@@ -1519,7 +1461,7 @@ function App() {
                     {editingExclusion && (
                       <button
                         className="secondary-button"
-                        disabled={isReadOnly}
+                        disabled={!canManage}
                         onClick={cancelExclusionEdit}
                         type="button"
                       >
@@ -1527,7 +1469,7 @@ function App() {
                       </button>
                     )}
                     <button
-                      disabled={isReadOnly}
+                      disabled={!canManage}
                       form="activity-exclusion-form"
                       type="submit"
                     >
@@ -1626,7 +1568,7 @@ function App() {
                       <div className="exclusion-actions">
                         <button
                           className="edit-button"
-                          disabled={isReadOnly}
+                          disabled={!canManage}
                           onClick={() => beginExclusionEdit(exclusion)}
                           type="button"
                         >
@@ -1635,7 +1577,7 @@ function App() {
                         {isActivityExclusionActive(exclusion) && (
                           <button
                             className="secondary-button"
-                            disabled={isReadOnly}
+                            disabled={!canManage}
                             onClick={() => void handleEndExclusion(exclusion)}
                             type="button"
                           >
@@ -1727,16 +1669,16 @@ function App() {
         </section>
       )}
       {currentPage === 'ATTENDANCE' && (
-        <AttendancePage members={members} readOnly={isReadOnly} />
+        <AttendancePage members={members} readOnly={!canManage} />
       )}
       {currentPage === 'COUPONS' && (
-        <CouponPage members={members} readOnly={isReadOnly} />
+        <CouponPage members={members} readOnly={!canManage} />
       )}
       {currentPage === 'STATISTICS' && <MonthlyStatisticsPage />}
       {currentPage === 'MEETING_NOTES' && (
-        <MeetingNotePage readOnly={isReadOnly} />
+        <MeetingNotePage isAdmin={isAdmin} readOnly={!canManage} />
       )}
-      {currentPage === 'OPERATIONS' && !isReadOnly && <OperationsPage />}
+      {currentPage === 'OPERATIONS' && isAdmin && <OperationsPage />}
       {isOwnPasswordModalOpen && (
         <Modal
           ariaLabelledBy="own-profile-heading"

@@ -70,10 +70,14 @@ const initialMarkdown = `# 2026년 8월 운영 회의록
 \`\`\``
 
 type MeetingNotePageProps = {
+  isAdmin?: boolean
   readOnly?: boolean
 }
 
-export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
+export function MeetingNotePage({
+  isAdmin = false,
+  readOnly = false,
+}: MeetingNotePageProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [notes, setNotes] = useState<BoardPost[]>([])
   const [selectedNote, setSelectedNote] = useState<BoardPost | null>(null)
@@ -473,8 +477,8 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
           <h2 id="board-heading">게시판</h2>
           <p>카테고리별 운영 기록과 안내 글을 확인합니다.</p>
         </div>
-        {!readOnly && (
-          <div className="header-actions">
+        <div className="header-actions">
+          {isAdmin && (
             <button
               className="secondary-button"
               onClick={() => setView('CATEGORY_SETTINGS')}
@@ -482,11 +486,13 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
             >
               카테고리 관리
             </button>
+          )}
+          {!readOnly && (
             <button onClick={beginPostCreation} type="button">
               글 작성
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <section className="panel">
         <div className="meeting-note-list-controls">

@@ -30,46 +30,6 @@ describe('App', () => {
     expect(screen.getByLabelText('로그인 ID')).toBeInTheDocument()
     expect(screen.getByLabelText('비밀번호')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '로그인' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: '게스트로 둘러보기' }),
-    ).toBeInTheDocument()
-  })
-
-  it('starts a guest session with read-only member browsing', async () => {
-    const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: false })
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => [
-            {
-              id: 'member-1',
-              displayName: '조회 회원',
-              externalNickname: null,
-              membershipStatus: 'ACTIVE',
-              memberRole: 'MEMBER',
-              joinedOn: '2026-08-21',
-              withdrawnOn: null,
-              memo: null,
-            },
-          ],
-        }),
-    )
-
-    renderApp()
-
-    await user.click(screen.getByRole('button', { name: '게스트로 둘러보기' }))
-
-    expect(await screen.findByText('읽기 전용')).toBeInTheDocument()
-    expect(screen.getByText('조회 회원')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: '새 회원 등록' }),
-    ).not.toBeInTheDocument()
   })
 
   it('logs in through the API and loads members', async () => {
@@ -86,7 +46,7 @@ describe('App', () => {
           json: async () => ({
             loginId: 'administrator',
             displayName: '관리자',
-            readOnly: false,
+            isAdmin: true,
           }),
         })
         .mockResolvedValueOnce({
@@ -169,7 +129,7 @@ describe('App', () => {
           json: async () => ({
             loginId: 'staff',
             displayName: '운영진',
-            readOnly: true,
+            isAdmin: false,
           }),
         })
         .mockResolvedValueOnce({ ok: true, json: async () => [] }),
@@ -203,7 +163,7 @@ describe('App', () => {
           json: async () => ({
             loginId: 'administrator',
             displayName: '관리자',
-            readOnly: false,
+            isAdmin: true,
           }),
         })
         .mockResolvedValueOnce({
