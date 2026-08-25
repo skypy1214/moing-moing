@@ -38,6 +38,7 @@ export function SearchableMemberSelect({
   })
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A changed external selection must replace the editable search draft.
     setQuery(selectedMember ? memberLabel(selectedMember) : '')
   }, [selectedMember])
 
@@ -136,7 +137,8 @@ export function SearchableMemberSelect({
             ×
           </button>
         )}
-        {isOpen && query.trim() !== '' &&
+        {isOpen &&
+          query.trim() !== '' &&
           createPortal(
             <div
               className="member-autocomplete-options member-autocomplete-options-floating"

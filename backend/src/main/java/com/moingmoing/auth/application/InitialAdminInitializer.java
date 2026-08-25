@@ -22,7 +22,8 @@ class InitialAdminInitializer {
             @Value("${app.initial-admin.password:}") String password) {
         return arguments -> {
             if (userAccountRepository.count() == 0 && !login.isBlank() && !password.isBlank()) {
-                UserAccount account = new UserAccount(login, passwordEncoder.encode(password), Set.of(RoleCode.ADMIN));
+                UserAccount account = new UserAccount(
+                        login, login, passwordEncoder.encode(password), Set.of(RoleCode.ADMIN));
                 userAccountRepository.save(account);
             }
         };

@@ -86,17 +86,22 @@ export function GatheringForm({
           <KoreanDateInput onChange={onEndsOnChange} required value={endsOn} />
         </label>
       )}
-      {showHostSelection && gatheringType === 'CLASS' && onHostMemberIdChange && (
-        <SearchableMemberSelect
-          label="진행자"
-          members={hostMembers}
-          onChange={onHostMemberIdChange}
-          value={hostMemberId}
-        />
-      )}
+      {showHostSelection &&
+        gatheringType === 'CLASS' &&
+        onHostMemberIdChange && (
+          <SearchableMemberSelect
+            label="진행자"
+            members={hostMembers}
+            onChange={onHostMemberIdChange}
+            value={hostMemberId}
+          />
+        )}
       <label>
         정모 제목 <span className="optional">(선택)</span>
-        <input onChange={(event) => onTitleChange(event.target.value)} value={title} />
+        <input
+          onChange={(event) => onTitleChange(event.target.value)}
+          value={title}
+        />
       </label>
       <label>
         장소 <span className="optional">(선택)</span>

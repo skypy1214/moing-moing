@@ -13,20 +13,24 @@ describe('CouponPage', () => {
 
   it('issues a manual coupon through the API', async () => {
     const user = userEvent.setup()
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'coupon-1',
-        memberId: 'member-1',
-        couponType: 'MANUAL_FREE_PASS',
-        couponStatus: 'ISSUED',
-        validFrom: '2026-08-21',
-        validUntil: '2026-08-21',
-        totalUses: 1,
-        remainingUses: 1,
-        issuedReason: null,
-      }),
-    })
+    const today = new Date().toISOString().slice(0, 10)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'coupon-1',
+          memberId: 'member-1',
+          couponType: 'MANUAL_FREE_PASS',
+          couponStatus: 'ISSUED',
+          validFrom: today,
+          validUntil: today,
+          totalUses: 1,
+          remainingUses: 1,
+          issuedReason: null,
+        }),
+      })
     vi.stubGlobal('fetch', fetchMock)
 
     render(
@@ -48,7 +52,10 @@ describe('CouponPage', () => {
       </FeedbackDialogProvider>,
     )
 
-    await user.selectOptions(screen.getByLabelText('회원 선택'), 'member-1')
+    await user.click(screen.getByRole('button', { name: '쿠폰 발급' }))
+    await user.type(screen.getByLabelText('쿠폰 이름'), '테스트 쿠폰')
+    await user.type(screen.getByLabelText('회원'), '회원 한 명')
+    await user.click(screen.getByRole('option', { name: /회원 한 명/ }))
     await user.click(screen.getByRole('button', { name: '쿠폰 발급' }))
 
     await waitFor(() =>
@@ -58,9 +65,10 @@ describe('CouponPage', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberId: 'member-1',
-          validFrom: '2026-08-21',
-          validUntil: '2026-08-21',
+          validFrom: today,
+          validUntil: today,
           totalUses: 1,
+          name: '테스트 쿠폰',
           issuedReason: null,
         }),
       }),
@@ -69,6 +77,10 @@ describe('CouponPage', () => {
 
   it('filters members by a typed name before selecting a coupon recipient', async () => {
     const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
+    )
 
     render(
       <FeedbackDialogProvider>
@@ -99,7 +111,8 @@ describe('CouponPage', () => {
       </FeedbackDialogProvider>,
     )
 
-    await user.type(screen.getByLabelText('회원 검색'), '라마')
+    await user.click(screen.getByRole('button', { name: '쿠폰 발급' }))
+    await user.type(screen.getByLabelText('회원'), '라마')
 
     expect(screen.getByRole('option', { name: /라마바/ })).toBeInTheDocument()
     expect(

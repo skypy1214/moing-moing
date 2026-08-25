@@ -38,11 +38,12 @@ export function KoreanMonthInput({
   const pickerId = useId()
   const [draft, setDraft] = useState(() => displayMonth(value))
   const [isOpen, setIsOpen] = useState(false)
-  const [pickerYear, setPickerYear] = useState(() =>
-    Number(value.slice(0, 4)) || new Date().getFullYear(),
+  const [pickerYear, setPickerYear] = useState(
+    () => Number(value.slice(0, 4)) || new Date().getFullYear(),
   )
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A changed controlled value must replace the user-editable month draft.
     setDraft(displayMonth(value))
   }, [value])
 
@@ -84,7 +85,9 @@ export function KoreanMonthInput({
         onClick={openPicker}
         onFocus={openPicker}
         onInvalid={(event) => {
-          event.currentTarget.setCustomValidity('YYYY/MM 형식으로 입력해 주세요.')
+          event.currentTarget.setCustomValidity(
+            'YYYY/MM 형식으로 입력해 주세요.',
+          )
         }}
         placeholder="YYYY/MM"
         type="text"
@@ -115,20 +118,22 @@ export function KoreanMonthInput({
             </button>
           </div>
           <div className="month-picker-months">
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((pickerMonth) => {
-              const nextValue = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}`
-              return (
-                <button
-                  aria-pressed={value === nextValue}
-                  className={value === nextValue ? 'is-selected' : undefined}
-                  key={pickerMonth}
-                  onClick={() => selectMonth(pickerMonth)}
-                  type="button"
-                >
-                  {`${pickerMonth}월`}
-                </button>
-              )
-            })}
+            {Array.from({ length: 12 }, (_, index) => index + 1).map(
+              (pickerMonth) => {
+                const nextValue = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}`
+                return (
+                  <button
+                    aria-pressed={value === nextValue}
+                    className={value === nextValue ? 'is-selected' : undefined}
+                    key={pickerMonth}
+                    onClick={() => selectMonth(pickerMonth)}
+                    type="button"
+                  >
+                    {`${pickerMonth}월`}
+                  </button>
+                )
+              },
+            )}
           </div>
         </div>
       )}

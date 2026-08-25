@@ -16,6 +16,8 @@ describe('KoreanDateInput', () => {
 
     expect(input).toHaveValue('2026/08/21')
     expect(onChange).toHaveBeenLastCalledWith('2026-08-21')
-    expect(screen.getByRole('dialog', { name: '날짜 선택' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: '날짜 선택' }),
+    ).toBeInTheDocument()
   })
 })

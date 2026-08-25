@@ -35,18 +35,49 @@ const proxyApiRequest = async (
     apiOrigin.origin,
   )
   const headers = new Headers(request.headers)
+  const requestId = request.headers.get('X-Request-Id') ?? crypto.randomUUID()
+  const startedAt = Date.now()
 
   // The browser talks to this Worker as its own origin. The upstream only needs
   // the session Cookie; an Origin header would incorrectly trigger CORS handling.
   headers.delete('host')
   headers.delete('origin')
+  headers.set('X-Request-Id', requestId)
 
-  return fetch(upstreamUrl, {
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-    headers,
-    method: request.method,
-    redirect: 'manual',
-  })
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+      headers,
+      method: request.method,
+      redirect: 'manual',
+    })
+    const responseHeaders = new Headers(upstreamResponse.headers)
+    responseHeaders.set('X-Request-Id', requestId)
+    console.info('api-proxy', {
+      requestId,
+      method: request.method,
+      path: requestUrl.pathname,
+      status: upstreamResponse.status,
+      durationMs: Date.now() - startedAt,
+    })
+    return new Response(upstreamResponse.body, {
+      headers: responseHeaders,
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+    })
+  } catch (error) {
+    console.error('api-proxy-failed', {
+      requestId,
+      method: request.method,
+      path: requestUrl.pathname,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : 'unknown',
+    })
+    return new Response('API upstream is unavailable.', {
+      headers: { 'X-Request-Id': requestId },
+      status: 502,
+    })
+  }
 }
 
 export default {

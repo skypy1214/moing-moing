@@ -47,11 +47,7 @@ export function MonthlyStatisticsPage() {
         <div className="inline-form">
           <label>
             {'대상 월'}
-            <KoreanMonthInput
-              onChange={setMonth}
-              required
-              value={month}
-            />
+            <KoreanMonthInput onChange={setMonth} required value={month} />
           </label>
           <button onClick={() => void loadStatistics()} type="button">
             {'통계 조회'}
@@ -81,7 +77,10 @@ export function MonthlyStatisticsPage() {
             </article>
             <article>
               <strong>{'해당 월 모임원'}</strong>
-              <b>{statistics.denominator}{'명'}</b>
+              <b>
+                {statistics.denominator}
+                {'명'}
+              </b>
               <span>{'가입·탈퇴 기간이 해당 월과 겹친 회원'}</span>
             </article>
           </div>

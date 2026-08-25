@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event'
 
 import { AttendancePage } from './AttendancePage'
 
+vi.mock('../../shared/feedback-dialog/useFeedbackDialog', () => ({
+  useFeedbackDialog: () => ({
+    confirm: vi.fn().mockResolvedValue(true),
+  }),
+}))
+
 describe('AttendancePage', () => {
   afterEach(() => {
     cleanup()
@@ -50,9 +56,9 @@ describe('AttendancePage', () => {
 
     render(<AttendancePage members={[]} />)
 
-    await user.click(screen.getByRole('button', { name: '새 출석부 만들기' }))
+    await user.click(screen.getAllByRole('button', { name: /선택/ })[0])
 
-    const dialog = screen.getByRole('dialog', { name: '새 출석부 만들기' })
+    const dialog = screen.getByRole('dialog', { name: '정모 개설' })
     expect(dialog.querySelector('.modal-header')).toContainElement(
       screen.getByRole('button', { name: '모달 닫기' }),
     )
@@ -77,8 +83,8 @@ describe('AttendancePage', () => {
     render(<AttendancePage members={[]} />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    await user.click(screen.getByRole('button', { name: '새 출석부 만들기' }))
-    await user.click(screen.getByRole('button', { name: '출석부 초안 만들기' }))
+    await user.click(screen.getAllByRole('button', { name: /선택/ })[0])
+    await user.click(screen.getByRole('button', { name: '정모 개설' }))
 
     expect(
       await screen.findByText(
@@ -118,7 +124,7 @@ describe('AttendancePage', () => {
     render(<AttendancePage members={[]} />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    await user.click(screen.getByRole('button', { name: '취소 이력 보기' }))
+    await user.click(screen.getByRole('button', { name: '정모 취소 이력' }))
 
     expect(await screen.findByText('취소된 정모')).toBeInTheDocument()
     expect(screen.getByText('장소 사정')).toBeInTheDocument()
@@ -143,7 +149,7 @@ describe('AttendancePage', () => {
     await user.click(screen.getAllByRole('button', { name: /선택/ })[0])
 
     expect(
-      await screen.findByRole('dialog', { name: '새 출석부 만들기' }),
+      await screen.findByRole('dialog', { name: '정모 개설' }),
     ).toBeInTheDocument()
   })
 })

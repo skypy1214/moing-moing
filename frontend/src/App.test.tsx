@@ -138,8 +138,8 @@ describe('App', () => {
       screen.getByRole('heading', { name: '회원 상세' }),
     ).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('역할'), 'STAFF')
-    await user.click(screen.getByRole('button', { name: '회원 정보 저장' }))
+    await user.click(screen.getByRole('radio', { name: /운영진/ }))
+    await user.click(screen.getByRole('button', { name: '저장' }))
 
     expect(
       await screen.findByRole('dialog', { name: '회원 정보 저장 완료' }),

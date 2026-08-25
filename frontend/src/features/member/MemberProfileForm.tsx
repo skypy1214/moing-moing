@@ -32,9 +32,17 @@ const roleOptions: ReadonlyArray<{
   label: string
   value: MemberRole
 }> = [
-  { value: 'LEADER', label: memberRoleLabels.LEADER, description: '소모임 대표' },
+  {
+    value: 'LEADER',
+    label: memberRoleLabels.LEADER,
+    description: '소모임 대표',
+  },
   { value: 'STAFF', label: memberRoleLabels.STAFF, description: '운영 보조' },
-  { value: 'MEMBER', label: memberRoleLabels.MEMBER, description: '일반 참여자' },
+  {
+    value: 'MEMBER',
+    label: memberRoleLabels.MEMBER,
+    description: '일반 참여자',
+  },
 ]
 
 export function MemberProfileForm({

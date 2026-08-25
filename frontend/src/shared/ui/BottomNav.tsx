@@ -23,7 +23,12 @@ export function BottomNav<T extends string>({
     <nav
       aria-label="주요 메뉴"
       className="bottom-navigation"
-      style={{ '--active-index': activeIndex } as CSSProperties}
+      style={
+        {
+          '--active-index': activeIndex,
+          '--item-count': items.length,
+        } as CSSProperties
+      }
     >
       <span aria-hidden="true" className="bottom-navigation-indicator" />
       {items.map((item) => {

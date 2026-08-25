@@ -14,10 +14,19 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.moingmoing.audit.application.ActivityLogService;
+import com.moingmoing.common.api.ApiRequestLoggingFilter;
+
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 class SecurityConfiguration {
+    private final ActivityLogService activityLogService;
+
+    SecurityConfiguration(ActivityLogService activityLogService) {
+        this.activityLogService = activityLogService;
+    }
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -50,17 +59,51 @@ class SecurityConfiguration {
                                 "/api/v1/health",
                                 "/api/v1/ready")
                         .permitAll()
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/password")
+                        .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/profile")
+                        .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
-                        .hasAnyRole("ADMIN", "VIEWER")
+                        .hasAnyRole("ADMIN", "VIEWER", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
                         .anyRequest().hasRole("ADMIN"))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
-                        .successHandler((request, response, authentication) ->
-                                response.setStatus(HttpServletResponse.SC_NO_CONTENT))
-                        .failureHandler((request, response, exception) ->
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
+                        .successHandler((request, response, authentication) -> {
+                            activityLogService.record(
+                                    authentication.getName(),
+                                    "LOGIN_SUCCEEDED",
+                                    "auth",
+                                    null,
+                                    (String) request.getAttribute(ApiRequestLoggingFilter.REQUEST_ID_ATTRIBUTE),
+                                    request.getMethod(),
+                                    request.getRequestURI(),
+                                    HttpServletResponse.SC_NO_CONTENT);
+                            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                        })
+                        .failureHandler((request, response, exception) -> {
+                            activityLogService.record(
+                                    null,
+                                    "LOGIN_FAILED",
+                                    "auth",
+                                    null,
+                                    (String) request.getAttribute(ApiRequestLoggingFilter.REQUEST_ID_ATTRIBUTE),
+                                    request.getMethod(),
+                                    request.getRequestURI(),
+                                    HttpServletResponse.SC_UNAUTHORIZED);
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                        }))
                 .logout(logout -> logout.logoutUrl("/api/v1/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) ->
-                                response.setStatus(HttpServletResponse.SC_NO_CONTENT)))
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            activityLogService.record(
+                                    authentication == null ? null : authentication.getName(),
+                                    "LOGOUT_SUCCEEDED",
+                                    "auth",
+                                    null,
+                                    (String) request.getAttribute(ApiRequestLoggingFilter.REQUEST_ID_ATTRIBUTE),
+                                    request.getMethod(),
+                                    request.getRequestURI(),
+                                    HttpServletResponse.SC_NO_CONTENT);
+                            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                        }))
                 .build();
     }
 }

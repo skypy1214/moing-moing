@@ -110,26 +110,36 @@ export function MemberParticipationHistory({
             item.gathering !== undefined &&
             (filter === 'ALL' || item.gathering.gatheringType === filter),
         )
-        .sort((left, right) => right.gathering.heldOn.localeCompare(left.gathering.heldOn)),
+        .sort((left, right) =>
+          right.gathering.heldOn.localeCompare(left.gathering.heldOn),
+        ),
     [attendances, filter, gatheringsById],
   )
 
   return (
     <section
       aria-labelledby="member-participation-history-heading"
-      className={standalone ? 'member-participation-page-content' : 'subsection'}
+      className={
+        standalone ? 'member-participation-page-content' : 'subsection'
+      }
     >
       <div className="member-participation-heading">
         <div>
           <h3 id="member-participation-history-heading">참여 이력</h3>
           <p className="description">지금까지 참여한 수업과 행사입니다.</p>
         </div>
-        <div aria-label="정모 구분 필터" className="member-participation-filters" role="group">
-          {([
-            ['ALL', '전체'],
-            ['CLASS', '수업'],
-            ['EVENT', '행사'],
-          ] as const).map(([value, label]) => (
+        <div
+          aria-label="정모 구분 필터"
+          className="member-participation-filters"
+          role="group"
+        >
+          {(
+            [
+              ['ALL', '전체'],
+              ['CLASS', '수업'],
+              ['EVENT', '행사'],
+            ] as const
+          ).map(([value, label]) => (
             <button
               className={filter === value ? 'is-active' : 'secondary-button'}
               key={value}
@@ -144,7 +154,9 @@ export function MemberParticipationHistory({
       {isLoading ? (
         <p className="description">참여 이력을 불러오는 중입니다.</p>
       ) : error ? (
-        <p className="field-error" role="alert">{error}</p>
+        <p className="field-error" role="alert">
+          {error}
+        </p>
       ) : participationHistory.length === 0 ? (
         <EmptyState
           description="참여 기록이 생기면 수업과 행사별로 여기에 표시됩니다."
@@ -160,7 +172,9 @@ export function MemberParticipationHistory({
                 <span>{gatheringPeriodLabel(gathering)}</span>
               </div>
               <div className="member-participation-badges">
-                <span className={`status gathering-type-${gathering.gatheringType.toLowerCase()}`}>
+                <span
+                  className={`status gathering-type-${gathering.gatheringType.toLowerCase()}`}
+                >
                   {gatheringTypeLabels[gathering.gatheringType]}
                 </span>
                 <span

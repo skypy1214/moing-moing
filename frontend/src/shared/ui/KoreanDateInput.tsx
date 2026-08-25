@@ -56,13 +56,16 @@ export function KoreanDateInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState(() => displayDate(value))
   const [isOpen, setIsOpen] = useState(false)
-  const initialDate = isoDate(value) ?? formatIsoDate(new Date().getFullYear(), new Date().getMonth(), 1)
+  const initialDate =
+    isoDate(value) ??
+    formatIsoDate(new Date().getFullYear(), new Date().getMonth(), 1)
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const [year, month] = initialDate.split('-').map(Number)
     return { year, month: month - 1 }
   })
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A changed controlled value must replace the user-editable date draft.
     setDraft(displayDate(value))
   }, [value])
 
@@ -99,7 +102,8 @@ export function KoreanDateInput({
       day: date.getDate(),
       month: date.getMonth(),
       year: date.getFullYear(),
-      isCurrentMonth: index >= firstWeekday && index < firstWeekday + numberOfDays,
+      isCurrentMonth:
+        index >= firstWeekday && index < firstWeekday + numberOfDays,
     }
   })
 
@@ -132,7 +136,9 @@ export function KoreanDateInput({
         onClick={openCalendar}
         onFocus={openCalendar}
         onInvalid={(event) => {
-          event.currentTarget.setCustomValidity('YYYY/MM/DD 형식으로 입력해 주세요.')
+          event.currentTarget.setCustomValidity(
+            'YYYY/MM/DD 형식으로 입력해 주세요.',
+          )
         }}
         placeholder="YYYY/MM/DD"
         ref={inputRef}

@@ -29,7 +29,8 @@ class MemberController {
     @GetMapping
     List<MemberResponse> list() {
         return memberService.findAllWithLastAttendance().stream()
-                .map(summary -> MemberResponse.from(summary.member(), summary.lastAttendanceOn(), summary.activityPaused()))
+                .map(summary -> MemberResponse.from(
+                        summary.member(), summary.lastAttendanceOn(), summary.activityPaused()))
                 .toList();
     }
 
@@ -41,7 +42,11 @@ class MemberController {
     @PostMapping
     ResponseEntity<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
         MemberResponse response = MemberResponse.from(memberService.create(
-                request.displayName(), request.externalNickname(), request.joinedOn(), request.memo(), request.memberRole()));
+                request.displayName(),
+                request.externalNickname(),
+                request.joinedOn(),
+                request.memo(),
+                request.memberRole()));
         return ResponseEntity.created(URI.create("/api/v1/members/" + response.id())).body(response);
     }
 

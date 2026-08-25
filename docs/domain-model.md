@@ -152,17 +152,20 @@ Coupon 한 장에 2회 잔액을 담는다면 1:N이 필수다. 1회권만 발�
 
 구현·저장소 이름은 기존 데이터 호환을 위해 `MeetingNote`를 유지하지만, 사용자 화면에서는 범용 게시글을 의미한다. Markdown 원문을 저장하고 렌더링은 프론트에서 안전하게 수행한다. HTML 결과를 DB에 함께 저장하는 것은 캐시 필요성이 확인되기 전까지 하지 않는다. 수정 이력이 필요하면 향후 `MeetingNoteRevision`을 추가한다.
 
-### UserAccount
+### UserAccount와 ActivityLog
 
-- `id`, `loginId`.
+- `id`, `loginId`, `displayName`.
 - `passwordHash`, `status`, `lastLoginAt`, 감사 시각.
 - Member와는 현재 연결하지 않는다. 실제 회원가입을 도입할 때 선택적 연결을 추가한다.
+
+`ActivityLog`는 운영 계정 발급, 로그인·로그아웃, 생성·수정·상태 변경·삭제 API를 누적 기록한다. 작업자 `UserAccount`, 작업 종류, 대상 종류·ID, 요청 ID, HTTP 결과, 시각을 저장하며 조회 요청은 기록하지 않는다. 작업자는 요청 값이 아니라 서버 세션 인증에서 결정한다.
 
 ### AccountRole
 
 - `userAccountId`, `roleCode`.
-- 초기 실제 발급 값은 `ADMIN`뿐이다.
-- 이후 `MEMBER`, `SITE_ADMIN`, `GROUP_LEADER`, `STAFF`를 추가할 수 있다. 한 계정은 여러 역할을 가질 수 있다.
+- `ADMIN`만 운영 관리와 전체 변경 권한을 가진다.
+- 관리자는 `ADMIN`, `MEMBER`, `GROUP_LEADER`, `STAFF` 역할 계정을 발급·수정한다. 현재 계정은 하나의 로그인 역할만 가진다.
+- 관리자 외 계정은 조회와 본인 비밀번호 변경만 가능하다. 회원의 모임 내 직책과 로그인 계정 역할은 별개다.
 
 도메인의 `createdBy`, `usedBy` 등은 UserAccount를 참조한다. 운영자 삭제 시 감사 참조가 사라지지 않도록 비활성화한다.
 
@@ -179,7 +182,7 @@ Coupon 한 장에 2회 잔액을 담는다면 1:N이 필수다. 1회권만 발�
 - Member, Attendance, CouponUsage, AttendanceChampionAward, UserAccount: 물리 삭제 금지 원칙.
 - Coupon: 미사용 오발급도 `VOIDED` 우선이며 물리 삭제하지 않는다. 수동 쿠폰은 미사용 상태라면 폐기를 취소해 다시 `ISSUED`로 복원할 수 있고, 폐기 시각은 감사 정보로 남긴다.
 - MeetingNote/Category: 숨김/비활성화 우선. 개인정보 삭제 요구에 대응할 별도 관리 절차는 배포 전 정한다.
-- 모든 중요한 상태 변경에는 수행자와 시각을 남긴다. 범용 감사 이벤트 테이블은 실제 조회 요구가 확정되기 전에는 도입하지 않는다.
+- 모든 중요한 상태 변경에는 수행자와 시각을 남긴다. 범용 감사 이벤트는 `ActivityLog`에 보존하며, 운영 계정은 물리 삭제하지 않고 비활성화한다.
 
 ## 6. 통계 정책의 변경 용이성
 

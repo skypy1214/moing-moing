@@ -21,6 +21,7 @@ public class UserAccount {
     @Id
     private UUID id;
     private String loginId;
+    private String displayName;
     private String passwordHash;
     @Enumerated(EnumType.STRING)
     private AccountStatus accountStatus;
@@ -36,9 +37,10 @@ public class UserAccount {
     protected UserAccount() {
     }
 
-    public UserAccount(String loginId, String passwordHash, Set<RoleCode> roles) {
+    public UserAccount(String loginId, String displayName, String passwordHash, Set<RoleCode> roles) {
         this.id = UUID.randomUUID();
         this.loginId = loginId;
+        this.displayName = displayName;
         this.passwordHash = passwordHash;
         this.roles = new HashSet<>(roles);
         this.accountStatus = AccountStatus.ACTIVE;
@@ -54,6 +56,10 @@ public class UserAccount {
         return loginId;
     }
 
+    public String getDisplayName() {
+        return displayName;
+    }
+
     public String getPasswordHash() {
         return passwordHash;
     }
@@ -62,7 +68,42 @@ public class UserAccount {
         return accountStatus;
     }
 
+    public boolean isActive() {
+        return accountStatus == AccountStatus.ACTIVE;
+    }
+
     public Set<RoleCode> getRoles() {
         return Set.copyOf(roles);
+    }
+
+    public RoleCode getPrimaryRole() {
+        return roles.stream().findFirst().orElse(RoleCode.MEMBER);
+    }
+
+    public void updateProfile(String loginId, String displayName, RoleCode role) {
+        this.loginId = loginId;
+        this.displayName = displayName;
+        this.roles = Set.of(role);
+        updatedAt = Instant.now();
+    }
+
+    public void updateDisplayName(String displayName) {
+        this.displayName = displayName;
+        updatedAt = Instant.now();
+    }
+
+    public void disable() {
+        accountStatus = AccountStatus.DISABLED;
+        updatedAt = Instant.now();
+    }
+
+    public void activate() {
+        accountStatus = AccountStatus.ACTIVE;
+        updatedAt = Instant.now();
+    }
+
+    public void resetPassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        updatedAt = Instant.now();
     }
 }

@@ -68,7 +68,7 @@ function isGatheringOnDate(gathering: Gathering, date: string) {
     gathering.heldOn <= date &&
     date <=
       (gathering.gatheringType === 'EVENT'
-        ? gathering.endsOn ?? gathering.heldOn
+        ? (gathering.endsOn ?? gathering.heldOn)
         : gathering.heldOn)
   )
 }
@@ -201,7 +201,8 @@ export function AttendancePage({
   const [isCreateGatheringOpen, setIsCreateGatheringOpen] = useState(false)
   const [isEditGatheringOpen, setIsEditGatheringOpen] = useState(false)
   const [editHeldOn, setEditHeldOn] = useState(today)
-  const [editGatheringType, setEditGatheringType] = useState<GatheringType>('CLASS')
+  const [editGatheringType, setEditGatheringType] =
+    useState<GatheringType>('CLASS')
   const [editEndsOn, setEditEndsOn] = useState(today)
   const [editHostMemberId, setEditHostMemberId] = useState('')
   const [editTitle, setEditTitle] = useState('')
@@ -219,7 +220,8 @@ export function AttendancePage({
   const [historyAttendances, setHistoryAttendances] = useState<Attendance[]>([])
   const [hasLoadedMemberHistory, setHasLoadedMemberHistory] = useState(false)
   const [isMemberHistoryOpen, setIsMemberHistoryOpen] = useState(false)
-  const [gatheringFilter, setGatheringFilter] = useState<GatheringFilter>('OPEN')
+  const [gatheringFilter, setGatheringFilter] =
+    useState<GatheringFilter>('OPEN')
   const [cancellingAttendanceId, setCancellingAttendanceId] = useState<
     string | null
   >(null)
@@ -293,7 +295,9 @@ export function AttendancePage({
         year,
         month,
         isOutsideMonth: month !== calendarMonth.month,
-        gatherings: gatherings.filter((gathering) => isGatheringOnDate(gathering, date)),
+        gatherings: gatherings.filter((gathering) =>
+          isGatheringOnDate(gathering, date),
+        ),
       }
     })
   }, [calendarMonth, gatherings])
@@ -343,7 +347,9 @@ export function AttendancePage({
           '출석부 목록을 불러오지 못했습니다.',
         )
       }
-      setGatherings(((await response.json()) as Gathering[]).map(normalizeGathering))
+      setGatherings(
+        ((await response.json()) as Gathering[]).map(normalizeGathering),
+      )
       setMessage('출석부 목록을 새로고침했습니다.')
     } catch (error) {
       setMessage(errorMessage(error, '출석부 목록을 불러오지 못했습니다.'))
@@ -500,34 +506,41 @@ export function AttendancePage({
     if (selectedGathering === null) return
     setEditGatheringError('')
     try {
-      const response = await fetch(`/api/v1/gatherings/${selectedGathering.id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          heldOn: editHeldOn,
-          gatheringType: editGatheringType,
-          endsOn: editGatheringType === 'EVENT' ? editEndsOn : null,
-          hostMemberId:
-            editGatheringType === 'CLASS' && editHostMemberId !== ''
-              ? editHostMemberId
-              : null,
-          title: editTitle || null,
-          startsAt: null,
-          location: editLocation || null,
-        }),
-      })
+      const response = await fetch(
+        `/api/v1/gatherings/${selectedGathering.id}`,
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            heldOn: editHeldOn,
+            gatheringType: editGatheringType,
+            endsOn: editGatheringType === 'EVENT' ? editEndsOn : null,
+            hostMemberId:
+              editGatheringType === 'CLASS' && editHostMemberId !== ''
+                ? editHostMemberId
+                : null,
+            title: editTitle || null,
+            startsAt: null,
+            location: editLocation || null,
+          }),
+        },
+      )
       if (!response.ok) {
         throw await responseError(response, '정모 정보를 변경하지 못했습니다.')
       }
       const changed = normalizeGathering((await response.json()) as Gathering)
       setGatherings((previous) =>
-        previous.map((gathering) => (gathering.id === changed.id ? changed : gathering)),
+        previous.map((gathering) =>
+          gathering.id === changed.id ? changed : gathering,
+        ),
       )
       await loadAttendances(selectedGathering.id)
       setIsEditGatheringOpen(false)
     } catch (error) {
-      setEditGatheringError(errorMessage(error, '정모 정보를 변경하지 못했습니다.'))
+      setEditGatheringError(
+        errorMessage(error, '정모 정보를 변경하지 못했습니다.'),
+      )
     }
   }
 
@@ -612,14 +625,22 @@ export function AttendancePage({
       }
       const attendance = (await response.json()) as Attendance
       setAttendances((previous) => {
-        const existingIndex = previous.findIndex((item) => item.id === attendance.id)
+        const existingIndex = previous.findIndex(
+          (item) => item.id === attendance.id,
+        )
         if (existingIndex === -1) {
           return [...previous, attendance]
         }
-        return previous.map((item) => (item.id === attendance.id ? attendance : item))
+        return previous.map((item) =>
+          item.id === attendance.id ? attendance : item,
+        )
       })
       setMemberId('')
-      setMessage(existingAttendance ? '출석 상태를 변경했습니다.' : '출석 기록을 추가했습니다.')
+      setMessage(
+        existingAttendance
+          ? '출석 상태를 변경했습니다.'
+          : '출석 기록을 추가했습니다.',
+      )
     } catch (error) {
       setMessage(errorMessage(error, '출석 기록을 추가하지 못했습니다.'))
     }
@@ -642,7 +663,11 @@ export function AttendancePage({
         throw new Error('회원 출석 이력을 불러오지 못했습니다.')
       }
       setHistoryAttendances((await historyResponse.json()) as Attendance[])
-      setGatherings(((await gatheringsResponse.json()) as Gathering[]).map(normalizeGathering))
+      setGatherings(
+        ((await gatheringsResponse.json()) as Gathering[]).map(
+          normalizeGathering,
+        ),
+      )
       setHasLoadedMemberHistory(true)
       setMessage('회원 출석 이력을 조회했습니다.')
     } catch (error) {
@@ -664,21 +689,20 @@ export function AttendancePage({
       const attendance = selectedAttendances.find(
         (item) => item.id === cancellingAttendanceId,
       )
-      const endpoint = attendance?.participationType === 'COUPON'
-        ? `/api/v1/coupons/usages/attendance/${cancellingAttendanceId}/reverse`
-        : `/api/v1/gatherings/${selectedGathering.id}/attendances/${cancellingAttendanceId}/cancel`
-      const cancellationPayload = attendance?.participationType === 'COUPON'
-        ? { reason: cancellationReason.trim() }
-        : { cancellationReason: cancellationReason.trim() }
-      const response = await fetch(
-        endpoint,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cancellationPayload),
-        },
-      )
+      const endpoint =
+        attendance?.participationType === 'COUPON'
+          ? `/api/v1/coupons/usages/attendance/${cancellingAttendanceId}/reverse`
+          : `/api/v1/gatherings/${selectedGathering.id}/attendances/${cancellingAttendanceId}/cancel`
+      const cancellationPayload =
+        attendance?.participationType === 'COUPON'
+          ? { reason: cancellationReason.trim() }
+          : { cancellationReason: cancellationReason.trim() }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cancellationPayload),
+      })
       if (!response.ok) {
         throw await responseError(response, '출석 기록을 취소하지 못했습니다.')
       }
@@ -703,7 +727,10 @@ export function AttendancePage({
   }
 
   async function deleteAttendance(attendance: Attendance) {
-    if (selectedGathering === null || attendance.participationType === 'COUPON') {
+    if (
+      selectedGathering === null ||
+      attendance.participationType === 'COUPON'
+    ) {
       return
     }
     const member = members.find((item) => item.id === attendance.memberId)
@@ -725,7 +752,9 @@ export function AttendancePage({
       if (!response.ok) {
         throw await responseError(response, '출석 기록을 삭제하지 못했습니다.')
       }
-      setAttendances((previous) => previous.filter((item) => item.id !== attendance.id))
+      setAttendances((previous) =>
+        previous.filter((item) => item.id !== attendance.id),
+      )
       setCancellingAttendanceId((current) =>
         current === attendance.id ? null : current,
       )
@@ -892,7 +921,9 @@ export function AttendancePage({
                     <button
                       aria-pressed={calendarMonth.month === month}
                       className={
-                        calendarMonth.month === month ? 'is-selected' : undefined
+                        calendarMonth.month === month
+                          ? 'is-selected'
+                          : undefined
                       }
                       key={label}
                       onClick={() => selectCalendarMonth(month)}
@@ -920,37 +951,38 @@ export function AttendancePage({
           ))}
         </div>
         <div className="calendar-grid">
-          {calendarDays.map((calendarDay) =>
-              <div
-                className={`calendar-day ${heldOn === calendarDay.date ? 'calendar-day-selected' : ''} ${calendarDay.isOutsideMonth ? 'calendar-day-outside-month' : ''}`}
-                key={calendarDay.date}
-              >
-                <button
-                  aria-label={`${formatCalendarDateLabel(calendarDay.year, calendarDay.month, calendarDay.day)} 선택`}
-                  aria-pressed={heldOn === calendarDay.date}
-                  className="calendar-day-select-target"
-                  disabled={readOnly}
-                  onClick={() => selectCalendarDate(calendarDay.date)}
-                  type="button"
-                />
-                <span aria-hidden="true" className="calendar-day-number">
-                  {calendarDay.day}
-                </span>
-                <div className="calendar-gatherings">
-                  {calendarDay.gatherings.map((gathering) => (
-                    <button
-                      className={`calendar-gathering gathering-type-${gathering.gatheringType.toLowerCase()} gathering-status-${gathering.gatheringStatus.toLowerCase()}`}
-                      key={gathering.id}
-                      onClick={() => void selectGathering(gathering)}
-                      type="button"
-                    >
-                      {gathering.title ?? gatheringTypeLabels[gathering.gatheringType] ??
-                        gatheringStatusLabels[gathering.gatheringStatus]}
-                    </button>
-                  ))}
-                </div>
+          {calendarDays.map((calendarDay) => (
+            <div
+              className={`calendar-day ${heldOn === calendarDay.date ? 'calendar-day-selected' : ''} ${calendarDay.isOutsideMonth ? 'calendar-day-outside-month' : ''}`}
+              key={calendarDay.date}
+            >
+              <button
+                aria-label={`${formatCalendarDateLabel(calendarDay.year, calendarDay.month, calendarDay.day)} 선택`}
+                aria-pressed={heldOn === calendarDay.date}
+                className="calendar-day-select-target"
+                disabled={readOnly}
+                onClick={() => selectCalendarDate(calendarDay.date)}
+                type="button"
+              />
+              <span aria-hidden="true" className="calendar-day-number">
+                {calendarDay.day}
+              </span>
+              <div className="calendar-gatherings">
+                {calendarDay.gatherings.map((gathering) => (
+                  <button
+                    className={`calendar-gathering gathering-type-${gathering.gatheringType.toLowerCase()} gathering-status-${gathering.gatheringStatus.toLowerCase()}`}
+                    key={gathering.id}
+                    onClick={() => void selectGathering(gathering)}
+                    type="button"
+                  >
+                    {gathering.title ??
+                      gatheringTypeLabels[gathering.gatheringType] ??
+                      gatheringStatusLabels[gathering.gatheringStatus]}
+                  </button>
+                ))}
               </div>
-          )}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -961,15 +993,25 @@ export function AttendancePage({
               <h3>출석부 목록</h3>
               <p>선택한 달의 모임을 출석 상태별로 확인할 수 있습니다.</p>
             </div>
-            <div className="gathering-filter-buttons" role="group" aria-label="출석부 상태 필터">
-              {([
-                ['ALL', '전체'],
-                ['OPEN', '출석 진행 중'],
-                ['CLOSED', '마감'],
-              ] as const).map(([filter, label]) => (
+            <div
+              className="gathering-filter-buttons"
+              role="group"
+              aria-label="출석부 상태 필터"
+            >
+              {(
+                [
+                  ['ALL', '전체'],
+                  ['OPEN', '출석 진행 중'],
+                  ['CLOSED', '마감'],
+                ] as const
+              ).map(([filter, label]) => (
                 <button
                   aria-pressed={gatheringFilter === filter}
-                  className={gatheringFilter === filter ? 'is-active' : 'secondary-button'}
+                  className={
+                    gatheringFilter === filter
+                      ? 'is-active'
+                      : 'secondary-button'
+                  }
                   key={filter}
                   onClick={() => setGatheringFilter(filter)}
                   type="button"
@@ -998,10 +1040,14 @@ export function AttendancePage({
                       <strong>{gatheringPeriodLabel(gathering)}</strong>
                       {gathering.title && ` · ${gathering.title}`}
                     </span>
-                    <span className={`status gathering-type-column gathering-type-${gathering.gatheringType.toLowerCase()}`}>
+                    <span
+                      className={`status gathering-type-column gathering-type-${gathering.gatheringType.toLowerCase()}`}
+                    >
                       {gatheringTypeLabels[gathering.gatheringType]}
                     </span>
-                    <span className={`status gathering-status-column gathering-status-${gathering.gatheringStatus.toLowerCase()}`}>
+                    <span
+                      className={`status gathering-status-column gathering-status-${gathering.gatheringStatus.toLowerCase()}`}
+                    >
                       {gatheringStatusLabels[gathering.gatheringStatus]}
                     </span>
                   </button>
@@ -1089,7 +1135,9 @@ export function AttendancePage({
                 return (
                   <li key={attendance.id}>
                     <strong>{gathering?.heldOn ?? '날짜를 불러오는 중'}</strong>
-                    <span>{participationLabels[attendance.participationType]}</span>
+                    <span>
+                      {participationLabels[attendance.participationType]}
+                    </span>
                     <span>
                       {attendance.attendanceStatus === 'RECORDED'
                         ? '기록됨'
@@ -1108,8 +1156,7 @@ export function AttendancePage({
           ariaLabelledBy="attendance-detail-heading"
           closeOnEscape={!isGatheringCancellationOpen && !isEditGatheringOpen}
           footer={
-            !readOnly &&
-            selectedGathering.gatheringStatus !== 'CANCELLED' ? (
+            !readOnly && selectedGathering.gatheringStatus !== 'CANCELLED' ? (
               <div className="form-actions">
                 {selectedGathering.gatheringStatus === 'OPEN' && (
                   <button
@@ -1165,10 +1212,14 @@ export function AttendancePage({
                   {selectedAttendanceCount}명 참여
                 </p>
               </div>
-               {!readOnly && (
-                 <div className="form-actions">
+              {!readOnly && (
+                <div className="form-actions">
                   {selectedGathering.gatheringStatus !== 'CANCELLED' && (
-                    <button className="secondary-button" onClick={openGatheringEdit} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={openGatheringEdit}
+                      type="button"
+                    >
                       수정
                     </button>
                   )}
@@ -1180,7 +1231,7 @@ export function AttendancePage({
                       출석 시작
                     </button>
                   )}
-                 </div>
+                </div>
               )}
             </div>
 
@@ -1227,7 +1278,9 @@ export function AttendancePage({
                             <span>
                               {`취소 사유: ${attendance.cancellationReason ?? '사유 없음'}`}
                             </span>
-                            <span className="attendance-cancelled-label">취소</span>
+                            <span className="attendance-cancelled-label">
+                              취소
+                            </span>
                           </>
                         )}
                         {!readOnly &&
@@ -1247,7 +1300,9 @@ export function AttendancePage({
                               {attendance.participationType !== 'COUPON' && (
                                 <button
                                   className="danger-button"
-                                  onClick={() => void deleteAttendance(attendance)}
+                                  onClick={() =>
+                                    void deleteAttendance(attendance)
+                                  }
                                   type="button"
                                 >
                                   삭제

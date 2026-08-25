@@ -59,7 +59,8 @@ export function useFloatingOptions({
         left: window.scrollX + Math.max(viewportPadding, rect.left),
         maxHeight: availableHeight,
         top: opensUpward
-          ? window.scrollY + Math.max(viewportPadding, rect.top - availableHeight)
+          ? window.scrollY +
+            Math.max(viewportPadding, rect.top - availableHeight)
           : window.scrollY + rect.bottom,
         width: Math.min(
           rect.width,
