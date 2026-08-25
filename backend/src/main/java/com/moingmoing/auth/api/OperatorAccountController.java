@@ -71,7 +71,7 @@ class OperatorAccountController {
     }
 
     private record CreateAccountRequest(
-            @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{3,80}") String loginId,
+            @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{2,20}") String loginId,
             @NotBlank @Size(max = 100) String displayName,
             @NotBlank @Size(min = 8, max = 100) String password,
             @NotNull RoleCode role) {

@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { Member } from '../../App'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
+import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import {
@@ -969,11 +970,6 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               </button>
             </div>
             <div className="coupon-sheet-actions">
-              {message && (
-                <p className="message coupon-sheet-message" role="status">
-                  {message}
-                </p>
-              )}
               <button
                 onClick={() => void loadUsageHistory(selectedCoupon)}
                 type="button"
@@ -1273,6 +1269,12 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
             <p>{'이 QR 코드는 운영진의 스캔·확인 후에만 사용 처리됩니다.'}</p>
           </div>
         </section>
+      )}
+      {message && (
+        <FeedbackMessageDialog
+          message={message}
+          onClose={() => setMessage('')}
+        />
       )}
     </section>
   )

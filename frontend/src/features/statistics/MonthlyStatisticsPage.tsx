@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { KoreanMonthInput } from '../../shared/ui/KoreanMonthInput'
 
 type MonthlyStatistics = {
@@ -109,9 +110,10 @@ export function MonthlyStatisticsPage() {
           </section>
         )}
         {message && (
-          <p className="message" role="status">
-            {message}
-          </p>
+          <FeedbackMessageDialog
+            message={message}
+            onClose={() => setMessage('')}
+          />
         )}
       </section>
     </section>

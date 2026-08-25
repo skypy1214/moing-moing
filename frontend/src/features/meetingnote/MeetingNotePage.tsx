@@ -5,6 +5,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
 import { SelectField } from '../../shared/ui/SelectField'
@@ -375,9 +376,10 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
           </Modal>
         )}
         {message && (
-          <p className="message" role="status">
-            {message}
-          </p>
+          <FeedbackMessageDialog
+            message={message}
+            onClose={() => setMessage('')}
+          />
         )}
       </section>
     )
@@ -454,9 +456,10 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
           </Markdown>
         </section>
         {message && (
-          <p className="message" role="status">
-            {message}
-          </p>
+          <FeedbackMessageDialog
+            message={message}
+            onClose={() => setMessage('')}
+          />
         )}
       </section>
     )
@@ -551,9 +554,10 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
         )}
       </section>
       {message && (
-        <p className="message" role="status">
-          {message}
-        </p>
+        <FeedbackMessageDialog
+          message={message}
+          onClose={() => setMessage('')}
+        />
       )}
     </section>
   )

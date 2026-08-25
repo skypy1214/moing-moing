@@ -63,6 +63,8 @@ class SecurityConfiguration {
                         .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/profile")
                         .hasAnyRole("ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
+                        .requestMatchers("/api/v1/admin/**")
+                        .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
                         .hasAnyRole("ADMIN", "VIEWER", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF")
                         .anyRequest().hasRole("ADMIN"))

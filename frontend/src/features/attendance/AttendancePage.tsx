@@ -6,6 +6,7 @@ import { GatheringForm } from './GatheringForm'
 import type { GatheringType } from './GatheringForm'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
+import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { RefreshIcon } from '../../shared/ui/RefreshIcon'
@@ -175,7 +176,7 @@ export function AttendancePage({
     string | null
   >(null)
   const [cancellationReason, setCancellationReason] = useState('')
-  const [, setMessage] = useState('')
+  const [message, setMessage] = useState('')
   const [createGatheringError, setCreateGatheringError] = useState('')
   const [isCreatingGathering, setIsCreatingGathering] = useState(false)
   const [isGatheringCancellationOpen, setIsGatheringCancellationOpen] =
@@ -1488,6 +1489,12 @@ export function AttendancePage({
             </button>
           </div>
         </Modal>
+      )}
+      {message && (
+        <FeedbackMessageDialog
+          message={message}
+          onClose={() => setMessage('')}
+        />
       )}
     </section>
   )

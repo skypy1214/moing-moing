@@ -30,6 +30,7 @@ import {
   isApiLoading,
 } from './shared/api/apiFetch'
 import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
+import { FeedbackMessageDialog } from './shared/feedback-dialog/FeedbackMessageDialog'
 import { BottomNav } from './shared/ui/BottomNav'
 import { EmptyState } from './shared/ui/EmptyState'
 import { KoreanDateInput, formatKoreanDate } from './shared/ui/KoreanDateInput'
@@ -425,7 +426,6 @@ function App() {
       .catch(() => null)) as ApiErrorResponse | null
     setFieldErrors(error?.fieldErrors ?? {})
     const errorMessage = error?.message ?? fallbackMessage
-    setMessage(errorMessage)
     return errorMessage
   }
 
@@ -576,7 +576,6 @@ function App() {
     setMemo('')
     setMemberRole('MEMBER')
     setIsMemberCreatePage(false)
-    setMessage('회원을 등록했습니다.')
     showFeedbackDialog({
       title: '회원 등록 완료',
       message: `${createdMember.displayName}님을 ${memberRoleLabels[createdMember.memberRole]}으로 등록했습니다.`,
@@ -699,7 +698,6 @@ function App() {
     )
     setSelectedMember(updatedMember)
     setIsMembershipModalOpen(false)
-    setMessage('회원 정보를 수정했습니다.')
     showFeedbackDialog({
       title: '회원 정보 저장 완료',
       message:
@@ -1038,11 +1036,6 @@ function App() {
               게스트로 둘러보기
             </button>
           </p>
-          {message && selectedMember === null && (
-            <p className="message" role="status">
-              {message}
-            </p>
-          )}
         </Card>
       </main>
     )
@@ -1167,11 +1160,6 @@ function App() {
                     onSubmit={handleCreateMember}
                     submitLabel="회원 등록"
                   />
-                  {message && selectedMember === null && (
-                    <p className="message" role="status">
-                      {message}
-                    </p>
-                  )}
                 </section>
               )}
 
@@ -1426,11 +1414,6 @@ function App() {
                   )
                 }
               />
-              {message && (
-                <p className="message" role="status">
-                  {message}
-                </p>
-              )}
             </section>
           )}
 
@@ -1835,6 +1818,12 @@ function App() {
         items={navigationItems}
         onChange={navigateToPage}
       />
+      {message && (
+        <FeedbackMessageDialog
+          message={message}
+          onClose={() => setMessage('')}
+        />
+      )}
     </main>
   )
 }

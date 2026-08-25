@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
+import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { Modal } from '../../shared/ui/Modal'
 import { SelectField } from '../../shared/ui/SelectField'
 
@@ -233,9 +234,12 @@ export function OperationsPage() {
         <label>
           로그인 ID
           <input
+            maxLength={20}
+            minLength={2}
             onChange={(event) => setLoginId(event.target.value)}
-            pattern="[A-Za-z0-9._-]{3,80}"
+            pattern="[A-Za-z0-9._-]{2,20}"
             required
+            title="영문, 숫자, 점, 밑줄, 하이픈으로 2~20자 입력해 주세요."
             value={loginId}
           />
         </label>
@@ -336,9 +340,10 @@ export function OperationsPage() {
         </ul>
       </section>
       {message && (
-        <p className="message" role="status">
-          {message}
-        </p>
+        <FeedbackMessageDialog
+          message={message}
+          onClose={() => setMessage('')}
+        />
       )}
 
       {editingRole !== null && (
