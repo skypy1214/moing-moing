@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { EmptyState } from '../../shared/ui/EmptyState'
+import { Modal } from '../../shared/ui/Modal'
 import { SelectField } from '../../shared/ui/SelectField'
 
 type Category = {
@@ -328,64 +329,50 @@ export function MeetingNotePage({ readOnly = false }: MeetingNotePageProps) {
           </ul>
         </section>
         {isCategoryDialogOpen && (
-          <div className="modal-backdrop">
-            <section
-              aria-labelledby="category-dialog-heading"
-              aria-modal="true"
-              className="modal-content"
-              role="dialog"
-            >
-              <div className="modal-scroll-content">
-                <div className="modal-header">
-                  <button
-                    aria-label="카테고리 Dialog 닫기"
-                    className="modal-close-button"
-                    onClick={() => setIsCategoryDialogOpen(false)}
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="modal-heading">
-                  <h3 id="category-dialog-heading">
-                    {editingCategory === null
-                      ? '카테고리 추가'
-                      : '카테고리 수정'}
-                  </h3>
-                  <p>색상은 게시판 목록의 카테고리 배지에 표시됩니다.</p>
-                </div>
-                <form className="form" onSubmit={submitCategory}>
-                  <label>
-                    이름
-                    <input
-                      onChange={(event) => setCategoryName(event.target.value)}
-                      required
-                      value={categoryName}
-                    />
-                  </label>
-                  <label>
-                    색상
-                    <input
-                      onChange={(event) => setCategoryColor(event.target.value)}
-                      pattern="#[0-9A-Fa-f]{6}"
-                      required
-                      value={categoryColor}
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button type="submit">저장</button>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setIsCategoryDialogOpen(false)}
-                      type="button"
-                    >
-                      취소
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </section>
-          </div>
+          <Modal
+            ariaLabelledBy="category-dialog-heading"
+            footer={
+              <>
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsCategoryDialogOpen(false)}
+                  type="button"
+                >
+                  취소
+                </button>
+                <button form="category-form" type="submit">
+                  저장
+                </button>
+              </>
+            }
+            onClose={() => setIsCategoryDialogOpen(false)}
+          >
+            <div className="modal-heading">
+              <h3 id="category-dialog-heading">
+                {editingCategory === null ? '카테고리 추가' : '카테고리 수정'}
+              </h3>
+              <p>색상은 게시판 목록의 카테고리 배지에 표시됩니다.</p>
+            </div>
+            <form className="form" id="category-form" onSubmit={submitCategory}>
+              <label>
+                이름
+                <input
+                  onChange={(event) => setCategoryName(event.target.value)}
+                  required
+                  value={categoryName}
+                />
+              </label>
+              <label>
+                색상
+                <input
+                  onChange={(event) => setCategoryColor(event.target.value)}
+                  pattern="#[0-9A-Fa-f]{6}"
+                  required
+                  value={categoryColor}
+                />
+              </label>
+            </form>
+          </Modal>
         )}
         {message && (
           <p className="message" role="status">

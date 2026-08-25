@@ -48,8 +48,8 @@ class OperatorAccountController {
     @PatchMapping("/{accountId}")
     ResponseEntity<Void> update(
             @PathVariable UUID accountId,
-            @Valid @RequestBody UpdateAccountRequest request) {
-        operatorAccountService.update(accountId, request.loginId(), request.displayName(), request.role());
+            @Valid @RequestBody UpdateAccountRoleRequest request) {
+        operatorAccountService.updateRole(accountId, request.role());
         return ResponseEntity.noContent().build();
     }
 
@@ -77,10 +77,7 @@ class OperatorAccountController {
             @NotNull RoleCode role) {
     }
 
-    private record UpdateAccountRequest(
-            @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{3,80}") String loginId,
-            @NotBlank @Size(max = 100) String displayName,
-            @NotNull RoleCode role) {
+    private record UpdateAccountRoleRequest(@NotNull RoleCode role) {
     }
 
     private record ResetPasswordResponse(String temporaryPassword) {

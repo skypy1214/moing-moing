@@ -8,6 +8,14 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  data:
+    jpa:
+      repositories:
+        bootstrap-mode: lazy
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate.boot.allow_jdbc_metadata_access: false
 
 server:
   shutdown: graceful

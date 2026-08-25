@@ -49,6 +49,21 @@
   margin-left: auto;
 }
 
+.scroll-to-top-button {
+  align-items: center;
+  border-radius: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.24);
+  display: flex;
+  height: 48px;
+  justify-content: center;
+  padding: 0;
+  position: fixed;
+  right: 24px;
+  width: 48px;
+  z-index: 8;
+}
+
 .visually-hidden {
   height: 1px;
   margin: -1px;
@@ -992,12 +1007,20 @@ h2 {
 }
 
 .modal-footer {
+  align-items: center;
   background: var(--color-surface);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
   padding: 16px 32px;
 }
 
 .modal-footer .form-actions {
+  display: flex;
+  gap: 12px;
   justify-content: flex-end;
+  width: 100%;
 }
 
 .modal-scroll-content::-webkit-scrollbar {
@@ -2821,6 +2844,11 @@ button:not(:disabled):active {
   .panel {
     border-radius: 18px;
     padding: 20px;
+  }
+
+  .scroll-to-top-button {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    right: 16px;
   }
 
   .app-header {

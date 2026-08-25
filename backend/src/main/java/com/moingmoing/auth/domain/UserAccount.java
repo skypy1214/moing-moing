@@ -92,6 +92,11 @@ public class UserAccount {
         updatedAt = Instant.now();
     }
 
+    public void updateRole(RoleCode role) {
+        this.roles = Set.of(role);
+        updatedAt = Instant.now();
+    }
+
     public void disable() {
         accountStatus = AccountStatus.DISABLED;
         updatedAt = Instant.now();

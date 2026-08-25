@@ -36,7 +36,7 @@ Render 환경변수/secret에 다음 값을 설정한다. `DB_*`, 초기 관리�
 | `INITIAL_ADMIN_LOGIN` | 최초 배포 때만 필요한 관리자 ID |
 | `INITIAL_ADMIN_PASSWORD` | 최초 배포 때만 필요한 관리자 비밀번호 |
 
-Render가 `PORT`를 자동 주입하며 Spring Boot는 이를 우선 사용한다. 배포 시 Flyway가 migration을 적용한다. 동시에 여러 인스턴스를 배포하지 않는다.
+Render가 `PORT`를 자동 주입하며 Spring Boot는 이를 우선 사용한다. 배포 시 Flyway가 migration을 적용한다. 동시에 여러 인스턴스를 배포하지 않는다. 최초 관리자 계정이 생성된 것을 확인한 뒤에는 `INITIAL_ADMIN_LOGIN`, `INITIAL_ADMIN_PASSWORD`를 Render 환경변수에서 제거한다. 두 값이 모두 없으면 초기화 과정의 계정 조회를 건너뛰므로 이후 cold start의 불필요한 DB 작업도 줄어든다.
 
 ## Cloudflare Pages 프론트엔드
 
@@ -68,6 +68,8 @@ Cloudflare Pages 기본 도메인과 Render 기본 도메인은 서로 다른 �
 - 이 구조에서 프론트 코드가 Render URL을 직접 호출하도록 되돌리지 않는다. 자체 도메인을 도입하더라도 같은 등록 도메인의 하위 도메인 또는 이 프록시 구조를 유지한다.
 
 ### Render cold start 계측
+
+production은 로그인에 바로 필요하지 않은 Spring Data JPA Repository의 프록시 생성을 첫 사용 시점으로 미루고, PostgreSQL 방언을 명시해 Hibernate의 추가 DB 메타데이터 조회를 생략한다. Flyway 검증, Hikari DB 연결, `/api/v1/ready`의 DB 검증은 유지한다. 다음 cold start 로그에서 `spring.data.repository.init`, `spring.data.repository.proxy`, Hibernate 초기화 시간이 기준 로그보다 줄었는지 확인한다.
 
 서버 기동 때 Render 로그에 `startup-profile`을 남긴다. `application-ready durationMs`는 Java `main` 진입부터 모든 Spring 초기화·Flyway·JPA·초기 관리자 확인이 끝날 때까지의 시간이며, 이어지는 최대 12개 `step`은 가장 오래 걸린 Spring 초기화 단계다.
 

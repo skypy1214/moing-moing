@@ -33,8 +33,11 @@ import { useFeedbackDialog } from './shared/feedback-dialog/useFeedbackDialog'
 import { BottomNav } from './shared/ui/BottomNav'
 import { EmptyState } from './shared/ui/EmptyState'
 import { KoreanDateInput, formatKoreanDate } from './shared/ui/KoreanDateInput'
+import { Modal } from './shared/ui/Modal'
 import { RefreshIcon } from './shared/ui/RefreshIcon'
+import { ScrollTopIcon } from './shared/ui/ScrollTopIcon'
 import { SettingsIcon } from './shared/ui/SettingsIcon'
+import { useEscapeKey } from './shared/ui/useEscapeKey'
 import { Button, Card, Chip } from './shared/ui/ui'
 import { SelectField } from './shared/ui/SelectField'
 import './App.css'
@@ -75,7 +78,6 @@ type AuthAccount = {
 }
 
 type ActivityFilter = 'ALL' | 'ACTIVE' | 'PAUSED'
-type MemberRoleFilter = 'ALL' | MemberRole
 type SortDirection = 'ASC' | 'DESC' | null
 type MemberRole = Member['memberRole']
 type PageKey =
@@ -219,8 +221,6 @@ function App() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [memberSearch, setMemberSearch] = useState('')
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL')
-  const [memberRoleFilter, setMemberRoleFilter] =
-    useState<MemberRoleFilter>('ALL')
   const [nameSortDirection, setNameSortDirection] =
     useState<SortDirection>(null)
   const [joinedOnSortDirection, setJoinedOnSortDirection] =
@@ -307,10 +307,6 @@ function App() {
             ? member.activityPaused
             : !member.activityPaused),
       )
-      .filter(
-        (member) =>
-          memberRoleFilter === 'ALL' || member.memberRole === memberRoleFilter,
-      )
       .filter((member) => {
         if (normalizedSearch === '') {
           return true
@@ -341,7 +337,6 @@ function App() {
       })
   }, [
     activityFilter,
-    memberRoleFilter,
     joinedOnSortDirection,
     memberSearch,
     members,
@@ -454,21 +449,19 @@ function App() {
     }
 
     const previousOverflow = document.body.style.overflow
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsMemberSheetOpen(false)
-        setIsMembershipModalOpen(false)
-        setIsActivityExclusionModalOpen(false)
-      }
-    }
     document.body.style.overflow = 'hidden'
-    document.addEventListener('keydown', closeOnEscape)
 
     return () => {
       document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', closeOnEscape)
     }
   }, [isActivityExclusionModalOpen, isMemberSheetOpen, isMembershipModalOpen])
+
+  useEscapeKey(
+    () => setIsMemberSheetOpen(false),
+    isMemberSheetOpen &&
+      !isMembershipModalOpen &&
+      !isActivityExclusionModalOpen,
+  )
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1260,22 +1253,6 @@ function App() {
                         활동 중단
                       </button>
                     </div>
-                    <label>
-                      회원 역할
-                      <select
-                        onChange={(event) =>
-                          setMemberRoleFilter(
-                            event.target.value as MemberRoleFilter,
-                          )
-                        }
-                        value={memberRoleFilter}
-                      >
-                        <option value="ALL">전체 역할</option>
-                        <option value="LEADER">모임장</option>
-                        <option value="STAFF">운영진</option>
-                        <option value="MEMBER">회원</option>
-                      </select>
-                    </label>
                     <div
                       className="member-sort-buttons"
                       role="group"
@@ -1491,234 +1468,204 @@ function App() {
             )}
 
           {isMembershipModalOpen && selectedMember && (
-            <div
-              className="modal-backdrop"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget)
-                  setIsMembershipModalOpen(false)
-              }}
+            <Modal
+              ariaLabelledBy="membership-status-heading"
+              className="modal-content member-action-modal"
+              closeLabel="회원 상태 변경 닫기"
+              footer={
+                <>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setIsMembershipModalOpen(false)}
+                    type="button"
+                  >
+                    취소
+                  </button>
+                  <button
+                    className={
+                      selectedMember.membershipStatus === 'ACTIVE'
+                        ? 'danger-button'
+                        : undefined
+                    }
+                    onClick={() => void handleMembershipStatusChange()}
+                    type="button"
+                  >
+                    {selectedMember.membershipStatus === 'ACTIVE'
+                      ? '탈퇴 처리'
+                      : '재활성화'}
+                  </button>
+                </>
+              }
+              onClose={() => setIsMembershipModalOpen(false)}
             >
-              <section
-                aria-labelledby="membership-status-heading"
-                aria-modal="true"
-                className="modal-content member-action-modal"
-                role="dialog"
-              >
-                <div className="modal-scroll-content">
-                  <div className="modal-header">
-                    <button
-                      aria-label="회원 상태 변경 닫기"
-                      className="modal-close-button"
-                      onClick={() => setIsMembershipModalOpen(false)}
-                      type="button"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="modal-heading">
-                    <h3 id="membership-status-heading">회원 상태 변경</h3>
-                    <p>
-                      현재 상태:{' '}
-                      <strong>
-                        {selectedMember.membershipStatus === 'ACTIVE'
-                          ? '활동 중'
-                          : '탈퇴'}
-                      </strong>
-                    </p>
-                  </div>
-                  <div className="form">
-                    <label>
-                      {selectedMember.membershipStatus === 'ACTIVE'
-                        ? '탈퇴일'
-                        : '재활성화일'}
-                      <KoreanDateInput
-                        onChange={setMembershipDate}
-                        value={membershipDate}
-                      />
-                    </label>
-                    <div className="form-actions">
-                      <button
-                        className={
-                          selectedMember.membershipStatus === 'ACTIVE'
-                            ? 'danger-button'
-                            : undefined
-                        }
-                        onClick={() => void handleMembershipStatusChange()}
-                        type="button"
-                      >
-                        {selectedMember.membershipStatus === 'ACTIVE'
-                          ? '탈퇴 처리'
-                          : '재활성화'}
-                      </button>
-                      <button
-                        className="secondary-button"
-                        onClick={() => setIsMembershipModalOpen(false)}
-                        type="button"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
+              <div className="modal-heading">
+                <h3 id="membership-status-heading">회원 상태 변경</h3>
+                <p>
+                  현재 상태:{' '}
+                  <strong>
+                    {selectedMember.membershipStatus === 'ACTIVE'
+                      ? '활동 중'
+                      : '탈퇴'}
+                  </strong>
+                </p>
+              </div>
+              <div className="form">
+                <label>
+                  {selectedMember.membershipStatus === 'ACTIVE'
+                    ? '탈퇴일'
+                    : '재활성화일'}
+                  <KoreanDateInput
+                    onChange={setMembershipDate}
+                    value={membershipDate}
+                  />
+                </label>
+              </div>
+            </Modal>
           )}
 
           {isActivityExclusionModalOpen && selectedMember && (
-            <div
-              className="modal-backdrop"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) {
-                  closeActivityExclusionModal()
-                }
-              }}
-            >
-              <section
-                aria-labelledby="activity-exclusion-heading"
-                aria-modal="true"
-                className="modal-content member-action-modal"
-                role="dialog"
-              >
-                <div className="modal-scroll-content">
-                  <div className="modal-header">
+            <Modal
+              ariaLabelledBy="activity-exclusion-heading"
+              className="modal-content member-action-modal"
+              closeLabel="활동 중단 관리 닫기"
+              footer={
+                !isLoadingExclusions &&
+                !(
+                  isSelectedMemberActivityPaused && editingExclusion === null
+                ) ? (
+                  <>
+                    {editingExclusion && (
+                      <button
+                        className="secondary-button"
+                        disabled={isReadOnly}
+                        onClick={cancelExclusionEdit}
+                        type="button"
+                      >
+                        수정 취소
+                      </button>
+                    )}
                     <button
-                      aria-label="활동 중단 관리 닫기"
-                      className="modal-close-button"
-                      onClick={closeActivityExclusionModal}
-                      type="button"
+                      disabled={isReadOnly}
+                      form="activity-exclusion-form"
+                      type="submit"
                     >
-                      ×
+                      {editingExclusion === null
+                        ? '활동 중단 시작'
+                        : '활동 중단 기간 저장'}
                     </button>
-                  </div>
-                  <div className="modal-heading">
-                    <h3 id="activity-exclusion-heading">활동 중단 관리</h3>
-                    <p>시작·수정·종료와 기간 이력을 관리합니다.</p>
-                  </div>
-                  {isLoadingExclusions ? (
-                    <p className="description">
-                      활동 중단 기간을 확인하고 있습니다.
-                    </p>
-                  ) : isSelectedMemberActivityPaused &&
-                    editingExclusion === null ? (
-                    <p className="description">
-                      현재 활동 중단 기간입니다. 아래 목록에서 종료 처리하거나
-                      기간을 수정해 주세요.
-                    </p>
-                  ) : (
-                    <form className="form" onSubmit={handleStartExclusion}>
-                      <SelectField
-                        label="사유"
-                        onChange={(value) =>
-                          setExclusionReason(value as ActivityExclusionReason)
+                  </>
+                ) : undefined
+              }
+              onClose={closeActivityExclusionModal}
+            >
+              <div className="modal-heading">
+                <h3 id="activity-exclusion-heading">활동 중단 관리</h3>
+                <p>시작·수정·종료와 기간 이력을 관리합니다.</p>
+              </div>
+              {isLoadingExclusions ? (
+                <p className="description">
+                  활동 중단 기간을 확인하고 있습니다.
+                </p>
+              ) : isSelectedMemberActivityPaused &&
+                editingExclusion === null ? (
+                <p className="description">
+                  현재 활동 중단 기간입니다. 아래 목록에서 종료 처리하거나
+                  기간을 수정해 주세요.
+                </p>
+              ) : (
+                <form
+                  className="form"
+                  id="activity-exclusion-form"
+                  onSubmit={handleStartExclusion}
+                >
+                  <SelectField
+                    label="사유"
+                    onChange={(value) =>
+                      setExclusionReason(value as ActivityExclusionReason)
+                    }
+                    options={Object.entries(activityExclusionReasonLabels).map(
+                      ([value, label]) => ({ value, label }),
+                    )}
+                    value={exclusionReason}
+                  />
+                  <label>
+                    시작일
+                    <KoreanDateInput
+                      onChange={setExclusionStartDate}
+                      required
+                      value={exclusionStartDate}
+                    />
+                  </label>
+                  <fieldset className="exclusion-end-date-field">
+                    <legend>
+                      종료일 <span className="optional">(선택)</span>
+                    </legend>
+                    <label className="exclusion-end-date-toggle">
+                      <input
+                        checked={isExclusionEndDateSet}
+                        onChange={(event) =>
+                          setIsExclusionEndDateSet(event.target.checked)
                         }
-                        options={Object.entries(
-                          activityExclusionReasonLabels,
-                        ).map(([value, label]) => ({ value, label }))}
-                        value={exclusionReason}
+                        type="checkbox"
                       />
-                      <label>
-                        시작일
-                        <KoreanDateInput
-                          onChange={setExclusionStartDate}
-                          required
-                          value={exclusionStartDate}
-                        />
-                      </label>
-                      <fieldset className="exclusion-end-date-field">
-                        <legend>
-                          종료일 <span className="optional">(선택)</span>
-                        </legend>
-                        <label className="exclusion-end-date-toggle">
-                          <input
-                            checked={isExclusionEndDateSet}
-                            onChange={(event) =>
-                              setIsExclusionEndDateSet(event.target.checked)
-                            }
-                            type="checkbox"
-                          />
-                          종료일 설정
-                        </label>
-                        <KoreanDateInput
-                          disabled={!isExclusionEndDateSet}
-                          onChange={setExclusionEndDate}
-                          value={exclusionEndDate}
-                        />
-                      </fieldset>
-                      <label>
-                        메모 <span className="optional">(선택)</span>
-                        <textarea
-                          onChange={(event) =>
-                            setExclusionNote(event.target.value)
-                          }
-                          value={exclusionNote}
-                        />
-                      </label>
-                      <div className="form-actions">
-                        <button disabled={isReadOnly} type="submit">
-                          {editingExclusion === null
-                            ? '활동 중단 시작'
-                            : '활동 중단 기간 저장'}
+                      종료일 설정
+                    </label>
+                    <KoreanDateInput
+                      disabled={!isExclusionEndDateSet}
+                      onChange={setExclusionEndDate}
+                      value={exclusionEndDate}
+                    />
+                  </fieldset>
+                  <label>
+                    메모 <span className="optional">(선택)</span>
+                    <textarea
+                      onChange={(event) => setExclusionNote(event.target.value)}
+                      value={exclusionNote}
+                    />
+                  </label>
+                </form>
+              )}
+              {exclusions.length === 0 ? (
+                <p className="empty-state">등록된 활동 중단 기간이 없습니다.</p>
+              ) : (
+                <ul className="exclusion-list">
+                  {exclusions.map((exclusion) => (
+                    <li key={exclusion.id}>
+                      <div>
+                        <strong>
+                          {activityExclusionReasonLabels[exclusion.reason]}
+                        </strong>
+                        <span>
+                          {exclusion.startDate} ~{' '}
+                          {exclusion.endDate ?? '무기한'}
+                        </span>
+                        {exclusion.note && <span>{exclusion.note}</span>}
+                      </div>
+                      <div className="exclusion-actions">
+                        <button
+                          className="edit-button"
+                          disabled={isReadOnly}
+                          onClick={() => beginExclusionEdit(exclusion)}
+                          type="button"
+                        >
+                          수정
                         </button>
-                        {editingExclusion && (
+                        {isActivityExclusionActive(exclusion) && (
                           <button
                             className="secondary-button"
                             disabled={isReadOnly}
-                            onClick={cancelExclusionEdit}
+                            onClick={() => void handleEndExclusion(exclusion)}
                             type="button"
                           >
-                            수정 취소
+                            종료
                           </button>
                         )}
                       </div>
-                    </form>
-                  )}
-                  {exclusions.length === 0 ? (
-                    <p className="empty-state">
-                      등록된 활동 중단 기간이 없습니다.
-                    </p>
-                  ) : (
-                    <ul className="exclusion-list">
-                      {exclusions.map((exclusion) => (
-                        <li key={exclusion.id}>
-                          <div>
-                            <strong>
-                              {activityExclusionReasonLabels[exclusion.reason]}
-                            </strong>
-                            <span>
-                              {exclusion.startDate} ~{' '}
-                              {exclusion.endDate ?? '무기한'}
-                            </span>
-                            {exclusion.note && <span>{exclusion.note}</span>}
-                          </div>
-                          <div className="exclusion-actions">
-                            <button
-                              className="edit-button"
-                              disabled={isReadOnly}
-                              onClick={() => beginExclusionEdit(exclusion)}
-                              type="button"
-                            >
-                              수정
-                            </button>
-                            {isActivityExclusionActive(exclusion) && (
-                              <button
-                                className="secondary-button"
-                                disabled={isReadOnly}
-                                onClick={() =>
-                                  void handleEndExclusion(exclusion)
-                                }
-                                type="button"
-                              >
-                                종료
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </section>
-            </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Modal>
           )}
 
           {isMemberSheetOpen && selectedMember && (
@@ -1809,70 +1756,80 @@ function App() {
       )}
       {currentPage === 'OPERATIONS' && !isReadOnly && <OperationsPage />}
       {isOwnPasswordModalOpen && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget)
-              setIsOwnPasswordModalOpen(false)
-          }}
+        <Modal
+          ariaLabelledBy="own-profile-heading"
+          className="modal-content member-action-modal"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsOwnPasswordModalOpen(false)}
+                type="button"
+              >
+                취소
+              </button>
+              <button form="own-profile-form" type="submit">
+                저장
+              </button>
+            </>
+          }
+          onClose={() => setIsOwnPasswordModalOpen(false)}
         >
-          <section
-            aria-modal="true"
-            className="modal-content member-action-modal"
-            role="dialog"
+          <div className="modal-heading">
+            <h3 id="own-profile-heading">내 정보 수정</h3>
+            <p>
+              표시 이름은 변경할 수 있고, 비밀번호는 필요할 때만 입력해 주세요.
+            </p>
+          </div>
+          <form
+            className="form"
+            id="own-profile-form"
+            onSubmit={handleOwnProfileChange}
           >
-            <div className="modal-scroll-content">
-              <div className="modal-heading">
-                <h3>내 정보 수정</h3>
-                <p>
-                  표시 이름은 변경할 수 있고, 비밀번호는 필요할 때만 입력해
-                  주세요.
-                </p>
-              </div>
-              <form className="form" onSubmit={handleOwnProfileChange}>
-                <label>
-                  표시 이름
-                  <input
-                    onChange={(event) => setOwnDisplayName(event.target.value)}
-                    required
-                    value={ownDisplayName}
-                  />
-                </label>
-                <label>
-                  새 비밀번호
-                  <input
-                    minLength={8}
-                    onChange={(event) => setOwnPassword(event.target.value)}
-                    type="password"
-                    value={ownPassword}
-                  />
-                </label>
-                <label>
-                  새 비밀번호 확인
-                  <input
-                    minLength={8}
-                    onChange={(event) =>
-                      setOwnPasswordConfirmation(event.target.value)
-                    }
-                    type="password"
-                    value={ownPasswordConfirmation}
-                  />
-                </label>
-                <div className="form-actions">
-                  <button type="submit">저장</button>
-                  <button
-                    className="secondary-button"
-                    onClick={() => setIsOwnPasswordModalOpen(false)}
-                    type="button"
-                  >
-                    취소
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
-        </div>
+            <label>
+              표시 이름
+              <input
+                onChange={(event) => setOwnDisplayName(event.target.value)}
+                required
+                value={ownDisplayName}
+              />
+            </label>
+            <label>
+              새 비밀번호
+              <input
+                minLength={8}
+                onChange={(event) => setOwnPassword(event.target.value)}
+                type="password"
+                value={ownPassword}
+              />
+            </label>
+            <label>
+              새 비밀번호 확인
+              <input
+                minLength={8}
+                onChange={(event) =>
+                  setOwnPasswordConfirmation(event.target.value)
+                }
+                type="password"
+                value={ownPasswordConfirmation}
+              />
+            </label>
+          </form>
+        </Modal>
       )}
+      {currentPage === 'MEMBERS' &&
+        !isMemberDetailPage &&
+        !isMemberParticipationPage &&
+        !isMemberCreatePage && (
+          <button
+            aria-label="회원 목록 맨 위로 이동"
+            className="scroll-to-top-button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            type="button"
+          >
+            <ScrollTopIcon />
+          </button>
+        )}
       <BottomNav
         active={currentPage}
         items={navigationItems}

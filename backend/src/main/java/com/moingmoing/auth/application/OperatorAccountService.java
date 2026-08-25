@@ -41,6 +41,7 @@ public class OperatorAccountService {
 
     @Transactional
     public UserAccount create(String loginId, String displayName, String password, RoleCode role) {
+        validateAssignableRole(role);
         if (userAccountRepository.findByLoginId(loginId).isPresent()) {
             throw new IllegalArgumentException("이미 사용 중인 로그인 ID입니다.");
         }
@@ -53,6 +54,9 @@ public class OperatorAccountService {
     public void disable(UUID accountId) {
         UserAccount account = userAccountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("운영 계정을 찾을 수 없습니다."));
+        if (account.getPrimaryRole() == RoleCode.ADMIN) {
+            throw new IllegalArgumentException("관리자 계정은 비활성화할 수 없습니다.");
+        }
         if (account.isActive() && userAccountRepository.countByAccountStatus(AccountStatus.ACTIVE) == 1) {
             throw new IllegalArgumentException("마지막 활성 운영 계정은 비활성화할 수 없습니다.");
         }
@@ -67,13 +71,14 @@ public class OperatorAccountService {
     }
 
     @Transactional
-    public void update(UUID accountId, String loginId, String displayName, RoleCode role) {
+    public void updateRole(UUID accountId, RoleCode role) {
+        validateAssignableRole(role);
         UserAccount account = userAccountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("운영 계정을 찾을 수 없습니다."));
-        userAccountRepository.findByLoginId(loginId)
-                .filter(found -> !found.getId().equals(accountId))
-                .ifPresent(found -> { throw new IllegalArgumentException("이미 사용 중인 로그인 ID입니다."); });
-        account.updateProfile(loginId, displayName, role);
+        if (account.getPrimaryRole() == RoleCode.ADMIN) {
+            throw new IllegalArgumentException("관리자 계정의 권한은 변경할 수 없습니다.");
+        }
+        account.updateRole(role);
     }
 
     @Transactional
@@ -115,6 +120,12 @@ public class OperatorAccountService {
             password.append(RESET_PASSWORD_CHARACTERS[SECURE_RANDOM.nextInt(RESET_PASSWORD_CHARACTERS.length)]);
         }
         return password.toString();
+    }
+
+    private void validateAssignableRole(RoleCode role) {
+        if (role == RoleCode.ADMIN) {
+            throw new IllegalArgumentException("관리자 계정은 최초 관리자만 사용할 수 있습니다.");
+        }
     }
 
     public record AccountSummary(

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 
 import type { Member } from '../../App'
 import { GatheringForm } from './GatheringForm'
@@ -9,6 +9,7 @@ import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialo
 import { SearchableMemberSelect } from '../../shared/member-select/SearchableMemberSelect'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { RefreshIcon } from '../../shared/ui/RefreshIcon'
+import { Modal } from '../../shared/ui/Modal'
 
 type GatheringStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED'
 type ParticipationType = 'NORMAL' | 'COUPON' | 'HOST'
@@ -130,58 +131,6 @@ function formatCalendarDateLabel(year: number, month: number, day: number) {
 type AttendancePageProps = {
   members: Member[]
   readOnly?: boolean
-}
-
-type ModalProps = {
-  ariaLabelledBy: string
-  children: ReactNode
-  closeOnEscape?: boolean
-  footer?: ReactNode
-  onClose: () => void
-}
-
-function Modal({
-  ariaLabelledBy,
-  children,
-  closeOnEscape = true,
-  footer,
-  onClose,
-}: ModalProps) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (closeOnEscape && event.key === 'Escape') {
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [closeOnEscape, onClose])
-
-  return (
-    <div className="modal-backdrop">
-      <section
-        aria-labelledby={ariaLabelledBy}
-        aria-modal="true"
-        className="modal-content"
-        role="dialog"
-      >
-        <div className="modal-scroll-content">
-          <div className="modal-header">
-            <button
-              aria-label="모달 닫기"
-              className="modal-close-button"
-              onClick={onClose}
-              type="button"
-            >
-              ×
-            </button>
-          </div>
-          {children}
-        </div>
-        {footer && <footer className="modal-footer">{footer}</footer>}
-      </section>
-    </div>
-  )
 }
 
 export function AttendancePage({
@@ -1061,6 +1010,24 @@ export function AttendancePage({
       {isCreateGatheringOpen && (
         <Modal
           ariaLabelledBy="create-gathering-heading"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsCreateGatheringOpen(false)}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                disabled={isCreatingGathering}
+                form="create-gathering-form"
+                type="submit"
+              >
+                {isCreatingGathering ? '정모 개설 중…' : '정모 개설'}
+              </button>
+            </>
+          }
           onClose={() => setIsCreateGatheringOpen(false)}
         >
           <div className="modal-heading">
@@ -1070,6 +1037,7 @@ export function AttendancePage({
           <GatheringForm
             endsOn={endsOn}
             error={createGatheringError}
+            formId="create-gathering-form"
             gatheringType={gatheringType}
             heldOn={heldOn}
             hostMemberId={hostMemberId}
@@ -1093,6 +1061,7 @@ export function AttendancePage({
             submitLabel="정모 개설"
             submittingLabel="정모 개설 중…"
             showHostSelection
+            showActions={false}
             title={title}
           />
         </Modal>
@@ -1352,13 +1321,35 @@ export function AttendancePage({
       {isGatheringCancellationOpen && selectedGathering && (
         <Modal
           ariaLabelledBy="cancel-gathering-heading"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsGatheringCancellationOpen(false)}
+                type="button"
+              >
+                돌아가기
+              </button>
+              <button
+                className="danger-button"
+                form="cancel-gathering-form"
+                type="submit"
+              >
+                모임 취소
+              </button>
+            </>
+          }
           onClose={() => setIsGatheringCancellationOpen(false)}
         >
           <div className="modal-heading">
             <h3 id="cancel-gathering-heading">모임을 취소할까요?</h3>
             <p>{`${selectedGathering.heldOn} ${selectedGathering.title ?? '정모'}`}</p>
           </div>
-          <form className="form" onSubmit={cancelGathering}>
+          <form
+            className="form"
+            id="cancel-gathering-form"
+            onSubmit={cancelGathering}
+          >
             <label>
               취소 사유
               <textarea
@@ -1371,18 +1362,6 @@ export function AttendancePage({
                 value={gatheringCancellationReason}
               />
             </label>
-            <div className="form-actions">
-              <button className="danger-button" type="submit">
-                모임 취소
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => setIsGatheringCancellationOpen(false)}
-                type="button"
-              >
-                돌아가기
-              </button>
-            </div>
             {gatheringCancellationError && (
               <p className="field-error" role="alert">
                 {gatheringCancellationError}
@@ -1394,6 +1373,20 @@ export function AttendancePage({
       {isEditGatheringOpen && selectedGathering && (
         <Modal
           ariaLabelledBy="edit-gathering-heading"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsEditGatheringOpen(false)}
+                type="button"
+              >
+                취소
+              </button>
+              <button form="edit-gathering-form" type="submit">
+                변경사항 저장
+              </button>
+            </>
+          }
           onClose={() => setIsEditGatheringOpen(false)}
         >
           <div className="modal-heading">
@@ -1403,6 +1396,7 @@ export function AttendancePage({
           <GatheringForm
             endsOn={editEndsOn}
             error={editGatheringError}
+            formId="edit-gathering-form"
             gatheringType={editGatheringType}
             heldOn={editHeldOn}
             hostMemberId={editHostMemberId}
@@ -1421,6 +1415,7 @@ export function AttendancePage({
             onTitleChange={setEditTitle}
             submitLabel="변경사항 저장"
             showHostSelection
+            showActions={false}
             title={editTitle}
           />
         </Modal>

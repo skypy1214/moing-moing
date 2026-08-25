@@ -9,6 +9,7 @@ export type GatheringType = 'CLASS' | 'EVENT'
 type GatheringFormProps = {
   endsOn: string
   error?: string
+  formId?: string
   gatheringType: GatheringType
   heldOn: string
   hostMemberId?: string
@@ -26,12 +27,14 @@ type GatheringFormProps = {
   submitLabel: string
   submittingLabel?: string
   showHostSelection?: boolean
+  showActions?: boolean
   title: string
 }
 
 export function GatheringForm({
   endsOn,
   error,
+  formId,
   gatheringType,
   heldOn,
   hostMemberId = '',
@@ -49,10 +52,11 @@ export function GatheringForm({
   submitLabel,
   submittingLabel,
   showHostSelection = false,
+  showActions = true,
   title,
 }: GatheringFormProps) {
   return (
-    <form className="form" onSubmit={onSubmit}>
+    <form className="form" id={formId} onSubmit={onSubmit}>
       <fieldset className="gathering-type-field">
         <legend>정모 구분</legend>
         <div className="gathering-type-options">
@@ -115,14 +119,16 @@ export function GatheringForm({
           {error}
         </p>
       )}
-      <div className="form-actions">
-        <button disabled={isSubmitting} type="submit">
-          {isSubmitting && submittingLabel ? submittingLabel : submitLabel}
-        </button>
-        <button className="secondary-button" onClick={onCancel} type="button">
-          취소
-        </button>
-      </div>
+      {showActions && (
+        <div className="form-actions">
+          <button disabled={isSubmitting} type="submit">
+            {isSubmitting && submittingLabel ? submittingLabel : submitLabel}
+          </button>
+          <button className="secondary-button" onClick={onCancel} type="button">
+            취소
+          </button>
+        </div>
+      )}
     </form>
   )
 }

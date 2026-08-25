@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import type { IDetectedBarcode, IScannerError } from '@yudiel/react-qr-scanner'
 import { QRCodeSVG } from 'qrcode.react'
@@ -15,6 +15,8 @@ import {
 } from '../../shared/ui/KoreanDateInput'
 import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { SelectField } from '../../shared/ui/SelectField'
+import { Modal } from '../../shared/ui/Modal'
+import { useEscapeKey } from '../../shared/ui/useEscapeKey'
 
 type CouponStatus = 'ISSUED' | 'SUSPENDED' | 'EXPIRED' | 'FULLY_USED' | 'VOIDED'
 type CouponType = 'MANUAL_FREE_PASS' | 'ATTENDANCE_CHAMPION'
@@ -86,51 +88,6 @@ function couponValidityLabel(coupon: Coupon) {
 type CouponPageProps = {
   members: Member[]
   readOnly?: boolean
-}
-
-function CouponDialog({
-  children,
-  onClose,
-}: {
-  children: ReactNode
-  onClose: () => void
-}) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => document.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-
-  return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
-    >
-      <section aria-modal="true" className="modal-content" role="dialog">
-        <div className="modal-scroll-content">
-          <div className="modal-header">
-            <button
-              aria-label="모달 닫기"
-              className="modal-close-button"
-              onClick={onClose}
-              type="button"
-            >
-              ×
-            </button>
-          </div>
-          {children}
-        </div>
-      </section>
-    </div>
-  )
 }
 
 export function CouponPage({ members, readOnly = false }: CouponPageProps) {
@@ -640,6 +597,16 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
     await loadCoupons()
   }
 
+  useEscapeKey(closeQrUse, isQrUseOpen)
+  useEscapeKey(() => setSelectedCoupon(null), selectedCoupon !== null)
+  useEscapeKey(
+    () => {
+      setQrCodeCoupon(null)
+      setQrCodeToken('')
+    },
+    qrCodeCoupon !== null && qrCodeToken !== '',
+  )
+
   return (
     <section className="coupon-page">
       <div className="attendance-page-heading">
@@ -775,7 +742,15 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
         </section>
       )}
       {!isCouponIssuePage && !readOnly && isAwardIssueOpen && (
-        <CouponDialog onClose={() => setIsAwardIssueOpen(false)}>
+        <Modal
+          ariaLabelledBy="coupon-award-heading"
+          footer={
+            <button form="coupon-award-form" type="submit">
+              {'출석왕 확정 및 쿠폰 발급'}
+            </button>
+          }
+          onClose={() => setIsAwardIssueOpen(false)}
+        >
           <div className="modal-heading">
             <div>
               <h2 id="coupon-award-heading">{'출석왕 자동 발급'}</h2>
@@ -783,7 +758,11 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               <p>{'※쿠폰 사용은 제외됩니다.'}</p>
             </div>
           </div>
-          <form className="coupon-award-form" onSubmit={grantAwards}>
+          <form
+            className="coupon-award-form"
+            id="coupon-award-form"
+            onSubmit={grantAwards}
+          >
             <SelectField
               label="대상 연도"
               onChange={(year) =>
@@ -806,7 +785,6 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               })}
               value={awardMonth.slice(5)}
             />
-            <button type="submit">{'출석왕 확정 및 쿠폰 발급'}</button>
           </form>
           {awards.length > 0 && (
             <ul className="coupon-list coupon-award-list">
@@ -842,7 +820,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               ))}
             </ul>
           )}
-        </CouponDialog>
+        </Modal>
       )}
       {!isCouponIssuePage && (
         <section className="panel">
@@ -1089,7 +1067,7 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
         </div>
       )}
       {usageHistoryCouponId !== null && (
-        <CouponDialog onClose={() => setUsageHistoryCouponId(null)}>
+        <Modal onClose={() => setUsageHistoryCouponId(null)}>
           <div className="modal-heading">
             <h2>쿠폰 사용 이력</h2>
           </div>
@@ -1128,14 +1106,30 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               />
             </label>
           )}
-        </CouponDialog>
+        </Modal>
       )}
       {!readOnly && couponToUse !== null && (
-        <CouponDialog onClose={() => setCouponToUse(null)}>
+        <Modal
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setCouponToUse(null)}
+                type="button"
+              >
+                {'취소'}
+              </button>
+              <button form="coupon-use-form" type="submit">
+                {'쿠폰 사용 및 출석 기록'}
+              </button>
+            </>
+          }
+          onClose={() => setCouponToUse(null)}
+        >
           <div className="modal-heading">
             <h2>{'쿠폰 사용 처리'}</h2>
           </div>
-          <form className="form" onSubmit={useCoupon}>
+          <form className="form" id="coupon-use-form" onSubmit={useCoupon}>
             <SelectField
               label="열린 모임"
               onChange={setGatheringId}
@@ -1146,18 +1140,8 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               placeholder="선택"
               value={gatheringId}
             />
-            <div className="form-actions">
-              <button type="submit">{'쿠폰 사용 및 출석 기록'}</button>
-              <button
-                className="secondary-button"
-                onClick={() => setCouponToUse(null)}
-                type="button"
-              >
-                {'취소'}
-              </button>
-            </div>
           </form>
-        </CouponDialog>
+        </Modal>
       )}
       {!readOnly && isQrUseOpen && (
         <section

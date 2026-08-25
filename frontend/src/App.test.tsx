@@ -147,7 +147,7 @@ describe('App', () => {
     expect(screen.getByText('역할 정보를 저장했습니다.')).toBeInTheDocument()
   })
 
-  it('prioritizes leadership roles and filters the member list by role', async () => {
+  it('prioritizes leadership roles in the member list', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
@@ -207,15 +207,8 @@ describe('App', () => {
       expect.stringContaining('일반 회원'),
     ])
 
-    await user.click(screen.getByRole('button', { name: '회원 추가' }))
-    const staffRoleRadio = screen.getByRole('radio', { name: /운영진/ })
-    await user.click(staffRoleRadio)
-    expect(staffRoleRadio).toBeChecked()
-    await user.click(screen.getByRole('button', { name: '목록으로' }))
-
-    await user.selectOptions(screen.getByLabelText('회원 역할'), 'STAFF')
-
+    expect(screen.getByText('일반 회원')).toBeInTheDocument()
     expect(screen.getByText('운영진 회원')).toBeInTheDocument()
-    expect(screen.queryByText('모임장 회원')).not.toBeInTheDocument()
+    expect(screen.getByText('모임장 회원')).toBeInTheDocument()
   })
 })
