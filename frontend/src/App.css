@@ -49,6 +49,49 @@
   margin-left: auto;
 }
 
+.activity-log-filters {
+  align-items: end;
+  display: grid;
+  gap: 16px;
+  grid-template-columns:
+    minmax(200px, 1fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr)
+    auto;
+  margin: 24px 0;
+}
+
+.activity-log-filters > label,
+.activity-log-filters .ui-select-field {
+  min-width: 0;
+}
+
+.activity-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-log-list li {
+  align-items: center;
+  border-top: 1px solid var(--border-color, #d7dce2);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.activity-log-list li > div {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-log-list li > div:last-child {
+  justify-items: end;
+}
+
+.activity-log-list small {
+  color: var(--muted-text-color, #667085);
+}
+
 .scroll-to-top-button {
   align-items: center;
   border-radius: 50%;
@@ -963,6 +1006,11 @@ h2 {
   max-width: 760px;
   overflow: hidden;
   width: 100%;
+}
+
+/* Keep the attendance workspace stable while its empty state changes to a list. */
+.attendance-detail-modal {
+  min-height: min(640px, calc(100vh - 48px));
 }
 
 .modal-scroll-content {
@@ -2105,7 +2153,8 @@ button:hover {
 
   .attendance-page-heading,
   .attendance-record-form,
-  .attendance-history-controls {
+  .attendance-history-controls,
+  .activity-log-filters {
     align-items: stretch;
     grid-template-columns: 1fr;
   }
@@ -2113,6 +2162,15 @@ button:hover {
   .attendance-page-heading {
     flex-direction: column;
     gap: 16px;
+  }
+
+  .activity-log-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .activity-log-list li > div:last-child {
+    justify-items: start;
   }
 
   .coupon-award-form {
@@ -2142,6 +2200,10 @@ button:hover {
 
   .modal-content {
     max-height: calc(100vh - 24px);
+  }
+
+  .attendance-detail-modal {
+    min-height: min(640px, calc(100vh - 24px));
   }
 
   .modal-scroll-content {

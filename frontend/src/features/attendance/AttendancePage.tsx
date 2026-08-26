@@ -283,7 +283,6 @@ export function AttendancePage({
     setEndsOn(date)
     setHostMemberId('')
     setIsCreateGatheringOpen(true)
-    setMessage(`${date} 날짜의 정모 개설 창을 열었습니다.`)
   }
 
   async function refreshGatherings() {
@@ -388,13 +387,15 @@ export function AttendancePage({
       const gathering = normalizeGathering((await response.json()) as Gathering)
       setGatherings((previous) => [gathering, ...previous])
       setSelectedGatheringId(gathering.id)
+      // A selected host is saved as an attendance record, not on Gathering itself.
+      // Load it immediately so the newly opened attendance sheet reflects the saved host.
+      await loadAttendances(gathering.id)
       setIsCreateGatheringOpen(false)
       setTitle('')
       setLocation('')
       setGatheringType('CLASS')
       setEndsOn(heldOn)
       setHostMemberId('')
-      setMessage('정모를 개설했습니다.')
     } catch (error) {
       setCreateGatheringError(
         errorMessage(error, '출석부를 만들지 못했습니다.'),
@@ -422,9 +423,6 @@ export function AttendancePage({
         previous.map((gathering) =>
           gathering.id === updated.id ? updated : gathering,
         ),
-      )
-      setMessage(
-        `출석부 상태를 ${gatheringStatusLabels[updated.gatheringStatus]}(으)로 변경했습니다.`,
       )
     } catch (error) {
       setMessage(errorMessage(error, '출석부 상태를 변경하지 못했습니다.'))
@@ -585,11 +583,6 @@ export function AttendancePage({
         )
       })
       setMemberId('')
-      setMessage(
-        existingAttendance
-          ? '출석 상태를 변경했습니다.'
-          : '출석 기록을 추가했습니다.',
-      )
     } catch (error) {
       setMessage(errorMessage(error, '출석 기록을 추가하지 못했습니다.'))
     }
@@ -732,6 +725,15 @@ export function AttendancePage({
   const selectedAttendanceCount = selectedAttendances.filter(
     (attendance) => attendance.attendanceStatus === 'RECORDED',
   ).length
+  const selectedHostMemberId = selectedAttendances.find(
+    (attendance) =>
+      attendance.participationType === 'HOST' &&
+      attendance.attendanceStatus === 'RECORDED',
+  )?.memberId
+  const selectedHost =
+    selectedHostMemberId === undefined
+      ? null
+      : (membersById.get(selectedHostMemberId)?.displayName ?? '이름 미확인')
   const visibleGatherings = gatherings.filter((gathering) => {
     const isInCalendarMonth =
       gathering.heldOn.slice(0, 7) ===
@@ -1122,6 +1124,7 @@ export function AttendancePage({
       {selectedGathering && (
         <Modal
           ariaLabelledBy="attendance-detail-heading"
+          className="modal-content attendance-detail-modal"
           closeOnEscape={!isGatheringCancellationOpen && !isEditGatheringOpen}
           footer={
             !readOnly && selectedGathering.gatheringStatus !== 'CANCELLED' ? (
@@ -1176,6 +1179,9 @@ export function AttendancePage({
                 <p>
                   {selectedGathering.location ?? '장소 미입력'} ·{' '}
                   {gatheringTypeLabels[selectedGathering.gatheringType]} ·{' '}
+                  {selectedGathering.gatheringType === 'CLASS' && (
+                    <>진행자 {selectedHost ?? '미지정'} · </>
+                  )}
                   {gatheringStatusLabels[selectedGathering.gatheringStatus]} ·{' '}
                   {selectedAttendanceCount}명 참여
                 </p>

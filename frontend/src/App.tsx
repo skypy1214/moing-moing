@@ -17,6 +17,7 @@ import {
 import { MemberParticipationHistory } from './features/member/MemberParticipationHistory'
 import { MeetingNotePage } from './features/meetingnote/MeetingNotePage'
 import { MonthlyStatisticsPage } from './features/statistics/MonthlyStatisticsPage'
+import { ActivityLogPage } from './features/operations/ActivityLogPage'
 import { OperationsPage } from './features/operations/OperationsPage'
 import {
   MemberRoleIcon,
@@ -88,6 +89,7 @@ type PageKey =
   | 'STATISTICS'
   | 'MEETING_NOTES'
   | 'OPERATIONS'
+  | 'ACTIVITY_LOG'
 
 type BackendStatus = 'CHECKING' | 'READY' | 'UNAVAILABLE'
 
@@ -98,6 +100,16 @@ type DocumentWithViewTransition = Document & {
 const today = new Date().toISOString().slice(0, 10)
 const healthCheckTimeoutMs = 10_000
 const healthCheckRetryDelayMs = 5_000
+
+const pageTitles: Record<PageKey, string> = {
+  MEMBERS: '회원 관리',
+  ATTENDANCE: '출석 관리',
+  COUPONS: '쿠폰 관리',
+  STATISTICS: '월별 통계',
+  MEETING_NOTES: '게시판',
+  OPERATIONS: '운영 관리',
+  ACTIVITY_LOG: '작업 이력',
+}
 
 const activityExclusionReasonLabels: Record<ActivityExclusionReason, string> = {
   PERSONAL_BREAK: '개인 사정',
@@ -133,6 +145,16 @@ function getInactivityBadge(member: Member): InactivityBadge | null {
   }
 
   const now = new Date()
+  const joinedDate = new Date(`${member.joinedOn}T00:00:00`)
+  if (Number.isNaN(joinedDate.getTime()) || joinedDate > now) {
+    return null
+  }
+  const threeMonthsAfterJoining = new Date(joinedDate)
+  threeMonthsAfterJoining.setMonth(threeMonthsAfterJoining.getMonth() + 3)
+  if (threeMonthsAfterJoining > now) {
+    return { label: '🌱 새싹 회원', tone: 'new-member' }
+  }
+
   const referenceDate = new Date(
     `${member.lastAttendanceOn ?? member.joinedOn}T00:00:00`,
   )
@@ -141,11 +163,7 @@ function getInactivityBadge(member: Member): InactivityBadge | null {
   }
 
   if (member.lastAttendanceOn === null) {
-    const threeMonthsAfterJoining = new Date(referenceDate)
-    threeMonthsAfterJoining.setMonth(threeMonthsAfterJoining.getMonth() + 3)
-    return threeMonthsAfterJoining > now
-      ? { label: '🌱 새싹 회원', tone: 'new-member' }
-      : { label: '미활동자', tone: 'inactive' }
+    return { label: '미활동자', tone: 'inactive' }
   }
 
   const oneMonthLater = new Date(referenceDate)
@@ -280,6 +298,8 @@ function App() {
     desktopLabel: string
     icon: string
   }[]
+  const activeNavigationPage =
+    currentPage === 'ACTIVITY_LOG' ? 'OPERATIONS' : currentPage
 
   const visibleMembers = useMemo(() => {
     const normalizedSearch = memberSearch.trim().toLocaleLowerCase()
@@ -1016,7 +1036,7 @@ function App() {
       <header className="app-header">
         <div>
           <p className="eyebrow">MOING MOING</p>
-          <h1>{currentPage === 'MEMBERS' ? '회원 관리' : '출석 관리'}</h1>
+          <h1>{pageTitles[currentPage]}</h1>
         </div>
         <div className="account-actions">
           <span>{currentDisplayName}</span>
@@ -1040,7 +1060,7 @@ function App() {
         style={
           {
             '--active-index': navigationItems.findIndex(
-              (item) => item.value === currentPage,
+              (item) => item.value === activeNavigationPage,
             ),
             '--item-count': navigationItems.length,
           } as CSSProperties
@@ -1050,7 +1070,7 @@ function App() {
         {navigationItems.map((item) => (
           <button
             className={
-              currentPage === item.value
+              activeNavigationPage === item.value
                 ? 'navigation-active'
                 : 'secondary-button'
             }
@@ -1685,7 +1705,14 @@ function App() {
       {currentPage === 'MEETING_NOTES' && (
         <MeetingNotePage isAdmin={isAdmin} readOnly={!canManage} />
       )}
-      {currentPage === 'OPERATIONS' && isAdmin && <OperationsPage />}
+      {currentPage === 'OPERATIONS' && isAdmin && (
+        <OperationsPage
+          onOpenActivityHistory={() => navigateToPage('ACTIVITY_LOG')}
+        />
+      )}
+      {currentPage === 'ACTIVITY_LOG' && isAdmin && (
+        <ActivityLogPage onBack={() => navigateToPage('OPERATIONS')} />
+      )}
       {isOwnPasswordModalOpen && (
         <Modal
           ariaLabelledBy="own-profile-heading"
@@ -1762,7 +1789,7 @@ function App() {
           </button>
         )}
       <BottomNav
-        active={currentPage}
+        active={activeNavigationPage}
         items={navigationItems}
         onChange={navigateToPage}
       />

@@ -4,6 +4,9 @@ spring:
       on-profile: prod
   main:
     lazy-initialization: true
+  mvc:
+    servlet:
+      load-on-startup: 1
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

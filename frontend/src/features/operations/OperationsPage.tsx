@@ -4,24 +4,9 @@ import type { FormEvent } from 'react'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
 import { Modal } from '../../shared/ui/Modal'
+import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { SelectField } from '../../shared/ui/SelectField'
-
-type Account = {
-  id: string
-  loginId: string
-  displayName: string
-  role: 'ADMIN' | 'GROUP_LEADER' | 'STAFF' | 'MEMBER'
-  status: 'ACTIVE' | 'DISABLED'
-}
-
-type ActivityLog = {
-  id: string
-  actorDisplayName: string | null
-  action: string
-  requestId: string | null
-  status: number
-  occurredAt: string
-}
+import type { Account } from './types'
 
 const roleLabels: Record<Account['role'], string> = {
   ADMIN: '관리자',
@@ -43,9 +28,12 @@ const assignableRoleOptions = Object.entries(assignableRoleLabels).map(
   ([value, label]) => ({ value, label }),
 )
 
-export function OperationsPage() {
+type OperationsPageProps = {
+  onOpenActivityHistory: () => void
+}
+
+export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
   const [accounts, setAccounts] = useState<Account[]>([])
-  const [logs, setLogs] = useState<ActivityLog[]>([])
   const [displayName, setDisplayName] = useState('')
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
@@ -66,41 +54,16 @@ export function OperationsPage() {
     setAccounts((await response.json()) as Account[])
   }, [])
 
-  const loadLogs = useCallback(async () => {
-    const response = await fetch('/api/v1/admin/activity-logs', {
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error('작업 이력을 불러오지 못했습니다.')
-    }
-    setLogs((await response.json()) as ActivityLog[])
-  }, [])
-
-  const load = useCallback(async () => {
-    const [accountsResult, logsResult] = await Promise.allSettled([
-      loadAccounts(),
-      loadLogs(),
-    ])
-    if (accountsResult.status === 'rejected') {
-      throw accountsResult.reason
-    }
-    if (logsResult.status === 'rejected') {
-      setMessage(
-        '작업 이력만 불러오지 못했습니다. 계정 관리는 계속 사용할 수 있습니다.',
-      )
-    }
-  }, [loadAccounts, loadLogs])
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- The asynchronous request updates server-backed state after this effect returns.
-    void load().catch((error: unknown) =>
+    void loadAccounts().catch((error: unknown) =>
       setMessage(
         error instanceof Error
           ? error.message
           : '운영 관리 정보를 불러오지 못했습니다.',
       ),
     )
-  }, [load])
+  }, [loadAccounts])
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -122,7 +85,7 @@ export function OperationsPage() {
     setPassword('')
     setRole('MEMBER')
     setMessage('운영 계정을 발급했습니다.')
-    await load()
+    await loadAccounts()
   }
 
   async function updateRole(event: FormEvent<HTMLFormElement>) {
@@ -142,7 +105,7 @@ export function OperationsPage() {
     }
     setEditingRole(null)
     setMessage('권한을 수정했습니다.')
-    await load()
+    await loadAccounts()
   }
 
   async function resetAccountPassword(account: Account) {
@@ -180,7 +143,7 @@ export function OperationsPage() {
       return
     }
     setMessage('계정을 비활성화했습니다.')
-    await load()
+    await loadAccounts()
   }
 
   async function activateAccount(account: Account) {
@@ -196,7 +159,7 @@ export function OperationsPage() {
       return
     }
     setMessage('계정을 활성화했습니다.')
-    await load()
+    await loadAccounts()
   }
 
   async function copyResetPassword() {
@@ -210,15 +173,26 @@ export function OperationsPage() {
       <div className="panel-heading">
         <div>
           <h2 id="operations-heading">운영 관리</h2>
-          <p>운영 계정 발급과 최근 작업 이력을 관리합니다.</p>
+          <p>운영 계정 발급과 권한을 관리합니다.</p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => void load()}
-          type="button"
-        >
-          새로고침
-        </button>
+        <div className="header-actions">
+          <button
+            className="secondary-button"
+            onClick={onOpenActivityHistory}
+            type="button"
+          >
+            작업 이력 관리
+          </button>
+          <button
+            aria-label="운영 계정 목록 새로고침"
+            className="secondary-button icon-button"
+            onClick={() => void loadAccounts()}
+            title="새로고침"
+            type="button"
+          >
+            <RefreshIcon />
+          </button>
+        </div>
       </div>
 
       <form className="form" onSubmit={createAccount}>
@@ -323,22 +297,6 @@ export function OperationsPage() {
         </ul>
       </section>
 
-      <section className="panel-section" aria-labelledby="activity-log-heading">
-        <h3 id="activity-log-heading">최근 작업 이력</h3>
-        <ul className="plain-list">
-          {logs.map((log) => (
-            <li key={log.id}>
-              <strong>{log.actorDisplayName ?? '작업자 없음'}</strong>
-              <span>{log.action}</span>
-              <span>{log.status}</span>
-              <small>
-                {new Date(log.occurredAt).toLocaleString('ko-KR')} ·{' '}
-                {log.requestId ?? '요청 ID 없음'}
-              </small>
-            </li>
-          ))}
-        </ul>
-      </section>
       {message && (
         <FeedbackMessageDialog
           message={message}
