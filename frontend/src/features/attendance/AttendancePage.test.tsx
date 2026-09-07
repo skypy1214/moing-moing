@@ -24,6 +24,7 @@ describe('AttendancePage', () => {
 
   it('loads a gathering and its attendance records through the API', async () => {
     const user = userEvent.setup()
+    const currentMonth = new Date().toISOString().slice(0, 7)
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -31,7 +32,7 @@ describe('AttendancePage', () => {
         json: async () => [
           {
             id: 'gathering-1',
-            heldOn: '2026-08-21',
+            heldOn: `${currentMonth}-21`,
             title: '정기 모임',
             startsAt: null,
             location: null,

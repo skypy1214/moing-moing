@@ -9,6 +9,51 @@ type Environment = {
 
 const apiPathPrefix = '/api/'
 
+const warmUpApi = async (environment: Environment): Promise<void> => {
+  const configuredOrigin = environment.API_ORIGIN?.trim()
+  if (!configuredOrigin) {
+    console.error('api-warmup-skipped', {
+      reason: 'API_ORIGIN is not configured.',
+    })
+    return
+  }
+
+  let readyUrl: URL
+  try {
+    readyUrl = new URL('/api/v1/ready', configuredOrigin)
+  } catch {
+    console.error('api-warmup-skipped', {
+      reason: 'API_ORIGIN is not a valid URL.',
+    })
+    return
+  }
+
+  if (readyUrl.protocol !== 'https:') {
+    console.error('api-warmup-skipped', {
+      reason: 'API_ORIGIN must use HTTPS.',
+    })
+    return
+  }
+
+  const startedAt = Date.now()
+  try {
+    const response = await fetch(readyUrl, {
+      headers: { 'User-Agent': 'moing-moing-render-warmup' },
+    })
+    console.info('api-warmup', {
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+    })
+  } catch (error) {
+    // A cold start can exceed the Worker fetch timeout. The next scheduled run retries it,
+    // and a warm-up failure must never affect a visitor's request path.
+    console.warn('api-warmup-failed', {
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : 'unknown',
+    })
+  }
+}
+
 const proxyApiRequest = async (
   request: Request,
   environment: Environment,
@@ -89,5 +134,12 @@ export default {
     }
 
     return environment.ASSETS.fetch(request)
+  },
+
+  async scheduled(
+    _controller: ScheduledController,
+    environment: Environment,
+  ): Promise<void> {
+    await warmUpApi(environment)
   },
 }

@@ -49,6 +49,7 @@ record MonthlyStatisticsResponse(
         int denominator,
         double attendanceRate,
         double activityRate,
+        int collectedParticipationFee,
         List<StatisticsMemberResponse> targetMembers,
         List<UUID> attendedMemberIds,
         List<UUID> activityExcludedMemberIds) {
@@ -60,6 +61,7 @@ record MonthlyStatisticsResponse(
                 result.denominator(),
                 result.attendanceRate(),
                 result.activityRate(),
+                result.collectedParticipationFee(),
                 result.targetMembers().stream().map(StatisticsMemberResponse::from).toList(),
                 result.attendedMemberIds().stream().sorted().toList(),
                 result.activityExcludedMemberIds().stream().sorted().toList());

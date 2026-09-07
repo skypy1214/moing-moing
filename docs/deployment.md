@@ -1,5 +1,14 @@
 # Cloudflare Workers + Render + Neon 배포
 
+## Render Free 사용 시간대 warm-up
+
+Cloudflare Worker Cron Trigger가 Render의 `/api/v1/ready`를 직접 호출한다. `wrangler.jsonc`의 cron은 UTC 기준으로 매 10분마다 실행되며, 한국 시간 `08:00~01:50`에만 호출한다. 따라서 새벽 `02:00~07:59`에는 호출하지 않아 Free Web Service가 자연스럽게 sleep한다.
+
+- warm-up은 브라우저 요청이나 Worker API 프록시를 경유하지 않고 `API_ORIGIN`의 Render URL로 직접 호출한다.
+- `/api/v1/ready`는 인증 없이 DB readiness를 확인하는 가벼운 endpoint다.
+- 실패는 Worker 로그에만 기록하고, 다음 스케줄에서 재시도한다. 사용자 API 요청의 응답에는 영향을 주지 않는다.
+- Free 인스턴스는 플랫폼 재시작이 가능하므로, 이 설정은 cold start 빈도를 줄이는 용도이지 상시 가용성을 보장하지 않는다.
+
 ## 구성
 
 ```text

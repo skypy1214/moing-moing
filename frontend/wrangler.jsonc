@@ -11,6 +11,10 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  "triggers": {
+    // UTC cron expressions. Together these cover 08:00–01:50 in Asia/Seoul.
+    "crons": ["*/10 0-16 * * *", "*/10 23 * * *"],
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist",

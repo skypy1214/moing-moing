@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.moingmoing.attendance.domain.Attendance;
+import com.moingmoing.attendance.domain.AttendancePaymentStatus;
+import com.moingmoing.attendance.domain.AttendanceStatus;
 
 public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
@@ -15,4 +17,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     List<Attendance> findByGatheringIdOrderByRecordedAtAsc(UUID gatheringId);
 
     List<Attendance> findByMemberIdOrderByRecordedAtDesc(UUID memberId);
+
+    List<Attendance> findByAttendanceStatusAndPaymentStatusOrderByRecordedAtDesc(
+            AttendanceStatus attendanceStatus, AttendancePaymentStatus paymentStatus);
 }

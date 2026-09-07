@@ -24,6 +24,10 @@ AttendanceChampionAward N --- 1 Member
 AttendanceChampionAward 1 --- N Coupon (정책 스냅샷의 사용 가능 횟수를 가진 쿠폰)
 ```
 
+참가비는 별도 회비나 결제 수단이 아니라 특정 정모 참여의 속성이다. `Gathering.defaultParticipationFee`는 일반 출석의 기본값이며, `Attendance.appliedFee`, `paymentStatus(PENDING | PAID | EXEMPT)`, `paidAt`은 그 출석에 확정된 개별 조건을 보관한다. `feeOverridden = false`인 일반 출석은 정모 기본 참가비 변경을 따라가고, 운영자가 무료·할인 등으로 직접 수정한 `feeOverridden = true` 기록은 이후 기본값 변경에도 보존한다.
+
+수업 진행자 출석(`HOST`)은 운영상 참가비를 내지 않으므로 항상 `appliedFee = 0`, `paymentStatus = EXEMPT`다. 진행자를 새로 지정하거나 기존 출석을 진행자로 바꿀 때도 이 값으로 정정한다.
+
 `Gathering`은 날짜별 출석부의 헤더다. 이를 두지 않고 Attendance에 날짜만 넣으면 모임 취소, 장소/메모와 출석부 상태를 확장하기 어렵고 동일 날짜 모임의 의미도 불명확해진다.
 
 ## 3. 엔티티 제안

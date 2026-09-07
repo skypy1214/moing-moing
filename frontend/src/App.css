@@ -716,7 +716,7 @@ h2 {
 .statistics-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 24px;
 }
 .statistics-grid article {
@@ -1174,6 +1174,34 @@ h2 {
   gap: 12px;
   justify-content: space-between;
   padding: 14px 0;
+}
+
+.attendance-detail .attendance-list > li:not(.attendance-cancel-form) {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto auto auto;
+  justify-content: initial;
+}
+
+.attendance-detail .attendance-list > li > strong {
+  min-width: 0;
+}
+
+.attendance-detail .attendance-list > li > .attendance-row-actions {
+  justify-self: end;
+}
+
+@media (max-width: 900px) and (min-width: 641px) {
+  .attendance-detail .attendance-list > li:not(.attendance-cancel-form) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .attendance-detail .attendance-list > li > .edit-button {
+    grid-column: 2;
+  }
+
+  .attendance-detail .attendance-list > li > .attendance-row-actions {
+    grid-column: 2 / -1;
+  }
 }
 
 .coupon-list li {
@@ -2038,6 +2066,19 @@ button:hover {
 }
 
 @media (max-width: 640px) {
+  .statistics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-detail .attendance-list > li:not(.attendance-cancel-form) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .attendance-detail .attendance-list > li > .attendance-row-actions {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .member-participation-heading,
   .member-participation-list li {
     align-items: flex-start;
@@ -3072,5 +3113,181 @@ button:not(:disabled):active {
   .exclusion-actions {
     align-items: end;
     flex-direction: row;
+  }
+}
+.unpaid-attendance-panel {
+  margin-top: 1rem;
+}
+
+.unpaid-attendance-list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.unpaid-attendance-grid {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.875rem 0;
+}
+
+.unpaid-attendance-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.unpaid-attendance-grid span {
+  color: #637083;
+  font-size: 0.875rem;
+}
+
+.payment-fee {
+  color: #172033 !important;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.payment-status {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
+.payment-status-pending {
+  background: #fff3cd;
+  color: #855d00;
+}
+
+.payment-status-paid {
+  background: #e2f6ea;
+  color: #177245;
+}
+
+.payment-status-exempt {
+  background: #eef1f5;
+  color: #536171;
+}
+
+.payment-status-options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.payment-status-options > span {
+  color: #344055;
+  font-weight: 700;
+}
+
+.payment-status-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.payment-status-buttons button {
+  font-size: 0.82rem;
+  min-height: 34px;
+  padding: 0.35rem 0.65rem;
+}
+
+.settlement-filter {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.settlement-filter .korean-date-input {
+  max-width: 10rem;
+}
+
+.settlement-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.settlement-expense-list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settlement-expense-list li {
+  align-items: center;
+  border: 1px solid var(--color-border, #e3e7ed);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 6.5rem minmax(6rem, 0.8fr) minmax(0, 1fr) auto;
+  padding: 0.75rem 0.875rem;
+}
+
+.settlement-expense-list li span {
+  color: #637083;
+  font-size: 0.875rem;
+}
+
+.settlement-expense-list li b {
+  color: #b42318;
+  white-space: nowrap;
+}
+
+.payment-fee-field {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.payment-fee-field > span {
+  color: #344055;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.payment-fee-field > strong,
+.payment-fee-field > input {
+  grid-column: 1;
+}
+
+.payment-fee-field > input {
+  margin: 0;
+}
+
+.payment-fee-edit-button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  padding: 0.45rem 0.7rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .settlement-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settlement-expense-list li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settlement-expense-list li span:nth-of-type(2) {
+    grid-column: 1 / -1;
+  }
+
+  .unpaid-attendance-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .unpaid-attendance-grid button {
+    grid-column: 1 / -1;
   }
 }

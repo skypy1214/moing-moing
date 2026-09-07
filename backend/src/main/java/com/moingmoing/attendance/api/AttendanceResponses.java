@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.moingmoing.attendance.domain.Attendance;
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendancePaymentStatus;
 import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
@@ -19,6 +20,7 @@ record GatheringResponse(
         String title,
         Instant startsAt,
         String location,
+        int defaultParticipationFee,
         GatheringStatus gatheringStatus,
         Instant cancelledAt,
         String cancellationReason) {
@@ -31,6 +33,7 @@ record GatheringResponse(
                 gathering.getTitle(),
                 gathering.getStartsAt(),
                 gathering.getLocation(),
+                gathering.getDefaultParticipationFee(),
                 gathering.getGatheringStatus(),
                 gathering.getCancelledAt(),
                 gathering.getCancellationReason());
@@ -53,7 +56,11 @@ record AttendanceResponse(
         AttendanceStatus attendanceStatus,
         Instant recordedAt,
         Instant cancelledAt,
-        String cancellationReason) {
+        String cancellationReason,
+        int appliedFee,
+        AttendancePaymentStatus paymentStatus,
+        Instant paidAt,
+        boolean feeOverridden) {
     static AttendanceResponse from(Attendance attendance) {
         return new AttendanceResponse(
                 attendance.getId(),
@@ -63,6 +70,10 @@ record AttendanceResponse(
                 attendance.getAttendanceStatus(),
                 attendance.getRecordedAt(),
                 attendance.getCancelledAt(),
-                attendance.getCancellationReason());
+                attendance.getCancellationReason(),
+                attendance.getAppliedFee(),
+                attendance.getPaymentStatus(),
+                attendance.getPaidAt(),
+                attendance.isFeeOverridden());
     }
 }

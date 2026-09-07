@@ -70,4 +70,18 @@ class GatheringTest {
                 null,
                 null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void storesTheDefaultParticipationFeeForNewAttendances() {
+        Gathering gathering = new Gathering(
+                LocalDate.of(2026, 8, 29),
+                GatheringType.EVENT,
+                LocalDate.of(2026, 8, 30),
+                "여름 MT",
+                null,
+                null,
+                20000);
+
+        assertThat(gathering.getDefaultParticipationFee()).isEqualTo(20000);
+    }
 }

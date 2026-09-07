@@ -12,10 +12,11 @@ describe('MonthlyStatisticsPage', () => {
 
   it('loads monthly statistics through the API', async () => {
     const user = userEvent.setup()
+    const currentMonth = new Date().toISOString().slice(0, 7)
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        month: '2026-08',
+        month: currentMonth,
         policyVersion: 'draft-v1',
         attendanceNumerator: 1,
         activityNumerator: 1,
@@ -35,7 +36,7 @@ describe('MonthlyStatisticsPage', () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/statistics/monthly?month=2026-08',
+        `/api/v1/statistics/monthly?month=${currentMonth}`,
         { credentials: 'include' },
       ),
     )

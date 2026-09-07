@@ -22,6 +22,7 @@ public class Gathering {
     private String title;
     private Instant startsAt;
     private String location;
+    private int defaultParticipationFee;
     @Enumerated(EnumType.STRING)
     private GatheringStatus gatheringStatus;
     private Instant cancelledAt;
@@ -33,7 +34,7 @@ public class Gathering {
     }
 
     public Gathering(LocalDate heldOn, String title, Instant startsAt, String location) {
-        this(heldOn, GatheringType.CLASS, null, title, startsAt, location);
+        this(heldOn, GatheringType.CLASS, null, title, startsAt, location, 0);
     }
 
     public Gathering(
@@ -43,12 +44,24 @@ public class Gathering {
             String title,
             Instant startsAt,
             String location) {
+        this(heldOn, gatheringType, endsOn, title, startsAt, location, 0);
+    }
+
+    public Gathering(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            String title,
+            Instant startsAt,
+            String location,
+            int defaultParticipationFee) {
         this.id = UUID.randomUUID();
         this.heldOn = heldOn;
         updateTypeAndPeriod(gatheringType, endsOn);
         this.title = title;
         this.startsAt = startsAt;
         this.location = location;
+        updateDefaultParticipationFee(defaultParticipationFee);
         this.gatheringStatus = GatheringStatus.DRAFT;
         this.createdAt = Instant.now();
         this.updatedAt = createdAt;
@@ -80,6 +93,10 @@ public class Gathering {
 
     public String getLocation() {
         return location;
+    }
+
+    public int getDefaultParticipationFee() {
+        return defaultParticipationFee;
     }
 
     public GatheringStatus getGatheringStatus() {
@@ -141,6 +158,17 @@ public class Gathering {
             String title,
             Instant startsAt,
             String location) {
+        updateDetails(heldOn, gatheringType, endsOn, title, startsAt, location, defaultParticipationFee);
+    }
+
+    public void updateDetails(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            String title,
+            Instant startsAt,
+            String location,
+            int defaultParticipationFee) {
         if (gatheringStatus == GatheringStatus.CANCELLED) {
             throw new IllegalArgumentException("Cancelled gatherings cannot be changed.");
         }
@@ -151,6 +179,7 @@ public class Gathering {
         this.title = title;
         this.startsAt = startsAt;
         this.location = location;
+        updateDefaultParticipationFee(defaultParticipationFee);
         updatedAt = Instant.now();
     }
 
@@ -158,6 +187,13 @@ public class Gathering {
         validateTypeAndPeriod(heldOn, gatheringType, endsOn);
         this.gatheringType = gatheringType;
         this.endsOn = endsOn;
+    }
+
+    private void updateDefaultParticipationFee(int defaultParticipationFee) {
+        if (defaultParticipationFee < 0) {
+            throw new IllegalArgumentException("Participation fee must not be negative.");
+        }
+        this.defaultParticipationFee = defaultParticipationFee;
     }
 
     private void validateTypeAndPeriod(

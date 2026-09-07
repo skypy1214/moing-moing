@@ -10,6 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.moingmoing.attendance.domain.Attendance;
+import com.moingmoing.attendance.domain.AttendancePaymentStatus;
 import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
@@ -45,7 +46,14 @@ public class MonthlyStatisticsPolicy {
                 .map(MemberActivityExclusion::getMemberId)
                 .collect(Collectors.toSet());
 
-        return new MonthlyStatisticsResult(month, targetMembers, attendedMemberIds, activityExcludedMemberIds);
+        int collectedParticipationFee = attendances.stream()
+                .filter(attendance -> attendance.getAttendanceStatus() == AttendanceStatus.RECORDED)
+                .filter(attendance -> attendance.getPaymentStatus() == AttendancePaymentStatus.PAID)
+                .filter(attendance -> isCountedGathering(gatheringsById.get(attendance.getGatheringId()), month))
+                .mapToInt(Attendance::getAppliedFee)
+                .sum();
+        return new MonthlyStatisticsResult(
+                month, targetMembers, attendedMemberIds, activityExcludedMemberIds, collectedParticipationFee);
     }
 
     private boolean isCountedGathering(Gathering gathering, YearMonth month) {

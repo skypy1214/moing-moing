@@ -45,7 +45,8 @@ class AttendanceController {
                 request.hostMemberId(),
                 request.title(),
                 request.startsAt(),
-                request.location()));
+                request.location(),
+                request.defaultParticipationFee()));
         return ResponseEntity.created(URI.create("/api/v1/gatherings/" + response.id())).body(response);
     }
 
@@ -70,7 +71,8 @@ class AttendanceController {
                 request.hostMemberId(),
                 request.title(),
                 request.startsAt(),
-                request.location()));
+                request.location(),
+                request.defaultParticipationFee()));
     }
 
     @PostMapping("/{id}/reopen")
@@ -104,6 +106,11 @@ class AttendanceController {
         return attendanceService.findAttendances(id).stream().map(AttendanceResponse::from).toList();
     }
 
+    @GetMapping("/unpaid-attendances")
+    List<AttendanceResponse> listUnpaidAttendances() {
+        return attendanceService.findUnpaidAttendances().stream().map(AttendanceResponse::from).toList();
+    }
+
     @PostMapping("/{id}/attendances")
     ResponseEntity<AttendanceResponse> recordAttendance(
             @PathVariable UUID id, @Valid @RequestBody RecordAttendanceRequest request) {
@@ -128,5 +135,14 @@ class AttendanceController {
             @PathVariable UUID attendanceId) {
         attendanceService.deleteAttendance(gatheringId, attendanceId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{gatheringId}/attendances/{attendanceId}/payment")
+    AttendanceResponse updateAttendancePayment(
+            @PathVariable UUID gatheringId,
+            @PathVariable UUID attendanceId,
+            @Valid @RequestBody UpdateAttendancePaymentRequest request) {
+        return AttendanceResponse.from(attendanceService.updateAttendancePayment(
+                gatheringId, attendanceId, request.appliedFee(), request.paymentStatus()));
     }
 }

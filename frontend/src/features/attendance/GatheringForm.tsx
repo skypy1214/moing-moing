@@ -10,6 +10,7 @@ type GatheringFormProps = {
   endsOn: string
   error?: string
   formId?: string
+  defaultParticipationFee: string
   gatheringType: GatheringType
   heldOn: string
   hostMemberId?: string
@@ -18,6 +19,7 @@ type GatheringFormProps = {
   location: string
   onCancel: () => void
   onEndsOnChange: (value: string) => void
+  onDefaultParticipationFeeChange: (value: string) => void
   onGatheringTypeChange: (value: GatheringType) => void
   onHostMemberIdChange?: (value: string) => void
   onHeldOnChange: (value: string) => void
@@ -33,6 +35,7 @@ type GatheringFormProps = {
 
 export function GatheringForm({
   endsOn,
+  defaultParticipationFee,
   error,
   formId,
   gatheringType,
@@ -43,6 +46,7 @@ export function GatheringForm({
   location,
   onCancel,
   onEndsOnChange,
+  onDefaultParticipationFeeChange,
   onGatheringTypeChange,
   onHostMemberIdChange,
   onHeldOnChange,
@@ -113,6 +117,21 @@ export function GatheringForm({
           onChange={(event) => onLocationChange(event.target.value)}
           value={location}
         />
+      </label>
+      <label>
+        기본 참가비
+        <input
+          min="0"
+          onChange={(event) =>
+            onDefaultParticipationFeeChange(event.target.value)
+          }
+          step="1000"
+          type="number"
+          value={defaultParticipationFee}
+        />
+        <span className="field-hint">
+          참석자별로 무료·할인 금액과 입금 상태를 따로 조정할 수 있습니다.
+        </span>
       </label>
       {error && (
         <p className="field-error" role="alert">

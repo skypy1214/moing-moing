@@ -11,12 +11,19 @@ type MonthlyStatistics = {
   denominator: number
   attendanceRate: number
   activityRate: number
+  collectedParticipationFee: number
   targetMembers: { id: string; displayName: string }[]
   attendedMemberIds: string[]
   activityExcludedMemberIds: string[]
 }
 
 const currentMonth = new Date().toISOString().slice(0, 7)
+
+function formatWon(amount: number | null | undefined) {
+  const safeAmount =
+    typeof amount === 'number' && Number.isFinite(amount) ? amount : 0
+  return `${new Intl.NumberFormat('ko-KR').format(safeAmount)}원`
+}
 
 export function MonthlyStatisticsPage() {
   const [month, setMonth] = useState(currentMonth)
@@ -82,6 +89,11 @@ export function MonthlyStatisticsPage() {
                 {'명'}
               </b>
               <span>{'가입·탈퇴 기간이 해당 월과 겹친 회원'}</span>
+            </article>
+            <article>
+              <strong>참가비 수입</strong>
+              <b>{formatWon(statistics.collectedParticipationFee)}</b>
+              <span>입금 완료로 처리된 참가비</span>
             </article>
           </div>
         )}

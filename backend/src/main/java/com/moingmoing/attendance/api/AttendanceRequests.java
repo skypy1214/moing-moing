@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendancePaymentStatus;
 import com.moingmoing.attendance.domain.GatheringType;
 
 record CreateGatheringRequest(
@@ -18,7 +19,8 @@ record CreateGatheringRequest(
         UUID hostMemberId,
         @Size(max = 200) String title,
         Instant startsAt,
-        @Size(max = 200) String location) {
+        @Size(max = 200) String location,
+        @jakarta.validation.constraints.PositiveOrZero int defaultParticipationFee) {
 }
 
 record UpdateGatheringRequest(
@@ -28,7 +30,8 @@ record UpdateGatheringRequest(
         UUID hostMemberId,
         @Size(max = 200) String title,
         Instant startsAt,
-        @Size(max = 200) String location) {
+        @Size(max = 200) String location,
+        @jakarta.validation.constraints.PositiveOrZero int defaultParticipationFee) {
 }
 
 record RecordAttendanceRequest(
@@ -40,4 +43,9 @@ record CancelAttendanceRequest(@NotBlank @Size(max = 1000) String cancellationRe
 }
 
 record CancelGatheringRequest(@NotBlank @Size(max = 1000) String cancellationReason) {
+}
+
+record UpdateAttendancePaymentRequest(
+        @jakarta.validation.constraints.PositiveOrZero int appliedFee,
+        @NotNull AttendancePaymentStatus paymentStatus) {
 }

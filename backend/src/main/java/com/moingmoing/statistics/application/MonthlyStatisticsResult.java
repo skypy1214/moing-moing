@@ -11,7 +11,8 @@ public record MonthlyStatisticsResult(
         YearMonth month,
         List<Member> targetMembers,
         Set<UUID> attendedMemberIds,
-        Set<UUID> activityExcludedMemberIds) {
+        Set<UUID> activityExcludedMemberIds,
+        int collectedParticipationFee) {
     public int attendanceNumerator() {
         return attendedMemberIds.size();
     }

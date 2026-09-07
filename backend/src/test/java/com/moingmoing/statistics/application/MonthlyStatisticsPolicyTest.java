@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import com.moingmoing.attendance.domain.Attendance;
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendancePaymentStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.member.domain.ActivityExclusionReason;
 import com.moingmoing.member.domain.Member;
@@ -72,5 +73,22 @@ class MonthlyStatisticsPolicyTest {
         assertThat(result.denominator()).isEqualTo(1);
         assertThat(result.attendanceRate()).isZero();
         assertThat(result.activityRate()).isZero();
+    }
+
+    @Test
+    void sumsOnlyPaidParticipationFeesForTheSelectedMonth() {
+        Member member = new Member("회원", null, LocalDate.of(2026, 1, 1), null);
+        Gathering gathering = new Gathering(LocalDate.of(2026, 8, 20), null, null, null);
+        Attendance paidAttendance = new Attendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.NORMAL, 10000);
+        paidAttendance.updatePayment(10000, AttendancePaymentStatus.PAID);
+        Attendance unpaidAttendance = new Attendance(
+                gathering.getId(), java.util.UUID.randomUUID(), AttendanceParticipationType.NORMAL, 5000);
+
+        MonthlyStatisticsResult result = policy.calculate(
+                YearMonth.of(2026, 8), List.of(member), List.of(), List.of(gathering),
+                List.of(paidAttendance, unpaidAttendance));
+
+        assertThat(result.collectedParticipationFee()).isEqualTo(10000);
     }
 }
