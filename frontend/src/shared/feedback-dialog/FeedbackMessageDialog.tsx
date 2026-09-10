@@ -14,11 +14,12 @@ export function FeedbackMessageDialog({
       ariaLabelledBy="feedback-message-heading"
       className="modal-content feedback-dialog"
       footer={
-        <button onClick={onClose} type="button">
+        <button data-modal-autofocus onClick={onClose} type="button">
           확인
         </button>
       }
       onClose={onClose}
+      role="alertdialog"
     >
       <div className="modal-heading">
         <h2 id="feedback-message-heading">알림</h2>

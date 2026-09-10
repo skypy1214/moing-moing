@@ -21,6 +21,13 @@ Cloudflare Workers Static Assets (React/Vite + /api/* Worker proxy)
 
 `API_ORIGIN`은 공개 Render API URL이므로 `wrangler.jsonc`의 `vars`에서 관리한다. Git 배포마다 Worker에 같은 값을 적용하므로 Dashboard 변수 설정에 의존하지 않는다. API URL이 변경되면 이 값을 변경하고 재배포한다. `keep_vars: true`는 앞으로 Dashboard에서 관리할 다른 변수를 보존한다.
 
+### CORS 책임 분리
+
+- 브라우저는 Worker와 같은 origin의 상대 `/api/*`만 호출한다. 프론트 번들에 Render API URL을 넣거나 직접 호출하지 않는다.
+- Worker는 Render로 프록시할 때 브라우저 `Origin` 헤더를 전달하지 않는다. Worker가 같은 origin API gateway 역할을 하므로 Render CORS 검증 대상은 브라우저가 아니다.
+- Render의 `CORS_ALLOWED_ORIGINS`에는 Cloudflare Worker 운영 origin만 설정한다. `workers.dev` 주소와 별도 preview 또는 사용자 도메인을 쓴다면 각각을 쉼표로 구분해 명시한다.
+- 로컬 기본 origin(`localhost:5173`, `127.0.0.1:5173`)은 Spring Boot 기본 설정에만 두며, 운영 환경변수가 이를 덮어쓴다.
+
 Neon은 PostgreSQL 서비스이며 Spring Boot 또는 정적 React 파일을 실행하지 않는다. DB 비밀번호는 Cloudflare Pages에 넣지 않고 Render에만 설정한다.
 
 ## Render 백엔드

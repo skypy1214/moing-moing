@@ -21,12 +21,21 @@ public class MeetingNoteService {
 
     @Transactional(readOnly = true)
     public List<MeetingNote> findPublished(UUID categoryId) {
+        return findByStatus(categoryId, MeetingNoteStatus.PUBLISHED);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MeetingNote> findHidden(UUID categoryId) {
+        return findByStatus(categoryId, MeetingNoteStatus.HIDDEN);
+    }
+
+    private List<MeetingNote> findByStatus(UUID categoryId, MeetingNoteStatus noteStatus) {
         if (categoryId == null) {
-            return repository.findAllByNoteStatusOrderByCreatedAtDesc(MeetingNoteStatus.PUBLISHED);
+            return repository.findAllByNoteStatusOrderByCreatedAtDesc(noteStatus);
         }
         return repository.findAllByCategoryIdAndNoteStatusOrderByCreatedAtDesc(
                 categoryId,
-                MeetingNoteStatus.PUBLISHED);
+                noteStatus);
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +57,12 @@ public class MeetingNoteService {
     public MeetingNote hide(UUID noteId) {
         MeetingNote note = findById(noteId);
         note.hide();
+        return note;
+    }
+
+    public MeetingNote publish(UUID noteId) {
+        MeetingNote note = findById(noteId);
+        note.publish();
         return note;
     }
 }

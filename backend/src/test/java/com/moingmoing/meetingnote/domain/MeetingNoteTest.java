@@ -2,6 +2,7 @@ package com.moingmoing.meetingnote.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
@@ -50,5 +51,16 @@ class MeetingNoteTest {
         note.hide();
 
         assertThrows(IllegalArgumentException.class, note::hide);
+    }
+
+    @Test
+    void publishes_a_hidden_note_again() {
+        MeetingNote note = new MeetingNote(UUID.randomUUID(), "Record", "Content");
+        note.hide();
+
+        note.publish();
+
+        assertEquals(MeetingNoteStatus.PUBLISHED, note.getNoteStatus());
+        assertNull(note.getHiddenAt());
     }
 }

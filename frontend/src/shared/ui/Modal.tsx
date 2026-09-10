@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
 import { useEscapeKey } from './useEscapeKey'
@@ -23,7 +24,24 @@ export function Modal({
   onClose,
   role = 'dialog',
 }: ModalProps) {
+  const modalRef = useRef<HTMLElement>(null)
+  const previouslyFocusedElement = useRef<HTMLElement | null>(null)
+
   useEscapeKey(onClose, closeOnEscape)
+
+  useEffect(() => {
+    previouslyFocusedElement.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    const modal = modalRef.current
+    const focusTarget = modal?.querySelector<HTMLElement>(
+      '[data-modal-autofocus]',
+    )
+    ;(focusTarget ?? modal)?.focus()
+
+    return () => previouslyFocusedElement.current?.focus()
+  }, [])
 
   return (
     <div
@@ -38,7 +56,9 @@ export function Modal({
         aria-labelledby={ariaLabelledBy}
         aria-modal="true"
         className={className ?? 'modal-content'}
+        ref={modalRef}
         role={role}
+        tabIndex={-1}
       >
         <div className="modal-scroll-content">
           <div className="modal-header">

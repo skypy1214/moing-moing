@@ -94,4 +94,14 @@ public class MeetingNote {
         hiddenAt = Instant.now();
         updatedAt = hiddenAt;
     }
+
+    public void publish() {
+        if (noteStatus == MeetingNoteStatus.PUBLISHED) {
+            throw new IllegalArgumentException("Meeting note is already published.");
+        }
+
+        noteStatus = MeetingNoteStatus.PUBLISHED;
+        hiddenAt = null;
+        updatedAt = Instant.now();
+    }
 }

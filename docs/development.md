@@ -61,6 +61,20 @@ npm run dev
 
 기본 주소는 프론트 `http://localhost:5173`, 백엔드 `http://localhost:8080`이다. API 프록시와 CORS 정책은 실제 API가 추가되는 Phase 2에서 확정한다.
 
+### 로컬 CORS와 로그인 점검
+
+브라우저는 백엔드 주소를 직접 호출하지 않고 Vite의 같은 origin `/api/*` 프록시만 호출한다. Spring Boot의 기본 CORS 허용 origin은 다음 두 주소다.
+
+- `http://localhost:5173`
+- `http://127.0.0.1:5173`
+
+Vite 주소·포트를 바꾸면 `backend/src/main/resources/application.yml`의 기본 허용 origin과 `frontend/vite.config.ts` 프록시를 함께 갱신한다. 브라우저에서 로그인 요청이 401이 아닌 403으로 실패하면 ID/비밀번호 문제가 아니라 CORS 차단을 먼저 확인한다.
+
+로컬 로그인 변경 또는 프록시 변경 후에는 브라우저 Origin을 포함해 다음 두 요청이 각각 `204`, `200`인지 확인한다. 비밀번호는 터미널 출력이나 문서에 남기지 않는다.
+
+1. `POST /api/v1/auth/login`
+2. 세션 쿠키를 포함한 `GET /api/v1/auth/me`
+
 Windows PowerShell 실행 정책에서 `npm.ps1` 또는 프로젝트의 `.ps1` 스크립트가 차단될 수 있다. 이 경우 프로젝트 명령은 `npm.cmd`로 실행하고, 전체 검증은 시스템 정책을 바꾸지 않는 다음 명령으로 실행한다.
 
 ```powershell

@@ -16,4 +16,5 @@ public interface MeetingNoteRepository extends JpaRepository<MeetingNote, UUID> 
     List<MeetingNote> findAllByCategoryIdAndNoteStatusOrderByCreatedAtDesc(
             UUID categoryId,
             MeetingNoteStatus noteStatus);
+
 }

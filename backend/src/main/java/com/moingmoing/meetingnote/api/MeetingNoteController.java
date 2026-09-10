@@ -44,7 +44,14 @@ class MeetingNoteController {
                 .toList();
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/hidden")
+    List<MeetingNoteResponse> listHidden(@RequestParam(required = false) UUID categoryId) {
+        return noteService.findHidden(categoryId).stream()
+                .map(MeetingNoteResponse::from)
+                .toList();
+    }
+
+    @GetMapping("/{id:[0-9a-fA-F-]+}")
     MeetingNoteResponse get(@PathVariable UUID id) {
         return MeetingNoteResponse.from(noteService.findById(id));
     }
@@ -73,6 +80,11 @@ class MeetingNoteController {
     @PostMapping("/{id}/hide")
     MeetingNoteResponse hide(@PathVariable UUID id) {
         return MeetingNoteResponse.from(noteService.hide(id));
+    }
+
+    @PostMapping("/{id}/publish")
+    MeetingNoteResponse publish(@PathVariable UUID id) {
+        return MeetingNoteResponse.from(noteService.publish(id));
     }
 }
 

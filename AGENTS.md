@@ -1,5 +1,12 @@
 # Moing Moing 개발 에이전트 지침
 
+## CORS 재발 방지
+
+- 브라우저 코드는 백엔드 또는 Render URL을 직접 호출하지 않고 항상 같은 origin의 상대 경로 `/api/*`만 사용한다.
+- 로컬 Spring Boot 기본 CORS 허용 origin은 `http://localhost:5173`과 `http://127.0.0.1:5173`이다. 개발 서버 주소·포트를 바꾸면 두 설정을 함께 갱신한다.
+- 운영 CORS는 Render의 `CORS_ALLOWED_ORIGINS` 환경변수로 Cloudflare Worker 운영 origin만 명시한다. 운영 origin을 코드 기본값에 넣지 않는다.
+- CORS, API 프록시, 로그인 세션을 변경할 때는 `frontend/vite.config.ts`, `frontend/worker/index.ts`, `backend/src/main/resources/application.yml`, 배포 문서를 함께 점검한다. 로컬 브라우저 요청은 Origin 헤더가 있는 조건으로 로그인과 `/api/v1/auth/me`을 확인한다.
+
 이 저장소는 소모임 운영진용 관리 웹 애플리케이션이다. 이 파일은 빠른 작업 진입점이며, 상세 내용은 `docs/`를 source of truth로 사용한다.
 
 ## 작업 전 읽기 순서

@@ -27,8 +27,9 @@ type BoardPost = {
   createdAt: string
 }
 
-type BoardView = 'LIST' | 'EDITOR' | 'CATEGORY_SETTINGS'
-type NoteSort = 'CREATED_DESC' | 'CREATED_ASC' | 'TITLE_ASC'
+type BoardView = 'LIST' | 'DETAIL' | 'EDITOR' | 'CATEGORY_SETTINGS'
+type NoteSort =
+  'DEFAULT' | 'CREATED_ASC' | 'CREATED_DESC' | 'TITLE_ASC' | 'TITLE_DESC'
 
 const initialMarkdown = `# 2026년 8월 운영 회의록
 
@@ -80,10 +81,11 @@ export function MeetingNotePage({
 }: MeetingNotePageProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [notes, setNotes] = useState<BoardPost[]>([])
+  const [hiddenNotes, setHiddenNotes] = useState<BoardPost[]>([])
   const [selectedNote, setSelectedNote] = useState<BoardPost | null>(null)
   const [view, setView] = useState<BoardView>('LIST')
   const [filterCategoryId, setFilterCategoryId] = useState('')
-  const [noteSort, setNoteSort] = useState<NoteSort>('CREATED_DESC')
+  const [noteSort, setNoteSort] = useState<NoteSort>('DEFAULT')
   const [title, setTitle] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [markdownContent, setMarkdownContent] = useState(initialMarkdown)
@@ -91,6 +93,7 @@ export function MeetingNotePage({
   const [categoryColor, setCategoryColor] = useState('#6657D9')
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
+  const [isHiddenNotesDialogOpen, setIsHiddenNotesDialogOpen] = useState(false)
   const [message, setMessage] = useState('')
 
   const activeCategories = useMemo(
@@ -105,8 +108,12 @@ export function MeetingNotePage({
         : notes.filter((note) => note.categoryId === filterCategoryId)
 
     return [...filteredNotes].sort((left, right) => {
-      if (noteSort === 'TITLE_ASC') {
-        return left.title.localeCompare(right.title, 'ko')
+      if (noteSort === 'DEFAULT') {
+        return 0
+      }
+      if (noteSort === 'TITLE_ASC' || noteSort === 'TITLE_DESC') {
+        const comparison = left.title.localeCompare(right.title, 'ko')
+        return noteSort === 'TITLE_ASC' ? comparison : -comparison
       }
       const comparison = left.createdAt.localeCompare(right.createdAt)
       return noteSort === 'CREATED_ASC' ? comparison : -comparison
@@ -130,6 +137,18 @@ export function MeetingNotePage({
     if (response.ok) {
       setNotes((await response.json()) as BoardPost[])
     }
+  }
+
+  async function loadHiddenNotes() {
+    const response = await fetch('/api/v1/meeting-notes/hidden', {
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      setMessage('숨김 글 목록을 불러오지 못했습니다.')
+      return false
+    }
+    setHiddenNotes((await response.json()) as BoardPost[])
+    return true
   }
 
   useEffect(() => {
@@ -172,10 +191,38 @@ export function MeetingNotePage({
     setView('EDITOR')
   }
 
+  function beginPostDetail(note: BoardPost) {
+    setSelectedNote(note)
+    setMessage('')
+    setView('DETAIL')
+  }
+
   function returnToList() {
     setSelectedNote(null)
     setMessage('')
     setView('LIST')
+  }
+
+  function nextNoteSort(field: 'CREATED' | 'TITLE') {
+    const ascending = `${field}_ASC` as NoteSort
+    const descending = `${field}_DESC` as NoteSort
+    setNoteSort((current) =>
+      current === ascending
+        ? descending
+        : current === descending
+          ? 'DEFAULT'
+          : ascending,
+    )
+  }
+
+  function noteSortIndicator(field: 'CREATED' | 'TITLE') {
+    if (noteSort === `${field}_ASC`) {
+      return '↑'
+    }
+    if (noteSort === `${field}_DESC`) {
+      return '↓'
+    }
+    return '↕'
   }
 
   async function submitCategory(event: FormEvent<HTMLFormElement>) {
@@ -261,6 +308,25 @@ export function MeetingNotePage({
     await loadNotes()
     setMessage('게시글을 숨겼습니다. 기존 내용은 보존됩니다.')
     setView('LIST')
+  }
+
+  async function publishNote(note: BoardPost) {
+    const response = await fetch(`/api/v1/meeting-notes/${note.id}/publish`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      setMessage('게시글 숨김을 해제하지 못했습니다.')
+      return
+    }
+    await Promise.all([loadNotes(), loadHiddenNotes()])
+    setMessage('게시글 숨김을 해제했습니다.')
+  }
+
+  async function openHiddenNotesDialog() {
+    if (await loadHiddenNotes()) {
+      setIsHiddenNotesDialogOpen(true)
+    }
   }
 
   function categoryFor(note: BoardPost) {
@@ -469,6 +535,50 @@ export function MeetingNotePage({
     )
   }
 
+  if (view === 'DETAIL' && selectedNote !== null) {
+    const category = categoryFor(selectedNote)
+
+    return (
+      <section
+        className="meeting-note-page"
+        aria-labelledby="board-detail-heading"
+      >
+        <div className="attendance-page-heading">
+          <div>
+            <p className="eyebrow">{category?.name ?? '게시글'}</p>
+            <h2 id="board-detail-heading">{selectedNote.title}</h2>
+            <p>{selectedNote.createdAt.slice(0, 10)} 작성</p>
+          </div>
+          <div className="header-actions">
+            {!readOnly && (
+              <button onClick={() => beginPostEdit(selectedNote)} type="button">
+                수정
+              </button>
+            )}
+            <button
+              className="secondary-button"
+              onClick={returnToList}
+              type="button"
+            >
+              목록으로
+            </button>
+          </div>
+        </div>
+        <article className="panel markdown-preview board-post-detail">
+          <Markdown remarkPlugins={[remarkGfm]} skipHtml>
+            {selectedNote.markdownContent}
+          </Markdown>
+        </article>
+        {message && (
+          <FeedbackMessageDialog
+            message={message}
+            onClose={() => setMessage('')}
+          />
+        )}
+      </section>
+    )
+  }
+
   return (
     <section className="meeting-note-page" aria-labelledby="board-heading">
       <div className="attendance-page-heading">
@@ -488,6 +598,15 @@ export function MeetingNotePage({
             </button>
           )}
           {!readOnly && (
+            <button
+              className="secondary-button"
+              onClick={() => void openHiddenNotesDialog()}
+              type="button"
+            >
+              숨김 글
+            </button>
+          )}
+          {!readOnly && (
             <button onClick={beginPostCreation} type="button">
               글 작성
             </button>
@@ -496,31 +615,63 @@ export function MeetingNotePage({
       </div>
       <section className="panel">
         <div className="meeting-note-list-controls">
-          <SelectField
-            label="카테고리 필터"
-            onChange={(value) => {
-              setFilterCategoryId(value)
-              void loadNotes(value)
-            }}
-            options={[
-              { value: '', label: '전체' },
-              ...activeCategories.map((category) => ({
-                value: category.id,
-                label: category.name,
-              })),
-            ]}
-            value={filterCategoryId}
-          />
-          <SelectField
-            label="정렬"
-            onChange={(value) => setNoteSort(value as NoteSort)}
-            options={[
-              { value: 'CREATED_DESC', label: '최신 작성순' },
-              { value: 'CREATED_ASC', label: '오래된 작성순' },
-              { value: 'TITLE_ASC', label: '제목 가나다순' },
-            ]}
-            value={noteSort}
-          />
+          <div
+            aria-label="카테고리 필터"
+            className="meeting-note-filter-buttons"
+            role="group"
+          >
+            <button
+              className={
+                filterCategoryId === ''
+                  ? 'is-active is-active-green'
+                  : 'secondary-button'
+              }
+              onClick={() => {
+                setFilterCategoryId('')
+                void loadNotes('')
+              }}
+              type="button"
+            >
+              전체
+            </button>
+            {activeCategories.map((category) => (
+              <button
+                className={
+                  filterCategoryId === category.id
+                    ? 'is-active is-active-green'
+                    : 'secondary-button'
+                }
+                key={category.id}
+                onClick={() => {
+                  setFilterCategoryId(category.id)
+                  void loadNotes(category.id)
+                }}
+                type="button"
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+          <div
+            aria-label="게시글 정렬"
+            className="meeting-note-sort-buttons"
+            role="group"
+          >
+            <button
+              className={`secondary-button meeting-note-sort-${noteSort === 'CREATED_ASC' ? 'asc' : noteSort === 'CREATED_DESC' ? 'desc' : 'none'}`}
+              onClick={() => nextNoteSort('CREATED')}
+              type="button"
+            >
+              작성일 {noteSortIndicator('CREATED')}
+            </button>
+            <button
+              className={`secondary-button meeting-note-sort-${noteSort === 'TITLE_ASC' ? 'asc' : noteSort === 'TITLE_DESC' ? 'desc' : 'none'}`}
+              onClick={() => nextNoteSort('TITLE')}
+              type="button"
+            >
+              제목 {noteSortIndicator('TITLE')}
+            </button>
+          </div>
         </div>
         {activeCategories.length === 0 ? (
           <EmptyState
@@ -542,7 +693,7 @@ export function MeetingNotePage({
                 <li key={note.id}>
                   <button
                     className="meeting-note-row"
-                    onClick={() => beginPostEdit(note)}
+                    onClick={() => beginPostDetail(note)}
                     type="button"
                   >
                     <span
@@ -559,6 +710,58 @@ export function MeetingNotePage({
           </ul>
         )}
       </section>
+      {isHiddenNotesDialogOpen && (
+        <Modal
+          ariaLabelledBy="hidden-notes-dialog-heading"
+          footer={
+            <button
+              className="secondary-button"
+              onClick={() => setIsHiddenNotesDialogOpen(false)}
+              type="button"
+            >
+              닫기
+            </button>
+          }
+          onClose={() => setIsHiddenNotesDialogOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="hidden-notes-dialog-heading">숨김 글</h3>
+            <p>숨긴 게시글을 다시 공개할 수 있습니다.</p>
+          </div>
+          {hiddenNotes.length === 0 ? (
+            <EmptyState
+              description="현재 숨긴 게시글이 없습니다."
+              icon="📄"
+              title="숨김 글이 없습니다"
+            />
+          ) : (
+            <ul className="meeting-note-hidden-list">
+              {hiddenNotes.map((note) => {
+                const category = categoryFor(note)
+                return (
+                  <li key={note.id}>
+                    <div>
+                      <span
+                        className="meeting-note-category"
+                        style={{ backgroundColor: category?.color }}
+                      >
+                        {category?.name ?? '분류 없음'}
+                      </span>
+                      <strong>{note.title}</strong>
+                    </div>
+                    <button
+                      onClick={() => void publishNote(note)}
+                      type="button"
+                    >
+                      숨김 해제
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Modal>
+      )}
       {message && (
         <FeedbackMessageDialog
           message={message}

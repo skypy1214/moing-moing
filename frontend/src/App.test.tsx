@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
@@ -30,6 +30,43 @@ describe('App', () => {
     expect(screen.getByLabelText('로그인 ID')).toBeInTheDocument()
     expect(screen.getByLabelText('비밀번호')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '로그인' })).toBeInTheDocument()
+  })
+
+  it('does not show a session-expiry dialog when the login screen has no session', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderApp()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('shows a dialog when login is rejected', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValueOnce({ ok: false }),
+    )
+
+    renderApp()
+
+    await user.type(screen.getByLabelText('로그인 ID'), 'administrator')
+    await user.type(screen.getByLabelText('비밀번호'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
+
+    expect(
+      await screen.findByRole('alertdialog', { name: '알림' }),
+    ).toHaveTextContent('로그인 ID 또는 비밀번호를 확인해 주세요.')
+    expect(screen.getByRole('button', { name: '확인' })).toHaveFocus()
   })
 
   it('logs in through the API and loads members', async () => {

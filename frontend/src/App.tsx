@@ -217,6 +217,8 @@ function App() {
     useState(false)
   const [isMemberCreatePage, setIsMemberCreatePage] = useState(false)
   const [isMembershipModalOpen, setIsMembershipModalOpen] = useState(false)
+  const [isWithdrawnMembersModalOpen, setIsWithdrawnMembersModalOpen] =
+    useState(false)
   const [isActivityExclusionModalOpen, setIsActivityExclusionModalOpen] =
     useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
@@ -352,6 +354,26 @@ function App() {
     selectedMember?.activityPaused === true ||
     exclusions.some(isActivityExclusionActive)
 
+  const membershipCounts = members.reduce(
+    (counts, member) => {
+      if (member.membershipStatus !== 'ACTIVE') {
+        return counts
+      }
+      if (member.activityPaused) {
+        counts.inactive += 1
+      } else {
+        counts.active += 1
+      }
+      return counts
+    },
+    { active: 0, inactive: 0 },
+  )
+  const withdrawnMembers = members
+    .filter((member) => member.membershipStatus === 'WITHDRAWN')
+    .toSorted((left, right) =>
+      (right.withdrawnOn ?? '').localeCompare(left.withdrawnOn ?? ''),
+    )
+
   function nextSortDirection(direction: SortDirection): SortDirection {
     return direction === null ? 'ASC' : direction === 'ASC' ? 'DESC' : null
   }
@@ -428,13 +450,15 @@ function App() {
     }
   }, [])
 
-  const restoreSession = useCallback(async () => {
+  const restoreSession = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/v1/auth/me', {
+      // A missing session on the login screen is expected, not a session-expiry event.
+      // Other authenticated API calls still use apiFetch and notify on a genuine expiry.
+      const response = await globalThis.fetch(`${apiBaseUrl}/api/v1/auth/me`, {
         credentials: 'include',
       })
       if (!response.ok) {
-        return
+        return false
       }
 
       const account = (await response.json()) as AuthAccount
@@ -443,8 +467,9 @@ function App() {
       setIsAdmin(account.isAdmin)
       setCurrentPage('MEMBERS')
       await loadMembers()
+      return true
     } catch {
-      setMessage('서버에 연결할 수 없습니다. 백엔드 실행 상태를 확인해 주세요.')
+      return false
     }
   }, [loadMembers])
 
@@ -471,7 +496,8 @@ function App() {
     if (
       !isMemberSheetOpen &&
       !isMembershipModalOpen &&
-      !isActivityExclusionModalOpen
+      !isActivityExclusionModalOpen &&
+      !isWithdrawnMembersModalOpen
     ) {
       return
     }
@@ -482,7 +508,12 @@ function App() {
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [isActivityExclusionModalOpen, isMemberSheetOpen, isMembershipModalOpen])
+  }, [
+    isActivityExclusionModalOpen,
+    isMemberSheetOpen,
+    isMembershipModalOpen,
+    isWithdrawnMembersModalOpen,
+  ])
 
   useEscapeKey(
     () => setIsMemberSheetOpen(false),
@@ -516,7 +547,12 @@ function App() {
       setPassword('')
       // The login response only confirms authentication. Fetch the session profile
       // before rendering the app so non-admin accounts never briefly receive admin UI.
-      await restoreSession()
+      const sessionRestored = await restoreSession()
+      if (!sessionRestored) {
+        setMessage(
+          '로그인은 처리됐지만 세션을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        )
+      }
     } catch {
       setMessage(
         '로그인 요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.',
@@ -1021,6 +1057,12 @@ function App() {
             </button>
           </form>
         </Card>
+        {message && (
+          <FeedbackMessageDialog
+            message={message}
+            onClose={() => setMessage('')}
+          />
+        )}
       </main>
     )
   }
@@ -1140,10 +1182,20 @@ function App() {
                     <div>
                       <h2 id="member-list-heading">현재 회원</h2>
                       <p>
-                        {visibleMembers.length}명 / 전체 {members.length}명
+                        활동 회원 {membershipCounts.active}명 · 비활동 회원{' '}
+                        {membershipCounts.inactive}명
                       </p>
                     </div>
                     <div className="header-actions">
+                      {canManage && (
+                        <button
+                          className="secondary-button"
+                          onClick={() => setIsWithdrawnMembersModalOpen(true)}
+                          type="button"
+                        >
+                          탈퇴 회원 관리
+                        </button>
+                      )}
                       {canManage && (
                         <button onClick={openMemberCreatePage} type="button">
                           회원 추가
@@ -1303,6 +1355,56 @@ function App() {
                     </ul>
                   )}
                 </section>
+              )}
+              {isWithdrawnMembersModalOpen && (
+                <Modal
+                  ariaLabelledBy="withdrawn-members-heading"
+                  footer={
+                    <button
+                      className="secondary-button"
+                      onClick={() => setIsWithdrawnMembersModalOpen(false)}
+                      type="button"
+                    >
+                      닫기
+                    </button>
+                  }
+                  onClose={() => setIsWithdrawnMembersModalOpen(false)}
+                >
+                  <div className="modal-heading">
+                    <h3 id="withdrawn-members-heading">탈퇴 회원 관리</h3>
+                    <p>탈퇴한 회원의 정보를 확인하고 재활성화할 수 있습니다.</p>
+                  </div>
+                  {withdrawnMembers.length === 0 ? (
+                    <EmptyState
+                      description="현재 탈퇴 처리된 회원이 없습니다."
+                      icon="👤"
+                      title="탈퇴 회원이 없습니다"
+                    />
+                  ) : (
+                    <ul className="withdrawn-member-list">
+                      {withdrawnMembers.map((member) => (
+                        <li key={member.id}>
+                          <div>
+                            <strong>{member.displayName}</strong>
+                            <span>
+                              탈퇴일{' '}
+                              {formatKoreanDate(member.withdrawnOn ?? '')}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsWithdrawnMembersModalOpen(false)
+                              void selectMember(member)
+                            }}
+                            type="button"
+                          >
+                            상세 보기
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Modal>
               )}
             </>
           )}
