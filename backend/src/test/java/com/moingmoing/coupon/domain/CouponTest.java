@@ -78,9 +78,16 @@ class CouponTest {
     void links_an_automatic_champion_coupon_to_its_award() {
         UUID awardId = UUID.randomUUID();
         Coupon coupon = Coupon.attendanceChampionReward(
-                UUID.randomUUID(), LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), 2, awardId);
+                UUID.randomUUID(),
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 31),
+                2,
+                awardId);
 
         assertEquals(CouponType.ATTENDANCE_CHAMPION, coupon.getCouponType());
         assertEquals(awardId, coupon.getChampionAwardId());
+        assertEquals("2026년 9월 출석왕 쿠폰", coupon.getName());
+        assertEquals("2026년 9월 출석왕 자동 발급", coupon.getIssuedReason());
     }
 }

@@ -52,7 +52,7 @@ class SettlementController {
     ResponseEntity<SettlementExpenseResponse> createExpense(
             @Valid @RequestBody CreateSettlementExpenseRequest request) {
         SettlementExpense expense = settlementService.createExpense(
-                request.spentOn(), request.category(), request.description(), request.amount());
+                request.spentOn(), parseMonth(request.rentalMonth()), request.category(), request.description(), request.amount());
         return ResponseEntity.created(URI.create("/api/v1/settlements/expenses/" + expense.getId()))
                 .body(SettlementExpenseResponse.from(expense));
     }
@@ -71,6 +71,7 @@ class SettlementController {
 
 record CreateSettlementExpenseRequest(
         @NotNull java.time.LocalDate spentOn,
+        @Pattern(regexp = "\\d{4}-\\d{2}") String rentalMonth,
         @NotBlank @Size(max = 100) String category,
         @Size(max = 200) String description,
         @Positive int amount) {
@@ -102,6 +103,7 @@ record SettlementResponse(
 record SettlementExpenseResponse(
         java.util.UUID id,
         java.time.LocalDate spentOn,
+        java.time.LocalDate rentalMonth,
         String category,
         String description,
         int amount) {
@@ -109,6 +111,7 @@ record SettlementExpenseResponse(
         return new SettlementExpenseResponse(
                 expense.getId(),
                 expense.getSpentOn(),
+                expense.getRentalMonth(),
                 expense.getCategory(),
                 expense.getDescription(),
                 expense.getAmount());

@@ -19,6 +19,7 @@ export function FeedbackMessageDialog({
         </button>
       }
       onClose={onClose}
+      priority="feedback"
       role="alertdialog"
     >
       <div className="modal-heading">

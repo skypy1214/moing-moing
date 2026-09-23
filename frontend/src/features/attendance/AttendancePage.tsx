@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import type { Member } from '../../App'
 import { GatheringForm } from './GatheringForm'
+import { ClassSeriesBadge } from './ClassSeriesBadge'
 import type { GatheringType } from './GatheringForm'
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { useFeedbackDialog } from '../../shared/feedback-dialog/useFeedbackDialog'
@@ -13,13 +14,21 @@ import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { KoreanMonthInput } from '../../shared/ui/KoreanMonthInput'
 import { KoreanDateInput } from '../../shared/ui/KoreanDateInput'
+import { SelectField } from '../../shared/ui/SelectField'
 
 type GatheringStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED'
 type ParticipationType = 'NORMAL' | 'COUPON' | 'HOST'
 type AttendanceStatus = 'RECORDED' | 'CANCELLED'
-type PaymentStatus = 'PENDING' | 'PAID' | 'EXEMPT'
+type PaymentStatus = 'PENDING' | 'PAID' | 'PREPAID' | 'EXEMPT'
 type GatheringFilter = 'ALL' | 'OPEN' | 'CLOSED'
 type AttendanceView = 'ATTENDANCE' | 'UNPAID'
+type CalendarDropAction = 'MOVE' | 'COPY'
+type ExpenseType = 'RENTAL' | 'OTHER'
+
+type CalendarDrop = {
+  gathering: Gathering
+  targetDate: string
+}
 
 type Settlement = {
   month: string | null
@@ -37,6 +46,7 @@ type Settlement = {
 type SettlementExpense = {
   id: string
   spentOn: string
+  rentalMonth: string | null
   category: string
   description: string | null
   amount: number
@@ -51,9 +61,28 @@ type Gathering = {
   startsAt: string | null
   location: string | null
   defaultParticipationFee: number
+  classSeriesId: string | null
   gatheringStatus: GatheringStatus
   cancelledAt: string | null
   cancellationReason: string | null
+}
+
+type ClassSeriesEnrollment = {
+  id: string
+  classSeriesId: string
+  memberId: string
+  paidAmount: number
+  paidOn: string
+}
+
+type ClassSeriesResponse = {
+  id: string
+  title: string
+  startsOn: string
+  sessionCount: number
+  sessionFee: number
+  totalFee: number
+  gatherings: Gathering[]
 }
 
 type Attendance = {
@@ -124,6 +153,7 @@ function normalizeGathering(
     startsAt: gathering.startsAt ?? null,
     location: gathering.location ?? null,
     defaultParticipationFee: gathering.defaultParticipationFee ?? 0,
+    classSeriesId: gathering.classSeriesId ?? null,
     cancelledAt: gathering.cancelledAt ?? null,
     cancellationReason: gathering.cancellationReason ?? null,
   }
@@ -138,6 +168,7 @@ const participationLabels: Record<ParticipationType, string> = {
 const paymentStatusLabels: Record<PaymentStatus, string> = {
   PENDING: '미입금',
   PAID: '입금 완료',
+  PREPAID: '선납 회원',
   EXEMPT: '면제',
 }
 
@@ -145,6 +176,15 @@ function formatWon(amount: number | null | undefined) {
   const safeAmount =
     typeof amount === 'number' && Number.isFinite(amount) ? amount : 0
   return `${new Intl.NumberFormat('ko-KR').format(safeAmount)}원`
+}
+
+function rentalExpenseLabel(rentalMonth: string) {
+  const [year, month] = rentalMonth.split('-')
+  return `${year}년 ${Number(month)}월 대관비`
+}
+
+function normalizeMoneyInput(value: string) {
+  return value.replace(/^0+(?=\d)/, '')
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -172,6 +212,24 @@ function formatCalendarDateLabel(year: number, month: number, day: number) {
   return `${year}년 ${month + 1}월 ${day}일`
 }
 
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00`)
+  value.setDate(value.getDate() + days)
+  return formatDate(value.getFullYear(), value.getMonth(), value.getDate())
+}
+
+function movedEndsOn(gathering: Gathering, targetDate: string) {
+  if (gathering.gatheringType !== 'EVENT' || gathering.endsOn === null) {
+    return null
+  }
+  const start = new Date(`${gathering.heldOn}T00:00:00`)
+  const end = new Date(`${gathering.endsOn}T00:00:00`)
+  const durationDays = Math.round(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  return addDays(targetDate, durationDays)
+}
+
 type AttendancePageProps = {
   members: Member[]
   readOnly?: boolean
@@ -192,6 +250,16 @@ export function AttendancePage({
   const [endsOn, setEndsOn] = useState(today)
   const [hostMemberId, setHostMemberId] = useState('')
   const [defaultParticipationFee, setDefaultParticipationFee] = useState('0')
+  const [isRecurringClass, setIsRecurringClass] = useState(false)
+  const [recurringWeeks, setRecurringWeeks] = useState('3')
+  const [isExistingClassConversionOpen, setIsExistingClassConversionOpen] = useState(false)
+  const [conversionGatheringIds, setConversionGatheringIds] = useState<string[]>([])
+  const [conversionAttendances, setConversionAttendances] = useState<Attendance[]>([])
+  const [conversionPrepaidMemberIds, setConversionPrepaidMemberIds] = useState<string[]>([])
+  const [conversionTitle, setConversionTitle] = useState('')
+  const [conversionSessionFee, setConversionSessionFee] = useState('0')
+  const [conversionError, setConversionError] = useState('')
+  const [isConvertingExistingClasses, setIsConvertingExistingClasses] = useState(false)
   const [isCreateGatheringOpen, setIsCreateGatheringOpen] = useState(false)
   const [isEditGatheringOpen, setIsEditGatheringOpen] = useState(false)
   const [editHeldOn, setEditHeldOn] = useState(today)
@@ -209,6 +277,10 @@ export function AttendancePage({
     return { year: current.getFullYear(), month: current.getMonth() }
   })
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false)
+  const [calendarDrop, setCalendarDrop] = useState<CalendarDrop | null>(null)
+  const [draggingGatheringId, setDraggingGatheringId] = useState<string | null>(
+    null,
+  )
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
   const [memberId, setMemberId] = useState('')
@@ -230,18 +302,25 @@ export function AttendancePage({
   const [settlementPage, setSettlementPage] = useState(0)
   const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false)
   const [expenseDate, setExpenseDate] = useState(today)
-  const [expenseCategory, setExpenseCategory] = useState('연습실 대관')
+  const [expenseType, setExpenseType] = useState<ExpenseType>('RENTAL')
+  const [expenseCategory, setExpenseCategory] = useState('기타 지출')
+  const [expenseRentalMonth, setExpenseRentalMonth] = useState(
+    today.slice(0, 7),
+  )
   const [expenseDescription, setExpenseDescription] = useState('')
-  const [expenseAmount, setExpenseAmount] = useState('')
+  const [expenseAmount, setExpenseAmount] = useState('0')
   const [selectedPaymentAttendance, setSelectedPaymentAttendance] =
     useState<Attendance | null>(null)
   const [paymentFee, setPaymentFee] = useState('0')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('PENDING')
   const [isPaymentFeeEditing, setIsPaymentFeeEditing] = useState(false)
-  const [cancellingAttendanceId, setCancellingAttendanceId] = useState<
-    string | null
-  >(null)
-  const [cancellationReason, setCancellationReason] = useState('')
+  const [isClassSeriesEnrollmentOpen, setIsClassSeriesEnrollmentOpen] = useState(false)
+  const [classSeriesEnrollments, setClassSeriesEnrollments] = useState<ClassSeriesEnrollment[]>([])
+  const [prepaidMemberId, setPrepaidMemberId] = useState('')
+  const [prepaidAmount, setPrepaidAmount] = useState('0')
+  const [classSeriesTotalFee, setClassSeriesTotalFee] = useState(0)
+  const [classSeriesEnrollmentError, setClassSeriesEnrollmentError] = useState('')
+  const [isSavingClassSeriesEnrollment, setIsSavingClassSeriesEnrollment] = useState(false)
   const [message, setMessage] = useState('')
   const [createGatheringError, setCreateGatheringError] = useState('')
   const [isCreatingGathering, setIsCreatingGathering] = useState(false)
@@ -266,6 +345,8 @@ export function AttendancePage({
   const [isCancellationHistoryLoading, setIsCancellationHistoryLoading] =
     useState(false)
   const [cancellationHistoryError, setCancellationHistoryError] = useState('')
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressedGatheringIdRef = useRef<string | null>(null)
 
   const selectedGathering = useMemo(
     () =>
@@ -280,6 +361,31 @@ export function AttendancePage({
     () => new Map(members.map((member) => [member.id, member])),
     [members],
   )
+  const eligibleExistingClasses = useMemo(
+    () =>
+      gatherings
+        .filter(
+          (gathering) =>
+            gathering.gatheringType === 'CLASS' &&
+            (gathering.gatheringStatus === 'DRAFT' ||
+              gathering.gatheringStatus === 'OPEN') &&
+            gathering.classSeriesId === null,
+        )
+        .toSorted((left, right) => left.heldOn.localeCompare(right.heldOn)),
+    [gatherings],
+  )
+  const conversionMembers = useMemo(() => {
+    const ids = new Set(
+      conversionAttendances
+        .filter(
+          (attendance) =>
+            attendance.attendanceStatus === 'RECORDED' &&
+            attendance.participationType === 'NORMAL',
+        )
+        .map((attendance) => attendance.memberId),
+    )
+    return members.filter((member) => ids.has(member.id))
+  }, [conversionAttendances, members])
   const calendarDays = useMemo(() => {
     const firstDayOfWeek = new Date(
       calendarMonth.year,
@@ -322,6 +428,26 @@ export function AttendancePage({
     void refreshGatherings()
     // The first load is intentionally separate from manual refresh controls.
   }, [])
+
+  useEffect(() => {
+    if (calendarDrop === null) {
+      return
+    }
+
+    function closeCalendarDrop(event: PointerEvent) {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('.calendar-drop-actions') !== null
+      ) {
+        return
+      }
+      setCalendarDrop(null)
+    }
+
+    document.addEventListener('pointerdown', closeCalendarDrop, true)
+    return () => document.removeEventListener('pointerdown', closeCalendarDrop, true)
+  }, [calendarDrop])
 
   function moveCalendarMonth(amount: number) {
     setCalendarMonth((previous) => {
@@ -412,6 +538,14 @@ export function AttendancePage({
       setMessage('지출 금액은 1원 이상의 정수로 입력해 주세요.')
       return
     }
+    if (expenseType === 'OTHER' && expenseCategory.trim().length === 0) {
+      setMessage('지출 분류를 입력해 주세요.')
+      return
+    }
+    if (expenseType === 'RENTAL' && !/^\d{4}-\d{2}$/.test(expenseRentalMonth)) {
+      setMessage('대관 적용 월을 선택해 주세요.')
+      return
+    }
     try {
       const response = await fetch('/api/v1/settlements/expenses', {
         method: 'POST',
@@ -419,7 +553,9 @@ export function AttendancePage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           spentOn: expenseDate,
-          category: expenseCategory,
+          category: expenseType === 'RENTAL' ? '대관비' : expenseCategory,
+          rentalMonth:
+            expenseType === 'RENTAL' ? expenseRentalMonth : null,
           description: expenseDescription || null,
           amount,
         }),
@@ -429,7 +565,7 @@ export function AttendancePage({
       }
       setIsExpenseFormOpen(false)
       setExpenseDescription('')
-      setExpenseAmount('')
+      setExpenseAmount('0')
       await loadSettlement(0)
       setMessage('지출 내역을 저장했습니다.')
     } catch (error) {
@@ -568,10 +704,314 @@ export function AttendancePage({
     await loadAttendances(gathering.id)
   }
 
+  function openExistingClassConversion(initialGathering?: Gathering) {
+    const initialIds = initialGathering ? [initialGathering.id] : []
+    setConversionGatheringIds(initialIds)
+    setConversionAttendances([])
+    setConversionPrepaidMemberIds([])
+    setConversionTitle(initialGathering?.title ?? '')
+    setConversionSessionFee(String(initialGathering?.defaultParticipationFee ?? 0))
+    setConversionError('')
+    setIsExistingClassConversionOpen(true)
+    if (!initialGathering) {
+      return
+    }
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/v1/gatherings/${initialGathering.id}/attendances`,
+          { credentials: 'include' },
+        )
+        if (!response.ok) {
+          throw await responseError(response, '기존 출석 기록을 불러오지 못했습니다.')
+        }
+        setConversionAttendances((await response.json()) as Attendance[])
+      } catch (error) {
+        setConversionError(errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'))
+      }
+    })()
+  }
+
+  async function toggleConversionGathering(gathering: Gathering) {
+    const nextIds = conversionGatheringIds.includes(gathering.id)
+      ? conversionGatheringIds.filter((id) => id !== gathering.id)
+      : [...conversionGatheringIds, gathering.id]
+    setConversionGatheringIds(nextIds)
+    setConversionPrepaidMemberIds([])
+    if (nextIds.length === 1) {
+      setConversionTitle(gathering.title ?? '')
+      setConversionSessionFee(String(gathering.defaultParticipationFee))
+    }
+    if (nextIds.length === 0) {
+      setConversionAttendances([])
+      return
+    }
+    try {
+      const responses = await Promise.all(
+        nextIds.map((id) =>
+          fetch(`/api/v1/gatherings/${id}/attendances`, {
+            credentials: 'include',
+          }),
+        ),
+      )
+      const failed = responses.find((response) => !response.ok)
+      if (failed) {
+        throw await responseError(failed, '기존 출석 기록을 불러오지 못했습니다.')
+      }
+      const loaded = await Promise.all(
+        responses.map((response) => response.json() as Promise<Attendance[]>),
+      )
+      setConversionAttendances(loaded.flat())
+    } catch (error) {
+      setConversionError(errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'))
+    }
+  }
+
+  async function convertExistingClasses(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const sessionFee = Number(conversionSessionFee)
+    if (conversionGatheringIds.length < 2) {
+      setConversionError('묶을 기존 수업을 두 개 이상 선택해 주세요.')
+      return
+    }
+    if (conversionTitle.trim() === '') {
+      setConversionError('연속 수업 이름을 입력해 주세요.')
+      return
+    }
+    if (!Number.isInteger(sessionFee) || sessionFee < 0) {
+      setConversionError('회당 참가비는 0원 이상의 정수로 입력해 주세요.')
+      return
+    }
+    setIsConvertingExistingClasses(true)
+    setConversionError('')
+    try {
+      const response = await fetch('/api/v1/class-series/convert-existing', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gatheringIds: conversionGatheringIds,
+          title: conversionTitle,
+          sessionFee,
+          prepaidMemberIds: conversionPrepaidMemberIds,
+        }),
+      })
+      if (!response.ok) {
+        throw await responseError(response, '기존 수업을 연속 수업으로 묶지 못했습니다.')
+      }
+      const converted = (await response.json()) as ClassSeriesResponse
+      const convertedById = new Map(
+        converted.gatherings.map((gathering) => [gathering.id, normalizeGathering(gathering)]),
+      )
+      setGatherings((previous) =>
+        previous.map((gathering) => convertedById.get(gathering.id) ?? gathering),
+      )
+      setAttendances((previous) =>
+        previous.map((attendance) =>
+          conversionGatheringIds.includes(attendance.gatheringId) &&
+          conversionPrepaidMemberIds.includes(attendance.memberId) &&
+          attendance.participationType === 'NORMAL'
+            ? { ...attendance, appliedFee: 0, paymentStatus: 'PREPAID', feeOverridden: false }
+            : attendance,
+        ),
+      )
+      setIsExistingClassConversionOpen(false)
+      window.setTimeout(
+        () => setMessage('선택한 수업을 연속 수업으로 묶었습니다.'),
+        0,
+      )
+    } catch (error) {
+      setConversionError(errorMessage(error, '기존 수업을 연속 수업으로 묶지 못했습니다.'))
+    } finally {
+      setIsConvertingExistingClasses(false)
+    }
+  }
+
+  async function openClassSeriesEnrollment() {
+    if (selectedGathering === null || selectedGathering.classSeriesId === null) {
+      return
+    }
+    setClassSeriesEnrollmentError('')
+    setPrepaidMemberId('')
+    try {
+      const [seriesResponse, enrollmentsResponse] = await Promise.all([
+        fetch(`/api/v1/class-series/${selectedGathering.classSeriesId}`, {
+          credentials: 'include',
+        }),
+        fetch(`/api/v1/class-series/${selectedGathering.classSeriesId}/enrollments`, {
+          credentials: 'include',
+        }),
+      ])
+      if (!seriesResponse.ok || !enrollmentsResponse.ok) {
+        throw await responseError(
+          !seriesResponse.ok ? seriesResponse : enrollmentsResponse,
+          '선납 회원 목록을 불러오지 못했습니다.',
+        )
+      }
+      const series = (await seriesResponse.json()) as ClassSeriesResponse
+      setClassSeriesTotalFee(series.totalFee)
+      setPrepaidAmount(String(series.totalFee))
+      setClassSeriesEnrollments((await enrollmentsResponse.json()) as ClassSeriesEnrollment[])
+      setIsClassSeriesEnrollmentOpen(true)
+    } catch (error) {
+      setMessage(errorMessage(error, '선납 회원 목록을 불러오지 못했습니다.'))
+    }
+  }
+
+  async function saveClassSeriesEnrollment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (selectedGathering === null || selectedGathering.classSeriesId === null) {
+      return
+    }
+    const paidAmount = Number(prepaidAmount)
+    if (prepaidMemberId === '') {
+      setClassSeriesEnrollmentError('선납 회원을 선택해 주세요.')
+      return
+    }
+    if (!Number.isInteger(paidAmount) || paidAmount < 0) {
+      setClassSeriesEnrollmentError('선납 금액은 0원 이상의 정수로 입력해 주세요.')
+      return
+    }
+    setIsSavingClassSeriesEnrollment(true)
+    setClassSeriesEnrollmentError('')
+    try {
+      const response = await fetch(
+        `/api/v1/class-series/${selectedGathering.classSeriesId}/enrollments`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memberId: prepaidMemberId, paidAmount }),
+        },
+      )
+      if (!response.ok) {
+        throw await responseError(response, '선납 회원을 등록하지 못했습니다.')
+      }
+      const enrollment = (await response.json()) as ClassSeriesEnrollment
+      setClassSeriesEnrollments((previous) => [...previous, enrollment])
+      setPrepaidMemberId('')
+      setPrepaidAmount(String(classSeriesTotalFee))
+    } catch (error) {
+      setClassSeriesEnrollmentError(errorMessage(error, '선납 회원을 등록하지 못했습니다.'))
+    } finally {
+      setIsSavingClassSeriesEnrollment(false)
+    }
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  function calendarDateAtPoint(clientX: number, clientY: number) {
+    const element = document.elementFromPoint(clientX, clientY)
+    return element?.closest<HTMLElement>('[data-calendar-date]')?.dataset
+      .calendarDate
+  }
+
+  function openCalendarDropMenu(gathering: Gathering, targetDate: string) {
+    if (gathering.heldOn === targetDate) {
+      return
+    }
+    setCalendarDrop({ gathering, targetDate })
+  }
+
+  async function hostMemberIdFor(gathering: Gathering) {
+    if (gathering.gatheringType !== 'CLASS') {
+      return null
+    }
+    const response = await fetch(
+      `/api/v1/gatherings/${gathering.id}/attendances`,
+      { credentials: 'include' },
+    )
+    if (!response.ok) {
+      throw await responseError(response, '진행자 정보를 불러오지 못했습니다.')
+    }
+    const gatheringAttendances = (await response.json()) as Attendance[]
+    return (
+      gatheringAttendances.find(
+        (attendance) =>
+          attendance.participationType === 'HOST' &&
+          attendance.attendanceStatus === 'RECORDED',
+      )?.memberId ?? null
+    )
+  }
+
+  async function applyCalendarDropAction(action: CalendarDropAction) {
+    if (calendarDrop === null) {
+      return
+    }
+    const { gathering, targetDate } = calendarDrop
+    setCalendarDrop(null)
+
+    try {
+      const hostMemberId = await hostMemberIdFor(gathering)
+      const payload = {
+        heldOn: targetDate,
+        gatheringType: gathering.gatheringType,
+        endsOn: movedEndsOn(gathering, targetDate),
+        hostMemberId,
+        title: gathering.title,
+        startsAt: gathering.startsAt,
+        location: gathering.location,
+        defaultParticipationFee: gathering.defaultParticipationFee,
+      }
+      const response = await fetch(
+        action === 'MOVE'
+          ? `/api/v1/gatherings/${gathering.id}`
+          : '/api/v1/gatherings',
+        {
+          method: action === 'MOVE' ? 'PUT' : 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      )
+      if (!response.ok) {
+        throw await responseError(
+          response,
+          action === 'MOVE'
+            ? '모임 날짜를 변경하지 못했습니다.'
+            : '모임을 복사하지 못했습니다.',
+        )
+      }
+      const changed = normalizeGathering((await response.json()) as Gathering)
+      setGatherings((previous) =>
+        action === 'MOVE'
+          ? previous.map((item) => (item.id === changed.id ? changed : item))
+          : [changed, ...previous],
+      )
+    } catch (error) {
+      setMessage(
+        errorMessage(
+          error,
+          action === 'MOVE'
+            ? '모임 날짜를 변경하지 못했습니다.'
+            : '모임을 복사하지 못했습니다.',
+        ),
+      )
+    }
+  }
+
   async function createGathering(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setMessage('')
     setCreateGatheringError('')
+    if (isRecurringClass && title.trim() === '') {
+      setCreateGatheringError('연속 수업 이름을 입력해 주세요.')
+      return
+    }
+    if (
+      isRecurringClass &&
+      (!Number.isInteger(Number(recurringWeeks)) ||
+        Number(recurringWeeks) < 2 ||
+        Number(recurringWeeks) > 24)
+    ) {
+      setCreateGatheringError('수업 횟수는 2회부터 24회까지 입력해 주세요.')
+      return
+    }
     setIsCreatingGathering(true)
     const payload = {
       heldOn,
@@ -586,17 +1026,32 @@ export function AttendancePage({
     }
 
     try {
-      const response = await fetch('/api/v1/gatherings', {
+      const response = await fetch(isRecurringClass ? '/api/v1/class-series' : '/api/v1/gatherings', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(
+          isRecurringClass
+            ? {
+                startsOn: heldOn,
+                hostMemberId: hostMemberId || null,
+                title,
+                location: location || null,
+                sessionFee: Number(defaultParticipationFee),
+                sessionCount: Number(recurringWeeks),
+              }
+            : payload,
+        ),
       })
       if (!response.ok) {
         throw await responseError(response, '출석부를 만들지 못했습니다.')
       }
-      const gathering = normalizeGathering((await response.json()) as Gathering)
-      setGatherings((previous) => [gathering, ...previous])
+      const created = (await response.json()) as Gathering | ClassSeriesResponse
+      const createdGatherings = isRecurringClass
+        ? (created as ClassSeriesResponse).gatherings.map(normalizeGathering)
+        : [normalizeGathering(created as Gathering)]
+      const gathering = createdGatherings[0]
+      setGatherings((previous) => [...createdGatherings, ...previous])
       setSelectedGatheringId(gathering.id)
       // A selected host is saved as an attendance record, not on Gathering itself.
       // Load it immediately so the newly opened attendance sheet reflects the saved host.
@@ -608,6 +1063,8 @@ export function AttendancePage({
       setEndsOn(heldOn)
       setHostMemberId('')
       setDefaultParticipationFee('0')
+      setIsRecurringClass(false)
+      setRecurringWeeks('3')
     } catch (error) {
       setCreateGatheringError(
         errorMessage(error, '출석부를 만들지 못했습니다.'),
@@ -761,14 +1218,8 @@ export function AttendancePage({
     const existingAttendance = selectedAttendances.find(
       (attendance) => attendance.memberId === memberId,
     )
-    if (
-      existingAttendance !== undefined &&
-      !(await confirm({
-        title: '출석 상태를 변경할까요?',
-        message: '이미 리스트에 존재하는 회원입니다. 그래도 변경하시겠습니까?',
-        confirmLabel: '변경',
-      }))
-    ) {
+    if (existingAttendance !== undefined) {
+      setMessage('이미 출석부에 추가된 회원입니다.')
       return
     }
 
@@ -832,69 +1283,19 @@ export function AttendancePage({
     }
   }
 
-  async function cancelAttendance(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (selectedGathering === null || cancellingAttendanceId === null) {
-      return
-    }
-    if (cancellationReason.trim() === '') {
-      setMessage('출석 취소 사유를 입력해 주세요.')
+  async function cancelAttendance(attendance: Attendance) {
+    if (selectedGathering === null || attendance.participationType === 'HOST') {
       return
     }
 
-    try {
-      const attendance = selectedAttendances.find(
-        (item) => item.id === cancellingAttendanceId,
-      )
-      const endpoint =
-        attendance?.participationType === 'COUPON'
-          ? `/api/v1/coupons/usages/attendance/${cancellingAttendanceId}/reverse`
-          : `/api/v1/gatherings/${selectedGathering.id}/attendances/${cancellingAttendanceId}/cancel`
-      const cancellationPayload =
-        attendance?.participationType === 'COUPON'
-          ? { reason: cancellationReason.trim() }
-          : { cancellationReason: cancellationReason.trim() }
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cancellationPayload),
-      })
-      if (!response.ok) {
-        throw await responseError(response, '출석 기록을 취소하지 못했습니다.')
-      }
-      if (attendance?.participationType === 'COUPON') {
-        await loadAttendances(selectedGathering.id)
-        setCancellingAttendanceId(null)
-        setCancellationReason('')
-        setMessage('쿠폰 사용과 출석 기록을 취소했습니다.')
-        return
-      }
-      const cancelled = (await response.json()) as Attendance
-      const updateAttendance = (attendance: Attendance) =>
-        attendance.id === cancelled.id ? cancelled : attendance
-      setAttendances((previous) => previous.map(updateAttendance))
-      setHistoryAttendances((previous) => previous.map(updateAttendance))
-      setCancellingAttendanceId(null)
-      setCancellationReason('')
-      setMessage('출석 기록을 취소했습니다. 기록은 보존됩니다.')
-    } catch (error) {
-      setMessage(errorMessage(error, '출석 기록을 취소하지 못했습니다.'))
-    }
-  }
-
-  async function deleteAttendance(attendance: Attendance) {
-    if (
-      selectedGathering === null ||
-      attendance.participationType === 'COUPON'
-    ) {
-      return
-    }
     const member = members.find((item) => item.id === attendance.memberId)
     const confirmed = await confirm({
-      title: '출석 기록을 삭제할까요?',
-      message: `${member?.displayName ?? '이 회원'}의 출석 기록을 삭제하면 복구할 수 없습니다.`,
-      confirmLabel: '삭제',
+      title: '출석을 취소할까요?',
+      message:
+        attendance.participationType === 'COUPON'
+          ? `${member?.displayName ?? '이 회원'}의 출석을 취소하고 쿠폰 사용을 되돌립니다.`
+          : `${member?.displayName ?? '이 회원'}의 출석 기록을 삭제합니다. 삭제한 기록은 복구할 수 없습니다.`,
+      confirmLabel: '출석 취소',
       isDestructive: true,
     })
     if (!confirmed) {
@@ -902,29 +1303,51 @@ export function AttendancePage({
     }
 
     try {
-      const response = await fetch(
-        `/api/v1/gatherings/${selectedGathering.id}/attendances/${attendance.id}`,
-        { method: 'DELETE', credentials: 'include' },
-      )
+      const endpoint =
+        attendance.participationType === 'COUPON'
+          ? `/api/v1/coupons/usages/attendance/${attendance.id}/reverse`
+          : `/api/v1/gatherings/${selectedGathering.id}/attendances/${attendance.id}`
+      const cancellationPayload =
+        attendance.participationType === 'COUPON'
+          ? { reason: '출석 취소' }
+          : undefined
+      const response = await fetch(endpoint, {
+        method: attendance.participationType === 'COUPON' ? 'POST' : 'DELETE',
+        credentials: 'include',
+        ...(cancellationPayload
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(cancellationPayload),
+            }
+          : {}),
+      })
       if (!response.ok) {
-        throw await responseError(response, '출석 기록을 삭제하지 못했습니다.')
+        throw await responseError(response, '출석을 취소하지 못했습니다.')
       }
       setAttendances((previous) =>
         previous.filter((item) => item.id !== attendance.id),
       )
-      setCancellingAttendanceId((current) =>
-        current === attendance.id ? null : current,
+      setHistoryAttendances((previous) =>
+        previous.filter((item) => item.id !== attendance.id),
       )
-      setMessage('출석 기록을 삭제했습니다.')
+      setMessage(
+        attendance.participationType === 'COUPON'
+          ? '출석을 취소하고 쿠폰 사용을 되돌렸습니다.'
+          : '출석을 취소했습니다.',
+      )
     } catch (error) {
-      setMessage(errorMessage(error, '출석 기록을 삭제하지 못했습니다.'))
+      setMessage(errorMessage(error, '출석을 취소하지 못했습니다.'))
     }
   }
 
   const selectedAttendances = useMemo(
     () =>
       attendances
-        .filter((attendance) => attendance.gatheringId === selectedGatheringId)
+        .filter(
+          (attendance) =>
+            attendance.gatheringId === selectedGatheringId &&
+            attendance.attendanceStatus === 'RECORDED',
+        )
         .slice()
         .sort((left, right) => {
           const participationOrder =
@@ -938,9 +1361,7 @@ export function AttendancePage({
         }),
     [attendances, membersById, selectedGatheringId],
   )
-  const selectedAttendanceCount = selectedAttendances.filter(
-    (attendance) => attendance.attendanceStatus === 'RECORDED',
-  ).length
+  const selectedAttendanceCount = selectedAttendances.length
   const selectedHostMemberId = selectedAttendances.find(
     (attendance) =>
       attendance.participationType === 'HOST' &&
@@ -1143,6 +1564,25 @@ export function AttendancePage({
               {calendarDays.map((calendarDay) => (
                 <div
                   className={`calendar-day ${heldOn === calendarDay.date ? 'calendar-day-selected' : ''} ${calendarDay.isOutsideMonth ? 'calendar-day-outside-month' : ''}`}
+                  data-calendar-date={calendarDay.date}
+                  onDragOver={(event) => {
+                    if (!readOnly) {
+                      event.preventDefault()
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    const gatheringId = event.dataTransfer.getData(
+                      'application/x-moing-gathering',
+                    )
+                    const gathering = gatherings.find(
+                      (item) => item.id === gatheringId,
+                    )
+                    if (gathering !== undefined) {
+                      openCalendarDropMenu(gathering, calendarDay.date)
+                    }
+                    setDraggingGatheringId(null)
+                  }}
                   key={calendarDay.date}
                 >
                   <button
@@ -1159,17 +1599,92 @@ export function AttendancePage({
                   <div className="calendar-gatherings">
                     {calendarDay.gatherings.map((gathering) => (
                       <button
-                        className={`calendar-gathering gathering-type-${gathering.gatheringType.toLowerCase()} gathering-status-${gathering.gatheringStatus.toLowerCase()}`}
+                        className={`calendar-gathering gathering-type-${gathering.gatheringType.toLowerCase()} gathering-status-${gathering.gatheringStatus.toLowerCase()} ${gathering.classSeriesId !== null ? 'is-class-series' : ''} ${draggingGatheringId === gathering.id ? 'is-dragging' : ''}`}
+                        draggable={!readOnly}
                         key={gathering.id}
-                        onClick={() => void selectGathering(gathering)}
+                        onClick={() => {
+                          if (
+                            longPressedGatheringIdRef.current === gathering.id
+                          ) {
+                            longPressedGatheringIdRef.current = null
+                            return
+                          }
+                          void selectGathering(gathering)
+                        }}
+                        onDragEnd={() => setDraggingGatheringId(null)}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = 'copyMove'
+                          event.dataTransfer.setData(
+                            'application/x-moing-gathering',
+                            gathering.id,
+                          )
+                          setDraggingGatheringId(gathering.id)
+                        }}
+                        onPointerCancel={() => {
+                          clearLongPressTimer()
+                          setDraggingGatheringId(null)
+                        }}
+                        onPointerDown={(event) => {
+                          if (readOnly) {
+                            return
+                          }
+                          clearLongPressTimer()
+                          const target = event.currentTarget
+                          const pointerId = event.pointerId
+                          longPressTimerRef.current = window.setTimeout(() => {
+                            longPressedGatheringIdRef.current = gathering.id
+                            setDraggingGatheringId(gathering.id)
+                            target.setPointerCapture(pointerId)
+                          }, 350)
+                        }}
+                        onPointerMove={(event) => {
+                          if (draggingGatheringId !== gathering.id) {
+                            return
+                          }
+                          event.preventDefault()
+                        }}
+                        onPointerUp={(event) => {
+                          clearLongPressTimer()
+                          if (draggingGatheringId !== gathering.id) {
+                            return
+                          }
+                          const targetDate = calendarDateAtPoint(
+                            event.clientX,
+                            event.clientY,
+                          )
+                          if (targetDate !== undefined) {
+                            openCalendarDropMenu(gathering, targetDate)
+                          }
+                          setDraggingGatheringId(null)
+                        }}
                         type="button"
                       >
+                        {gathering.classSeriesId !== null && (
+                          <ClassSeriesBadge compact />
+                        )}{' '}
                         {gathering.title ??
                           gatheringTypeLabels[gathering.gatheringType] ??
                           gatheringStatusLabels[gathering.gatheringStatus]}
                       </button>
                     ))}
                   </div>
+                  {calendarDrop?.targetDate === calendarDay.date && (
+                    <div className="calendar-drop-actions">
+                      <button
+                        onClick={() => void applyCalendarDropAction('MOVE')}
+                        type="button"
+                      >
+                        이동
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void applyCalendarDropAction('COPY')}
+                        type="button"
+                      >
+                        복사
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1228,6 +1743,9 @@ export function AttendancePage({
                         <span className="gathering-primary-column">
                           <strong>{gatheringPeriodLabel(gathering)}</strong>
                           {gathering.title && ` · ${gathering.title}`}
+                          {gathering.classSeriesId !== null && (
+                            <ClassSeriesBadge />
+                          )}
                         </span>
                         <span
                           className={`status gathering-type-column gathering-type-${gathering.gatheringType.toLowerCase()}`}
@@ -1427,7 +1945,11 @@ export function AttendancePage({
                     {settlement.items.map((expense) => (
                       <li key={expense.id}>
                         <span>{expense.spentOn}</span>
-                        <strong>{expense.category}</strong>
+                        <strong>
+                          {expense.rentalMonth
+                            ? rentalExpenseLabel(expense.rentalMonth)
+                            : expense.category}
+                        </strong>
                         <span>{expense.description}</span>
                         <b>{formatWon(expense.amount)}</b>
                       </li>
@@ -1461,6 +1983,119 @@ export function AttendancePage({
             </>
           )}
         </section>
+      )}
+
+      {isExistingClassConversionOpen && (
+        <Modal
+          ariaLabelledBy="convert-existing-class-series-heading"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsExistingClassConversionOpen(false)}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                disabled={isConvertingExistingClasses}
+                form="convert-existing-class-series-form"
+                type="submit"
+              >
+                {isConvertingExistingClasses ? '묶는 중…' : '연속 수업으로 묶기'}
+              </button>
+            </>
+          }
+          onClose={() => setIsExistingClassConversionOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="convert-existing-class-series-heading">수업 묶기</h3>
+            <p>
+              선택한 수업과 기존 출석 기록은 보존합니다. 선납 회원으로 선택한 참석자만 기존 출석과 이후 출석이 선납 회원으로 표시됩니다.
+            </p>
+          </div>
+          <form
+            className="form existing-class-conversion-form"
+            id="convert-existing-class-series-form"
+            onSubmit={convertExistingClasses}
+          >
+            <fieldset className="existing-class-selection">
+              <legend>묶을 수업 선택</legend>
+              {eligibleExistingClasses.length === 0 ? (
+                <p className="empty-copy">묶을 수 있는 기존 수업이 없습니다.</p>
+              ) : (
+                <div className="existing-class-options">
+                  {eligibleExistingClasses.map((gathering) => (
+                    <label key={gathering.id}>
+                      <input
+                        checked={conversionGatheringIds.includes(gathering.id)}
+                        onChange={() => void toggleConversionGathering(gathering)}
+                        type="checkbox"
+                      />
+                      <span>
+                        {gathering.heldOn} · {gathering.title ?? '제목 없는 수업'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+            <label>
+              연속 수업 이름
+              <input
+                onChange={(event) => setConversionTitle(event.target.value)}
+                required
+                value={conversionTitle}
+              />
+            </label>
+            <label>
+              회당 참가비
+              <input
+                min="0"
+                onChange={(event) =>
+                  setConversionSessionFee(normalizeMoneyInput(event.target.value))
+                }
+                required
+                step="1000"
+                type="number"
+                value={conversionSessionFee}
+              />
+            </label>
+            <fieldset className="existing-class-selection">
+              <legend>기존 참석자 중 선납 회원 선택</legend>
+              <p className="field-hint">
+                선택한 회원의 이미 기록된 일반 출석도 선납 회원으로 전환됩니다. 선택하지 않은 회원의 기존 입금 상태는 유지됩니다.
+              </p>
+              {conversionMembers.length === 0 ? (
+                <p className="empty-copy">선택한 수업에 일반 출석 기록이 없습니다.</p>
+              ) : (
+                <div className="existing-class-options">
+                  {conversionMembers.map((member) => (
+                    <label key={member.id}>
+                      <input
+                        checked={conversionPrepaidMemberIds.includes(member.id)}
+                        onChange={(event) =>
+                          setConversionPrepaidMemberIds((previous) =>
+                            event.target.checked
+                              ? [...previous, member.id]
+                              : previous.filter((id) => id !== member.id),
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>{member.displayName}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+            {conversionError && (
+              <p className="field-error" role="alert">
+                {conversionError}
+              </p>
+            )}
+          </form>
+        </Modal>
       )}
 
       {isCreateGatheringOpen && (
@@ -1509,11 +2144,16 @@ export function AttendancePage({
               if (value === 'EVENT') {
                 setEndsOn(heldOn)
                 setHostMemberId('')
+                setIsRecurringClass(false)
               }
             }}
             onHostMemberIdChange={setHostMemberId}
             onHeldOnChange={setHeldOn}
             onLocationChange={setLocation}
+            isRecurringClass={isRecurringClass}
+            onRecurringClassChange={setIsRecurringClass}
+            recurringWeeks={recurringWeeks}
+            onRecurringWeeksChange={setRecurringWeeks}
             onSubmit={createGathering}
             onTitleChange={setTitle}
             submitLabel="정모 개설"
@@ -1620,7 +2260,6 @@ export function AttendancePage({
           }
           onClose={() => {
             setSelectedGatheringId(null)
-            setCancellingAttendanceId(null)
             setIsGatheringCancellationOpen(false)
           }}
         >
@@ -1636,6 +2275,9 @@ export function AttendancePage({
                 <p>
                   {selectedGathering.location ?? '장소 미입력'} ·{' '}
                   {gatheringTypeLabels[selectedGathering.gatheringType]} ·{' '}
+                  {selectedGathering.classSeriesId !== null && (
+                    <><ClassSeriesBadge /> · </>
+                  )}
                   {selectedGathering.gatheringType === 'CLASS' && (
                     <>진행자 {selectedHost ?? '미지정'} · </>
                   )}
@@ -1652,6 +2294,15 @@ export function AttendancePage({
                       type="button"
                     >
                       수정
+                    </button>
+                  )}
+                  {selectedGathering.classSeriesId !== null && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void openClassSeriesEnrollment()}
+                      type="button"
+                    >
+                      선납 회원 관리
                     </button>
                   )}
                   {selectedGathering.gatheringStatus === 'DRAFT' && (
@@ -1693,108 +2344,48 @@ export function AttendancePage({
                 {selectedAttendances.map((attendance) => {
                   const member = membersById.get(attendance.memberId)
                   return (
-                    <Fragment key={attendance.id}>
-                      <li>
-                        <strong>
-                          {member?.displayName ?? '알 수 없는 회원'}
-                        </strong>
-                        {attendance.attendanceStatus === 'RECORDED' ? (
-                          <>
-                            <span
-                              className={`attendance-participation attendance-participation-${attendance.participationType.toLowerCase()}`}
-                            >
-                              {
-                                participationLabels[
-                                  attendance.participationType
-                                ]
-                              }
-                            </span>
-                            <span
-                              className={`payment-status payment-status-${attendance.paymentStatus.toLowerCase()}`}
-                            >
-                              {paymentStatusLabels[attendance.paymentStatus]}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span>
-                              {`취소 사유: ${attendance.cancellationReason ?? '사유 없음'}`}
-                            </span>
-                            <span className="attendance-cancelled-label">
-                              취소
-                            </span>
-                          </>
-                        )}
-                        {!readOnly &&
-                          attendance.attendanceStatus === 'RECORDED' &&
-                          attendance.participationType !== 'HOST' &&
-                          selectedGathering.gatheringStatus !== 'CANCELLED' && (
-                            <button
-                              className="edit-button"
-                              onClick={() => openPaymentEditor(attendance)}
-                              type="button"
-                            >
-                              입금 관리
-                            </button>
-                          )}
-                        {!readOnly &&
-                          selectedGathering.gatheringStatus === 'OPEN' &&
-                          attendance.attendanceStatus === 'RECORDED' && (
-                            <span className="attendance-row-actions">
-                              <button
-                                className="secondary-button"
-                                onClick={() => {
-                                  setCancellingAttendanceId(attendance.id)
-                                  setCancellationReason('')
-                                }}
-                                type="button"
-                              >
-                                출석 취소
-                              </button>
-                              {attendance.participationType !== 'COUPON' && (
-                                <button
-                                  className="danger-button"
-                                  onClick={() =>
-                                    void deleteAttendance(attendance)
-                                  }
-                                  type="button"
-                                >
-                                  삭제
-                                </button>
-                              )}
-                            </span>
-                          )}
-                      </li>
-                      {cancellingAttendanceId === attendance.id && (
-                        <li className="attendance-cancel-form">
-                          <form
-                            className="inline-form"
-                            onSubmit={cancelAttendance}
-                          >
-                            <label>
-                              출석 취소 사유
-                              <input
-                                onChange={(event) =>
-                                  setCancellationReason(event.target.value)
-                                }
-                                required
-                                value={cancellationReason}
-                              />
-                            </label>
-                            <button className="danger-button" type="submit">
-                              취소 확정
-                            </button>
-                            <button
-                              className="secondary-button"
-                              onClick={() => setCancellingAttendanceId(null)}
-                              type="button"
-                            >
-                              닫기
-                            </button>
-                          </form>
-                        </li>
+                    <li key={attendance.id}>
+                      <strong>
+                        {member?.displayName ?? '알 수 없는 회원'}
+                      </strong>
+                      {attendance.participationType !== 'NORMAL' && (
+                        <span
+                          className={`attendance-participation attendance-participation-${attendance.participationType.toLowerCase()}`}
+                        >
+                          {participationLabels[attendance.participationType]}
+                        </span>
                       )}
-                    </Fragment>
+                      <span
+                        className={`payment-status payment-status-${attendance.paymentStatus.toLowerCase()}`}
+                      >
+                        {paymentStatusLabels[attendance.paymentStatus]}
+                      </span>
+                      {!readOnly &&
+                        attendance.participationType !== 'HOST' &&
+                        attendance.paymentStatus !== 'PREPAID' &&
+                        selectedGathering.gatheringStatus !== 'CANCELLED' && (
+                          <button
+                            className="edit-button"
+                            onClick={() => openPaymentEditor(attendance)}
+                            type="button"
+                          >
+                            입금 관리
+                          </button>
+                        )}
+                      {!readOnly &&
+                        selectedGathering.gatheringStatus === 'OPEN' &&
+                        attendance.participationType !== 'HOST' && (
+                          <span className="attendance-row-actions">
+                            <button
+                              className="danger-button"
+                              onClick={() => void cancelAttendance(attendance)}
+                              type="button"
+                            >
+                              출석 취소
+                            </button>
+                          </span>
+                        )}
+                    </li>
                   )
                 })}
               </ul>
@@ -1860,6 +2451,26 @@ export function AttendancePage({
           ariaLabelledBy="edit-gathering-heading"
           footer={
             <>
+              {selectedGathering.gatheringType === 'CLASS' &&
+                selectedGathering.classSeriesId === null &&
+                (selectedGathering.gatheringStatus === 'DRAFT' ||
+                  selectedGathering.gatheringStatus === 'OPEN') && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      const gatheringToConvert = selectedGathering
+                      setIsEditGatheringOpen(false)
+                      setSelectedGatheringId(null)
+                      window.setTimeout(
+                        () => openExistingClassConversion(gatheringToConvert),
+                        0,
+                      )
+                    }}
+                    type="button"
+                  >
+                    수업 묶기
+                  </button>
+                )}
               <button
                 className="secondary-button"
                 onClick={() => setIsEditGatheringOpen(false)}
@@ -2012,15 +2623,35 @@ export function AttendancePage({
                 value={expenseDate}
               />
             </label>
-            <label>
-              분류
-              <input
-                maxLength={100}
-                onChange={(event) => setExpenseCategory(event.target.value)}
-                required
-                value={expenseCategory}
-              />
-            </label>
+            <SelectField
+              label="항목"
+              onChange={(value) => setExpenseType(value as ExpenseType)}
+              options={[
+                { label: '대관비', value: 'RENTAL' },
+                { label: '기타 지출', value: 'OTHER' },
+              ]}
+              value={expenseType}
+            />
+            {expenseType === 'RENTAL' ? (
+              <label>
+                대관 적용 월
+                <KoreanMonthInput
+                  onChange={setExpenseRentalMonth}
+                  required
+                  value={expenseRentalMonth}
+                />
+              </label>
+            ) : (
+              <label>
+                분류
+                <input
+                  maxLength={100}
+                  onChange={(event) => setExpenseCategory(event.target.value)}
+                  required
+                  value={expenseCategory}
+                />
+              </label>
+            )}
             <label>
               설명 (선택)
               <input
@@ -2032,8 +2663,10 @@ export function AttendancePage({
             <label>
               금액
               <input
-                min="1"
-                onChange={(event) => setExpenseAmount(event.target.value)}
+                min="0"
+                onChange={(event) =>
+                  setExpenseAmount(normalizeMoneyInput(event.target.value))
+                }
                 required
                 step="1000"
                 type="number"
@@ -2043,6 +2676,94 @@ export function AttendancePage({
           </form>
         </Modal>
       )}
+      {isClassSeriesEnrollmentOpen && selectedGathering?.classSeriesId && (
+        <Modal
+          ariaLabelledBy="class-series-enrollment-heading"
+          footer={
+            <>
+              <button
+                className="secondary-button"
+                onClick={() => setIsClassSeriesEnrollmentOpen(false)}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                disabled={isSavingClassSeriesEnrollment}
+                form="class-series-enrollment-form"
+                type="submit"
+              >
+                {isSavingClassSeriesEnrollment ? '등록 중…' : '선납 회원 등록'}
+              </button>
+            </>
+          }
+          onClose={() => setIsClassSeriesEnrollmentOpen(false)}
+        >
+          <div className="modal-heading">
+            <h3 id="class-series-enrollment-heading">선납 회원 관리</h3>
+            <p>
+              선납 회원이 출석하면 해당 회차는 입금 관리 없이 선납 회원으로 표시됩니다. 결석분 환불은 자동 처리하지 않습니다.
+            </p>
+          </div>
+          <form
+            className="form class-series-enrollment-form"
+            id="class-series-enrollment-form"
+            onSubmit={saveClassSeriesEnrollment}
+          >
+            <SearchableMemberSelect
+              label="회원"
+              members={activeMembers.filter(
+                (member) =>
+                  !classSeriesEnrollments.some(
+                    (enrollment) => enrollment.memberId === member.id,
+                  ),
+              )}
+              onChange={setPrepaidMemberId}
+              required
+              value={prepaidMemberId}
+            />
+            <label>
+              선납 금액
+              <input
+                min="0"
+                onChange={(event) =>
+                  setPrepaidAmount(normalizeMoneyInput(event.target.value))
+                }
+                required
+                step="1000"
+                type="number"
+                value={prepaidAmount}
+              />
+              <span className="field-hint">
+                기본값은 전체 수업 참가비입니다. 필요한 경우에만 수정해 주세요.
+              </span>
+            </label>
+            {classSeriesEnrollmentError && (
+              <p className="field-error" role="alert">
+                {classSeriesEnrollmentError}
+              </p>
+            )}
+          </form>
+          <section className="class-series-enrollment-list" aria-label="등록된 선납 회원">
+            <h4>등록된 선납 회원</h4>
+            {classSeriesEnrollments.length === 0 ? (
+              <p className="empty-copy">아직 등록된 선납 회원이 없습니다.</p>
+            ) : (
+              <ul>
+                {classSeriesEnrollments.map((enrollment) => (
+                  <li key={enrollment.id}>
+                    <strong>
+                      {membersById.get(enrollment.memberId)?.displayName ?? '이름 미확인'}
+                    </strong>
+                    <span>{formatWon(enrollment.paidAmount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </Modal>
+      )}
+
       {selectedPaymentAttendance && (
         <Modal
           ariaLabelledBy="attendance-payment-heading"
@@ -2080,7 +2801,9 @@ export function AttendancePage({
               {isPaymentFeeEditing ? (
                 <input
                   min="0"
-                  onChange={(event) => setPaymentFee(event.target.value)}
+                  onChange={(event) =>
+                    setPaymentFee(normalizeMoneyInput(event.target.value))
+                  }
                   required
                   step="1000"
                   type="number"

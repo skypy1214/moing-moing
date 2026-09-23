@@ -119,4 +119,61 @@ describe('CouponPage', () => {
       screen.queryByRole('option', { name: /가나다/ }),
     ).not.toBeInTheDocument()
   })
+
+  it('shows a coupon extension result above the open action sheet', async () => {
+    const user = userEvent.setup()
+    const coupon = {
+      id: 'coupon-1',
+      memberId: 'member-1',
+      couponType: 'MANUAL_FREE_PASS' as const,
+      couponStatus: 'ISSUED' as const,
+      validFrom: '2025-01-01',
+      validUntil: '2025-01-31',
+      totalUses: 1,
+      remainingUses: 1,
+      name: '연장 대상 쿠폰',
+      issuedReason: null,
+      championAwardId: null,
+      hasQrCode: false,
+    }
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input === '/api/v1/coupons' && init?.method === undefined) {
+        return Promise.resolve({ ok: true, json: async () => [coupon] })
+      }
+      if (input === '/api/v1/coupons/coupon-1/valid-until') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ...coupon, validUntil: '2026-12-31' }),
+        })
+      }
+      return Promise.resolve({ ok: false })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <FeedbackDialogProvider>
+        <CouponPage
+          members={[
+            {
+              id: 'member-1',
+              displayName: '테스트 회원',
+              externalNickname: null,
+              membershipStatus: 'ACTIVE',
+              memberRole: 'MEMBER',
+              joinedOn: '2025-01-01',
+              withdrawnOn: null,
+              memo: null,
+            },
+          ]}
+        />
+      </FeedbackDialogProvider>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: /관리/ }))
+    await user.click(screen.getByRole('button', { name: '기간 연장' }))
+
+    const alert = await screen.findByRole('alertdialog')
+    expect(alert.parentElement).toHaveClass('modal-backdrop-priority')
+    expect(document.querySelector('.bottom-sheet-backdrop')).not.toBeNull()
+  })
 })

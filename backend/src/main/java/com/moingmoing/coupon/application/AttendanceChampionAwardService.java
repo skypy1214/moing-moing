@@ -100,7 +100,7 @@ public class AttendanceChampionAwardService {
             AttendanceChampionAward award = awardRepository.save(new AttendanceChampionAward(
                     targetMonth, winner.getKey(), Math.toIntExact(highestCount), policy.getVersion(), rewardUses));
             couponRepository.save(Coupon.attendanceChampionReward(
-                    award.getMemberId(), validFrom, validUntil, award.getRewardUses(), award.getId()));
+                    award.getMemberId(), targetMonth, validFrom, validUntil, award.getRewardUses(), award.getId()));
             return award;
         }).toList();
     }

@@ -24,6 +24,10 @@ type GatheringFormProps = {
   onHostMemberIdChange?: (value: string) => void
   onHeldOnChange: (value: string) => void
   onLocationChange: (value: string) => void
+  isRecurringClass?: boolean
+  onRecurringClassChange?: (value: boolean) => void
+  recurringWeeks?: string
+  onRecurringWeeksChange?: (value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onTitleChange: (value: string) => void
   submitLabel: string
@@ -51,6 +55,10 @@ export function GatheringForm({
   onHostMemberIdChange,
   onHeldOnChange,
   onLocationChange,
+  isRecurringClass = false,
+  onRecurringClassChange,
+  recurringWeeks = '3',
+  onRecurringWeeksChange,
   onSubmit,
   onTitleChange,
   submitLabel,
@@ -93,6 +101,36 @@ export function GatheringForm({
           행사 종료일
           <KoreanDateInput onChange={onEndsOnChange} required value={endsOn} />
         </label>
+      )}
+      {gatheringType === 'CLASS' && onRecurringClassChange && (
+        <div className="recurring-class-field">
+          <label className="checkbox-label">
+            <input
+              checked={isRecurringClass}
+              onChange={(event) => onRecurringClassChange(event.target.checked)}
+              type="checkbox"
+            />
+            <span>연속 수업으로 개설</span>
+          </label>
+          {isRecurringClass && (
+            <div className="recurring-class-options">
+              <label>
+                수업 횟수
+                <input
+                  max="24"
+                  min="2"
+                  onChange={(event) => onRecurringWeeksChange?.(event.target.value)}
+                  required
+                  type="number"
+                  value={recurringWeeks}
+                />
+              </label>
+              <p className="field-hint">
+                {heldOn}부터 매주 같은 요일에 {recurringWeeks || 0}회 수업이 생성됩니다. 선납 회원은 각 수업 출석 시 자동으로 선납 처리됩니다.
+              </p>
+            </div>
+          )}
+        </div>
       )}
       {showHostSelection &&
         gatheringType === 'CLASS' &&

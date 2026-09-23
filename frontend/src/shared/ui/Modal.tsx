@@ -11,6 +11,7 @@ type ModalProps = {
   closeLabel?: string
   footer?: ReactNode
   onClose: () => void
+  priority?: 'normal' | 'feedback'
   role?: 'dialog' | 'alertdialog'
 }
 
@@ -22,6 +23,7 @@ export function Modal({
   closeLabel = '모달 닫기',
   footer,
   onClose,
+  priority = 'normal',
   role = 'dialog',
 }: ModalProps) {
   const modalRef = useRef<HTMLElement>(null)
@@ -45,7 +47,9 @@ export function Modal({
 
   return (
     <div
-      className="modal-backdrop"
+      className={`modal-backdrop${
+        priority === 'feedback' ? ' modal-backdrop-priority' : ''
+      }`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose()

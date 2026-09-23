@@ -22,6 +22,7 @@ public class Gathering {
     private String title;
     private Instant startsAt;
     private String location;
+    private UUID classSeriesId;
     private int defaultParticipationFee;
     @Enumerated(EnumType.STRING)
     private GatheringStatus gatheringStatus;
@@ -55,12 +56,25 @@ public class Gathering {
             Instant startsAt,
             String location,
             int defaultParticipationFee) {
+        this(heldOn, gatheringType, endsOn, title, startsAt, location, defaultParticipationFee, null);
+    }
+
+    public Gathering(
+            LocalDate heldOn,
+            GatheringType gatheringType,
+            LocalDate endsOn,
+            String title,
+            Instant startsAt,
+            String location,
+            int defaultParticipationFee,
+            UUID classSeriesId) {
         this.id = UUID.randomUUID();
         this.heldOn = heldOn;
         updateTypeAndPeriod(gatheringType, endsOn);
         this.title = title;
         this.startsAt = startsAt;
         this.location = location;
+        this.classSeriesId = classSeriesId;
         updateDefaultParticipationFee(defaultParticipationFee);
         this.gatheringStatus = GatheringStatus.DRAFT;
         this.createdAt = Instant.now();
@@ -97,6 +111,21 @@ public class Gathering {
 
     public int getDefaultParticipationFee() {
         return defaultParticipationFee;
+    }
+
+    public UUID getClassSeriesId() {
+        return classSeriesId;
+    }
+
+    public void assignClassSeries(UUID classSeriesId) {
+        if (gatheringType != GatheringType.CLASS) {
+            throw new IllegalArgumentException("수업만 연속 수업으로 묶을 수 있습니다.");
+        }
+        if (this.classSeriesId != null) {
+            throw new IllegalArgumentException("이미 다른 연속 수업에 포함된 수업입니다.");
+        }
+        this.classSeriesId = classSeriesId;
+        updatedAt = Instant.now();
     }
 
     public GatheringStatus getGatheringStatus() {

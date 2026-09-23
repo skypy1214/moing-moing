@@ -18,8 +18,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.moingmoing.attendance.domain.Attendance;
 import com.moingmoing.attendance.domain.AttendanceParticipationType;
+import com.moingmoing.attendance.domain.AttendanceStatus;
 import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
+import com.moingmoing.attendance.infrastructure.ClassSeriesEnrollmentRepository;
 import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.application.MemberService;
 import com.moingmoing.member.domain.Member;
@@ -30,6 +32,8 @@ class AttendanceServiceTest {
     private GatheringRepository gatheringRepository;
     @Mock
     private AttendanceRepository attendanceRepository;
+    @Mock
+    private ClassSeriesEnrollmentRepository classSeriesEnrollmentRepository;
     @Mock
     private MemberService memberService;
 
@@ -107,7 +111,7 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void changesParticipationTypeForExistingAttendance() {
+    void rejectsRecordingAnAlreadyRecordedMember() {
         Gathering gathering = openGathering();
         Member member = new Member("회원", null, LocalDate.of(2026, 1, 1), null);
         AttendanceService attendanceService = service();
@@ -118,11 +122,10 @@ class AttendanceServiceTest {
         when(attendanceRepository.findByGatheringIdAndMemberId(gathering.getId(), member.getId()))
                 .thenReturn(Optional.of(existing));
 
-        Attendance changed = attendanceService.recordAttendance(
-                gathering.getId(), member.getId(), AttendanceParticipationType.HOST);
-
-        assertThat(changed).isSameAs(existing);
-        assertThat(changed.getParticipationType()).isEqualTo(AttendanceParticipationType.HOST);
+        assertThatThrownBy(() -> attendanceService.recordAttendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.HOST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("이미 출석부에 추가된 회원");
     }
 
     @Test
@@ -168,7 +171,7 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void physicallyDeletesANormalAttendanceAfterItIsExplicitlyRequested() {
+    void marksANormalAttendanceCancelledWhenItIsRemoved() {
         Gathering gathering = openGathering();
         Attendance attendance = new Attendance(
                 gathering.getId(), UUID.randomUUID(), AttendanceParticipationType.NORMAL);
@@ -178,7 +181,27 @@ class AttendanceServiceTest {
 
         attendanceService.deleteAttendance(gathering.getId(), attendance.getId());
 
-        verify(attendanceRepository).delete(attendance);
+        assertThat(attendance.getAttendanceStatus()).isEqualTo(AttendanceStatus.CANCELLED);
+    }
+
+    @Test
+    void restoresACancelledAttendanceWhenTheMemberIsRecordedAgain() {
+        Gathering gathering = openGathering();
+        Member member = new Member("회원", null, LocalDate.of(2026, 1, 1), null);
+        Attendance attendance = new Attendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.NORMAL);
+        attendance.cancel("출석 취소");
+        AttendanceService attendanceService = service();
+        when(gatheringRepository.findById(gathering.getId())).thenReturn(Optional.of(gathering));
+        when(memberService.findById(member.getId())).thenReturn(member);
+        when(attendanceRepository.findByGatheringIdAndMemberId(gathering.getId(), member.getId()))
+                .thenReturn(Optional.of(attendance));
+
+        Attendance restored = attendanceService.recordAttendance(
+                gathering.getId(), member.getId(), AttendanceParticipationType.NORMAL);
+
+        assertThat(restored).isSameAs(attendance);
+        assertThat(restored.getAttendanceStatus()).isEqualTo(AttendanceStatus.RECORDED);
     }
 
     @Test
@@ -197,7 +220,8 @@ class AttendanceServiceTest {
     }
 
     private AttendanceService service() {
-        return new AttendanceService(gatheringRepository, attendanceRepository, memberService);
+        return new AttendanceService(
+                gatheringRepository, attendanceRepository, memberService, classSeriesEnrollmentRepository);
     }
 
     private Gathering openGathering() {

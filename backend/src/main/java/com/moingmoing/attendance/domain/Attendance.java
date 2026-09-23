@@ -158,6 +158,17 @@ public class Attendance {
         updatedAt = Instant.now();
     }
 
+    public void applyPrepayment() {
+        if (participationType != AttendanceParticipationType.NORMAL) {
+            return;
+        }
+        appliedFee = 0;
+        paymentStatus = AttendancePaymentStatus.PREPAID;
+        paidAt = null;
+        feeOverridden = false;
+        updatedAt = Instant.now();
+    }
+
     public void cancel(String cancellationReason) {
         if (attendanceStatus == AttendanceStatus.CANCELLED) {
             throw new IllegalArgumentException("이미 취소된 출석입니다.");

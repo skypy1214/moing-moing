@@ -46,6 +46,7 @@ export function FeedbackDialogProvider({ children }: { children: ReactNode }) {
             </button>
           }
           onClose={closeFeedbackDialog}
+          priority="feedback"
         >
           <div className="modal-heading">
             <h2 id="feedback-dialog-heading">{dialog.title}</h2>
@@ -76,6 +77,7 @@ export function FeedbackDialogProvider({ children }: { children: ReactNode }) {
             </>
           }
           onClose={() => closeConfirmation(false)}
+          priority="feedback"
           role="alertdialog"
         >
           <div className="modal-heading">

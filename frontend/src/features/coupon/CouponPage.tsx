@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import type { IDetectedBarcode, IScannerError } from '@yudiel/react-qr-scanner'
@@ -86,6 +86,55 @@ function couponValidityLabel(coupon: Coupon) {
   return `${formatKoreanDate(coupon.validFrom)} ~ ${formatKoreanDate(coupon.validUntil)}`
 }
 
+type CouponQrSummaryProps = {
+  coupon: Coupon
+  memberName: (memberId: string) => string
+}
+
+function CouponQrSummary({ coupon, memberName }: CouponQrSummaryProps) {
+  return (
+    <dl aria-label="쿠폰 정보" className="qr-coupon-summary">
+      <div>
+        <dt>쿠폰</dt>
+        <dd>{coupon.name ?? couponTypeLabels[coupon.couponType]}</dd>
+      </div>
+      <div>
+        <dt>수령 회원</dt>
+        <dd>{memberName(coupon.memberId)}</dd>
+      </div>
+      <div>
+        <dt>유효기간</dt>
+        <dd>{couponValidityLabel(coupon)}</dd>
+      </div>
+    </dl>
+  )
+}
+
+function wrapCanvasText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+) {
+  const lines: string[] = []
+  let line = ''
+
+  for (const character of text) {
+    const candidate = `${line}${character}`
+    if (line !== '' && context.measureText(candidate).width > maxWidth) {
+      lines.push(line.trimEnd())
+      line = character.trimStart()
+      continue
+    }
+    line = candidate
+  }
+
+  if (line !== '') {
+    lines.push(line.trimEnd())
+  }
+
+  return lines
+}
+
 type CouponPageProps = {
   members: Member[]
   readOnly?: boolean
@@ -125,9 +174,124 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
   const [qrScannerError, setQrScannerError] = useState('')
   const [qrCodeCoupon, setQrCodeCoupon] = useState<Coupon | null>(null)
   const [qrCodeToken, setQrCodeToken] = useState('')
+  const [isQrImageExporting, setIsQrImageExporting] = useState(false)
+  const qrCodeDisplayRef = useRef<HTMLDivElement>(null)
 
   const memberName = (id: string) =>
     members.find((member) => member.id === id)?.displayName ?? '알 수 없는 회원'
+
+  function downloadQrCodeImage() {
+    if (qrCodeCoupon === null || isQrImageExporting) {
+      return
+    }
+
+    const qrSvg = qrCodeDisplayRef.current?.querySelector('svg')
+    if (qrSvg === null || qrSvg === undefined) {
+      setMessage('QR 이미지를 준비하지 못했습니다. 다시 시도해 주세요.')
+      return
+    }
+
+    const couponName =
+      qrCodeCoupon.name ?? couponTypeLabels[qrCodeCoupon.couponType]
+    const details = [
+      { label: '쿠폰', value: couponName },
+      { label: '발급 대상', value: memberName(qrCodeCoupon.memberId) },
+      { label: '유효기간', value: couponValidityLabel(qrCodeCoupon) },
+    ]
+    const canvas = document.createElement('canvas')
+    const measurementContext = canvas.getContext('2d')
+    if (measurementContext === null) {
+      setMessage('QR 이미지를 준비하지 못했습니다. 다시 시도해 주세요.')
+      return
+    }
+
+    measurementContext.font = '700 42px sans-serif'
+    const detailLines = details.map((detail) => ({
+      ...detail,
+      lines: wrapCanvasText(measurementContext, detail.value, 980),
+    }))
+    const detailHeight = detailLines.reduce(
+      (height, detail) => height + 34 + detail.lines.length * 54 + 28,
+      0,
+    )
+    const qrSize = 760
+    const padding = 80
+    canvas.width = 1200
+    canvas.height = padding + 64 + detailHeight + qrSize + 170
+
+    const context = canvas.getContext('2d')
+    if (context === null) {
+      setMessage('QR 이미지를 준비하지 못했습니다. 다시 시도해 주세요.')
+      return
+    }
+
+    setIsQrImageExporting(true)
+    const svgMarkup = new XMLSerializer().serializeToString(qrSvg)
+    const svgBlob = new Blob([svgMarkup], {
+      type: 'image/svg+xml;charset=utf-8',
+    })
+    const svgUrl = URL.createObjectURL(svgBlob)
+    const qrImage = new Image()
+
+    qrImage.onload = () => {
+      context.fillStyle = '#f7f9fc'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.fillStyle = '#172033'
+      context.font = '700 46px sans-serif'
+      context.fillText('딴따라단 쿠폰 QR', padding, padding)
+
+      let y = padding + 78
+      detailLines.forEach((detail) => {
+        context.fillStyle = '#637083'
+        context.font = '600 30px sans-serif'
+        context.fillText(detail.label, padding, y)
+        y += 42
+        context.fillStyle = '#172033'
+        context.font = '700 42px sans-serif'
+        detail.lines.forEach((line) => {
+          context.fillText(line, padding, y)
+          y += 54
+        })
+        y += 28
+      })
+
+      const qrX = (canvas.width - qrSize) / 2
+      context.fillStyle = '#ffffff'
+      context.fillRect(qrX - 24, y, qrSize + 48, qrSize + 48)
+      context.drawImage(qrImage, qrX, y + 24, qrSize, qrSize)
+      context.fillStyle = '#637083'
+      context.font = '500 28px sans-serif'
+      context.textAlign = 'center'
+      context.fillText(
+        '이 QR 코드는 운영진의 확인 후에만 사용할 수 있습니다.',
+        canvas.width / 2,
+        y + qrSize + 112,
+      )
+      context.textAlign = 'start'
+
+      canvas.toBlob((imageBlob) => {
+        URL.revokeObjectURL(svgUrl)
+        setIsQrImageExporting(false)
+        if (imageBlob === null) {
+          setMessage('QR 이미지를 만들지 못했습니다. 다시 시도해 주세요.')
+          return
+        }
+
+        const imageUrl = URL.createObjectURL(imageBlob)
+        const link = document.createElement('a')
+        link.download = `coupon-qr-${qrCodeCoupon.id}.png`
+        link.href = imageUrl
+        link.click()
+        window.setTimeout(() => URL.revokeObjectURL(imageUrl), 0)
+      }, 'image/png')
+    }
+    qrImage.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
+      setIsQrImageExporting(false)
+      setMessage('QR 이미지를 만들지 못했습니다. 다시 시도해 주세요.')
+    }
+    qrImage.src = svgUrl
+  }
 
   const loadCoupons = useCallback(async () => {
     const response = await fetch('/api/v1/coupons', { credentials: 'include' })
@@ -1164,6 +1328,12 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               'QR 코드를 카메라 중앙에 맞춰 주세요. 스캔 후 사용 여부를 확인합니다.'
             }
           </p>
+          {qrValidatedCoupon && (
+            <CouponQrSummary
+              coupon={qrValidatedCoupon}
+              memberName={memberName}
+            />
+          )}
           {qrToken === '' && (
             <div className="qr-scanner-viewfinder">
               <Scanner
@@ -1200,12 +1370,6 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
                 {'QR 코드 확인'}
               </button>
             )}
-            {qrValidatedCoupon && (
-              <div className="qr-validated-coupon">
-                <strong>{`${memberName(qrValidatedCoupon.memberId)}님의 쿠폰`}</strong>
-                <span>{`잔여 ${qrValidatedCoupon.remainingUses}회 · ${couponValidityLabel(qrValidatedCoupon)}`}</span>
-              </div>
-            )}
             <SelectField
               label="열린 모임"
               onChange={setGatheringId}
@@ -1229,33 +1393,38 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
               </button>
             </div>
           </form>
+          {qrValidatedCoupon && (
+            <CouponQrSummary
+              coupon={qrValidatedCoupon}
+              memberName={memberName}
+            />
+          )}
         </section>
       )}
       {qrCodeCoupon !== null && qrCodeToken !== '' && (
-        <section
-          aria-labelledby="qr-code-heading"
-          aria-modal="true"
-          className="qr-fullscreen"
-          role="dialog"
-        >
-          <header className="qr-fullscreen-header">
-            <div>
-              <p className="eyebrow">COUPON QR</p>
-              <h2 id="qr-code-heading">{'쿠폰 QR 코드'}</h2>
-            </div>
+        <Modal
+          ariaLabelledBy="qr-code-heading"
+          className="modal-content qr-code-modal"
+          footer={
             <button
-              aria-label="QR 코드 닫기"
-              className="modal-close-button"
-              onClick={() => {
-                setQrCodeCoupon(null)
-                setQrCodeToken('')
-              }}
+              disabled={isQrImageExporting}
+              onClick={downloadQrCodeImage}
               type="button"
             >
-              ×
+              {isQrImageExporting ? '이미지 준비 중…' : 'QR 이미지 다운로드'}
             </button>
-          </header>
-          <div className="qr-code-display">
+          }
+          onClose={() => {
+            setQrCodeCoupon(null)
+            setQrCodeToken('')
+          }}
+        >
+          <div className="modal-heading">
+            <p className="eyebrow">COUPON QR</p>
+            <h2 id="qr-code-heading">{'쿠폰 QR 코드'}</h2>
+          </div>
+          <CouponQrSummary coupon={qrCodeCoupon} memberName={memberName} />
+          <div className="qr-code-display" ref={qrCodeDisplayRef}>
             <QRCodeSVG
               level="M"
               marginSize={4}
@@ -1267,7 +1436,8 @@ export function CouponPage({ members, readOnly = false }: CouponPageProps) {
             <span>{`${qrCodeCoupon.remainingUses}/${qrCodeCoupon.totalUses}회 사용 가능`}</span>
             <p>{'이 QR 코드는 운영진의 스캔·확인 후에만 사용 처리됩니다.'}</p>
           </div>
-        </section>
+          <CouponQrSummary coupon={qrCodeCoupon} memberName={memberName} />
+        </Modal>
       )}
       {message && (
         <FeedbackMessageDialog

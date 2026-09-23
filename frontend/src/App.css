@@ -708,6 +708,12 @@ h2 {
   padding: 0;
 }
 
+.withdrawn-member-search {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
 .withdrawn-member-list > li,
 .withdrawn-member-list > li > div {
   align-items: center;
@@ -901,6 +907,31 @@ h2 {
   width: 100%;
 }
 
+.calendar-gathering.is-dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
+.calendar-drop-actions {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.18);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  position: absolute;
+  right: 6px;
+  top: 30px;
+  z-index: 3;
+}
+
+.calendar-drop-actions button {
+  font-size: 0.75rem;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
 .gathering-list,
 .attendance-list,
 .coupon-list {
@@ -978,6 +1009,75 @@ h2 {
   margin-bottom: 7px;
 }
 
+.recurring-class-field {
+  display: grid;
+  gap: 10px;
+}
+
+.checkbox-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  width: fit-content;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.recurring-class-options {
+  background: #f7f8fc;
+  border: 1px solid #dfe4f1;
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.recurring-class-options label {
+  max-width: 140px;
+}
+
+.existing-class-selection {
+  border: 0;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.existing-class-selection legend {
+  color: #344055;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 0;
+}
+
+.existing-class-options {
+  border: 1px solid #dfe4f1;
+  border-radius: 10px;
+  display: grid;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.existing-class-options label {
+  align-items: center;
+  border-bottom: 1px solid #edf0f5;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.existing-class-options label:last-child {
+  border-bottom: 0;
+}
+
+.existing-class-options input {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .gathering-type-options {
   display: grid;
   gap: 8px;
@@ -1048,6 +1148,11 @@ h2 {
   padding: 24px;
   position: fixed;
   z-index: 10;
+}
+
+/* Feedback and confirmation dialogs must remain actionable above sheets. */
+.modal-backdrop-priority {
+  z-index: 200;
 }
 
 .modal-content {
@@ -1511,7 +1616,7 @@ h2 {
   width: 100%;
 }
 
-.qr-validated-coupon,
+.qr-coupon-summary,
 .qr-code-display {
   background: #ffffff;
   border: 1px solid #c8d9ec;
@@ -1521,11 +1626,42 @@ h2 {
   padding: 20px;
 }
 
+.qr-coupon-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 auto;
+  max-width: 520px;
+  width: 100%;
+}
+
+.qr-coupon-summary div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.qr-coupon-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.qr-coupon-summary dd {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .qr-code-display {
   justify-items: center;
   margin: auto;
   max-width: 360px;
   text-align: center;
+}
+
+.qr-code-modal {
+  max-width: 520px;
 }
 
 .qr-code-display svg {
@@ -1570,6 +1706,58 @@ h2 {
 .attendance-list span {
   color: #637083;
   font-size: 0.88rem;
+}
+
+.payment-status-prepaid {
+  background: #e9f1ff;
+  color: #28518d !important;
+}
+
+.class-series-badge {
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: #28518d !important;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-left: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.class-series-badge.is-compact {
+  font-size: 0.64rem;
+  margin-left: 0;
+  padding: 1px 4px;
+}
+
+.class-series-enrollment-list {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+
+.class-series-enrollment-list h4 {
+  margin: 0 0 10px;
+}
+
+.class-series-enrollment-list ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.class-series-enrollment-list li {
+  align-items: center;
+  background: #f8fafc;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
 }
 
 .attendance-participation {
@@ -2339,6 +2527,15 @@ button:hover {
     padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   }
 
+  .qr-coupon-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-coupon-summary div {
+    align-items: baseline;
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
   .inline-form {
     align-items: stretch;
     flex-direction: column;
@@ -2625,6 +2822,12 @@ textarea::placeholder {
   color: #2b7640;
 }
 
+.inactivity-badge-paused {
+  background: #eef0f3;
+  border-color: #cfd5dd;
+  color: #596577;
+}
+
 .inactivity-badge-inactive {
   background: #fbe6e9;
   border-color: #edb3bc;
@@ -2741,6 +2944,11 @@ textarea::placeholder {
 .calendar-day-select-target:hover {
   background: var(--color-surface-subtle);
   border: 0;
+}
+
+.calendar-gathering.is-class-series {
+  box-shadow: inset 0 0 0 1px currentColor;
+  font-weight: 650;
 }
 
 .calendar-day-select-target:disabled {

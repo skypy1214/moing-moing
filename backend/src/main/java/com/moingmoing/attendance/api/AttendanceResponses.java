@@ -21,6 +21,7 @@ record GatheringResponse(
         Instant startsAt,
         String location,
         int defaultParticipationFee,
+        UUID classSeriesId,
         GatheringStatus gatheringStatus,
         Instant cancelledAt,
         String cancellationReason) {
@@ -34,6 +35,7 @@ record GatheringResponse(
                 gathering.getStartsAt(),
                 gathering.getLocation(),
                 gathering.getDefaultParticipationFee(),
+                gathering.getClassSeriesId(),
                 gathering.getGatheringStatus(),
                 gathering.getCancelledAt(),
                 gathering.getCancellationReason());

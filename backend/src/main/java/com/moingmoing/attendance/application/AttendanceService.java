@@ -18,6 +18,7 @@ import com.moingmoing.attendance.domain.Gathering;
 import com.moingmoing.attendance.domain.GatheringStatus;
 import com.moingmoing.attendance.domain.GatheringType;
 import com.moingmoing.attendance.infrastructure.AttendanceRepository;
+import com.moingmoing.attendance.infrastructure.ClassSeriesEnrollmentRepository;
 import com.moingmoing.attendance.infrastructure.GatheringRepository;
 import com.moingmoing.member.application.MemberService;
 import com.moingmoing.member.domain.Member;
@@ -30,14 +31,17 @@ public class AttendanceService {
     private final GatheringRepository gatheringRepository;
     private final AttendanceRepository attendanceRepository;
     private final MemberService memberService;
+    private final ClassSeriesEnrollmentRepository classSeriesEnrollmentRepository;
 
     public AttendanceService(
             GatheringRepository gatheringRepository,
             AttendanceRepository attendanceRepository,
-            MemberService memberService) {
+            MemberService memberService,
+            ClassSeriesEnrollmentRepository classSeriesEnrollmentRepository) {
         this.gatheringRepository = gatheringRepository;
         this.attendanceRepository = attendanceRepository;
         this.memberService = memberService;
+        this.classSeriesEnrollmentRepository = classSeriesEnrollmentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -216,10 +220,12 @@ public class AttendanceService {
             if (existingAttendance.getAttendanceStatus() == AttendanceStatus.CANCELLED) {
                 existingAttendance.recordAgain(participationType);
             } else {
-                existingAttendance.changeParticipationType(participationType);
+                throw new IllegalArgumentException("이미 출석부에 추가된 회원입니다.");
             }
             if (participationType == AttendanceParticipationType.COUPON) {
                 existingAttendance.updatePayment(0, AttendancePaymentStatus.EXEMPT);
+            } else if (hasClassSeriesPrepayment(gathering, memberId) && !hasDefaultFeeExemption(member)) {
+                existingAttendance.applyPrepayment();
             } else if (hasDefaultFeeExemption(member)) {
                 existingAttendance.applyRoleFeeExemption();
             }
@@ -229,8 +235,12 @@ public class AttendanceService {
                         || hasDefaultFeeExemption(member)
                 ? 0
                 : gathering.getDefaultParticipationFee();
-        return attendanceRepository.save(
+        Attendance attendance = attendanceRepository.save(
                 new Attendance(gatheringId, memberId, participationType, appliedFee));
+        if (hasClassSeriesPrepayment(gathering, memberId) && !hasDefaultFeeExemption(member)) {
+            attendance.applyPrepayment();
+        }
+        return attendance;
     }
 
     public Attendance cancelAttendance(UUID gatheringId, UUID attendanceId, String cancellationReason) {
@@ -257,7 +267,7 @@ public class AttendanceService {
             // Coupon attendance must retain its linked coupon-usage audit trail.
             throw new IllegalArgumentException("Coupon attendance must be reversed from the coupon usage.");
         }
-        attendanceRepository.delete(attendance);
+        attendance.cancel("출석 취소");
     }
 
     public Attendance updateAttendancePayment(
@@ -274,6 +284,12 @@ public class AttendanceService {
                 .orElseThrow(() -> new AttendanceNotFoundException(attendanceId));
         if (attendance.getAttendanceStatus() == AttendanceStatus.CANCELLED) {
             throw new IllegalArgumentException("취소된 출석의 입금 정보는 변경할 수 없습니다.");
+        }
+        if (attendance.getPaymentStatus() == AttendancePaymentStatus.PREPAID) {
+            throw new IllegalArgumentException("선납 회원의 참가비는 연속 수업 선납 관리에서만 확인할 수 있습니다.");
+        }
+        if (paymentStatus == AttendancePaymentStatus.PREPAID) {
+            throw new IllegalArgumentException("선납 상태는 연속 수업 선납 회원 등록으로만 적용할 수 있습니다.");
         }
         if (attendance.getParticipationType() == AttendanceParticipationType.HOST
                 && (appliedFee != 0 || paymentStatus != AttendancePaymentStatus.EXEMPT)) {
@@ -316,5 +332,12 @@ public class AttendanceService {
     private boolean hasDefaultFeeExemption(Member member) {
         return member.getMemberRole() == MemberRole.LEADER
                 || member.getMemberRole() == MemberRole.STAFF;
+    }
+
+    private boolean hasClassSeriesPrepayment(Gathering gathering, UUID memberId) {
+        return gathering.getClassSeriesId() != null
+                && classSeriesEnrollmentRepository
+                        .findByClassSeriesIdAndMemberId(gathering.getClassSeriesId(), memberId)
+                        .isPresent();
     }
 }

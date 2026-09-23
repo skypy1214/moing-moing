@@ -18,9 +18,9 @@ const warmUpApi = async (environment: Environment): Promise<void> => {
     return
   }
 
-  let readyUrl: URL
+  let healthUrl: URL
   try {
-    readyUrl = new URL('/api/v1/ready', configuredOrigin)
+    healthUrl = new URL('/api/v1/health', configuredOrigin)
   } catch {
     console.error('api-warmup-skipped', {
       reason: 'API_ORIGIN is not a valid URL.',
@@ -28,7 +28,7 @@ const warmUpApi = async (environment: Environment): Promise<void> => {
     return
   }
 
-  if (readyUrl.protocol !== 'https:') {
+  if (healthUrl.protocol !== 'https:') {
     console.error('api-warmup-skipped', {
       reason: 'API_ORIGIN must use HTTPS.',
     })
@@ -37,7 +37,7 @@ const warmUpApi = async (environment: Environment): Promise<void> => {
 
   const startedAt = Date.now()
   try {
-    const response = await fetch(readyUrl, {
+    const response = await fetch(healthUrl, {
       headers: { 'User-Agent': 'moing-moing-render-warmup' },
     })
     console.info('api-warmup', {

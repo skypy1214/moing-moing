@@ -100,6 +100,7 @@ type DocumentWithViewTransition = Document & {
 const today = new Date().toISOString().slice(0, 10)
 const healthCheckTimeoutMs = 10_000
 const healthCheckRetryDelayMs = 5_000
+const withdrawnMembersPageSize = 10
 
 const pageTitles: Record<PageKey, string> = {
   MEMBERS: '회원 관리',
@@ -126,7 +127,7 @@ const memberRolePriority: Record<MemberRole, number> = {
 
 type InactivityBadge = {
   label: string
-  tone: 'new-member' | 'inactive' | '1' | '2' | '3'
+  tone: 'paused' | 'new-member' | 'inactive' | '1' | '2' | '3'
 }
 
 function isActivityExclusionActive(exclusion: ActivityExclusion) {
@@ -137,12 +138,13 @@ function isActivityExclusionActive(exclusion: ActivityExclusion) {
 }
 
 function getInactivityBadge(member: Member): InactivityBadge | null {
-  if (
-    member.membershipStatus !== 'ACTIVE' ||
-    member.lastAttendanceOn === undefined
-  ) {
+  if (member.membershipStatus !== 'ACTIVE') {
     return null
   }
+  if (member.activityPaused) {
+    return { label: '활동 중단', tone: 'paused' }
+  }
+  if (member.lastAttendanceOn === undefined) return null
 
   const now = new Date()
   const joinedDate = new Date(`${member.joinedOn}T00:00:00`)
@@ -219,6 +221,8 @@ function App() {
   const [isMembershipModalOpen, setIsMembershipModalOpen] = useState(false)
   const [isWithdrawnMembersModalOpen, setIsWithdrawnMembersModalOpen] =
     useState(false)
+  const [withdrawnMemberSearch, setWithdrawnMemberSearch] = useState('')
+  const [withdrawnMembersPage, setWithdrawnMembersPage] = useState(0)
   const [isActivityExclusionModalOpen, setIsActivityExclusionModalOpen] =
     useState(false)
   const [exclusions, setExclusions] = useState<ActivityExclusion[]>([])
@@ -373,6 +377,26 @@ function App() {
     .toSorted((left, right) =>
       (right.withdrawnOn ?? '').localeCompare(left.withdrawnOn ?? ''),
     )
+  const normalizedWithdrawnMemberSearch = withdrawnMemberSearch
+    .trim()
+    .toLocaleLowerCase()
+  const filteredWithdrawnMembers = withdrawnMembers.filter((member) =>
+    normalizedWithdrawnMemberSearch === ''
+      ? true
+      : [member.displayName, member.externalNickname]
+          .filter((value): value is string => value !== null)
+          .some((value) =>
+            value.toLocaleLowerCase().includes(normalizedWithdrawnMemberSearch),
+          ),
+  )
+  const withdrawnMembersTotalPages = Math.max(
+    1,
+    Math.ceil(filteredWithdrawnMembers.length / withdrawnMembersPageSize),
+  )
+  const visibleWithdrawnMembers = filteredWithdrawnMembers.slice(
+    withdrawnMembersPage * withdrawnMembersPageSize,
+    (withdrawnMembersPage + 1) * withdrawnMembersPageSize,
+  )
 
   function nextSortDirection(direction: SortDirection): SortDirection {
     return direction === null ? 'ASC' : direction === 'ASC' ? 'DESC' : null
@@ -625,6 +649,12 @@ function App() {
     setFieldErrors({})
     setMessage('')
     setIsMemberCreatePage(true)
+  }
+
+  function openWithdrawnMembersModal() {
+    setWithdrawnMemberSearch('')
+    setWithdrawnMembersPage(0)
+    setIsWithdrawnMembersModalOpen(true)
   }
 
   async function selectMember(member: Member) {
@@ -1190,7 +1220,7 @@ function App() {
                       {canManage && (
                         <button
                           className="secondary-button"
-                          onClick={() => setIsWithdrawnMembersModalOpen(true)}
+                          onClick={openWithdrawnMembersModal}
                           type="button"
                         >
                           탈퇴 회원 관리
@@ -1374,15 +1404,30 @@ function App() {
                     <h3 id="withdrawn-members-heading">탈퇴 회원 관리</h3>
                     <p>탈퇴한 회원의 정보를 확인하고 재활성화할 수 있습니다.</p>
                   </div>
-                  {withdrawnMembers.length === 0 ? (
+                  <label className="withdrawn-member-search">
+                    회원 검색
+                    <input
+                      onChange={(event) => {
+                        setWithdrawnMemberSearch(event.target.value)
+                        setWithdrawnMembersPage(0)
+                      }}
+                      placeholder="이름 또는 닉네임"
+                      value={withdrawnMemberSearch}
+                    />
+                  </label>
+                  {filteredWithdrawnMembers.length === 0 ? (
                     <EmptyState
-                      description="현재 탈퇴 처리된 회원이 없습니다."
+                      description={
+                        withdrawnMembers.length === 0
+                          ? '현재 탈퇴 처리된 회원이 없습니다.'
+                          : '검색 조건에 맞는 탈퇴 회원이 없습니다.'
+                      }
                       icon="👤"
                       title="탈퇴 회원이 없습니다"
                     />
                   ) : (
                     <ul className="withdrawn-member-list">
-                      {withdrawnMembers.map((member) => (
+                      {visibleWithdrawnMembers.map((member) => (
                         <li key={member.id}>
                           <div>
                             <strong>{member.displayName}</strong>
@@ -1403,6 +1448,36 @@ function App() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {filteredWithdrawnMembers.length > 0 && (
+                    <div className="pagination-controls">
+                      <button
+                        className="secondary-button"
+                        disabled={withdrawnMembersPage === 0}
+                        onClick={() =>
+                          setWithdrawnMembersPage((page) => page - 1)
+                        }
+                        type="button"
+                      >
+                        이전
+                      </button>
+                      <span>
+                        {withdrawnMembersPage + 1} /{' '}
+                        {withdrawnMembersTotalPages}
+                      </span>
+                      <button
+                        className="secondary-button"
+                        disabled={
+                          withdrawnMembersPage + 1 >= withdrawnMembersTotalPages
+                        }
+                        onClick={() =>
+                          setWithdrawnMembersPage((page) => page + 1)
+                        }
+                        type="button"
+                      >
+                        다음
+                      </button>
+                    </div>
                   )}
                 </Modal>
               )}

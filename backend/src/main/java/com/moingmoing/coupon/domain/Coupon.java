@@ -75,15 +75,21 @@ public class Coupon {
      * This link lets an administrator revoke an unspent automatic reward without deleting history.
      */
     public static Coupon attendanceChampionReward(
-            UUID memberId, LocalDate validFrom, LocalDate validUntil, int totalUses, UUID championAwardId) {
+            UUID memberId,
+            LocalDate targetMonth,
+            LocalDate validFrom,
+            LocalDate validUntil,
+            int totalUses,
+            UUID championAwardId) {
+        String awardMonthLabel = targetMonth.getYear() + "년 " + targetMonth.getMonthValue() + "월 출석왕";
         Coupon coupon = new Coupon(
                 memberId,
                 CouponType.ATTENDANCE_CHAMPION,
                 validFrom,
                 validUntil,
                 totalUses,
-                "출석왕 쿠폰",
-                "Monthly attendance champion reward");
+                awardMonthLabel + " 쿠폰",
+                awardMonthLabel + " 자동 발급");
         coupon.championAwardId = championAwardId;
         return coupon;
     }
