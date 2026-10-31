@@ -36,7 +36,7 @@ Neon은 PostgreSQL 서비스이며 Spring Boot 또는 정적 React 파일을 실
 
 - Root Directory: `backend`
 - Runtime: Docker
-- Health Check Path: `/api/v1/ready`
+- Health Check Path: `/api/v1/health`
 - Plan: Free
 
 Render 환경변수/secret에 다음 값을 설정한다. `DB_*`, 초기 관리자 비밀번호는 secret으로 취급하며 Git에 넣지 않는다.
