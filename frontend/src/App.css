@@ -49,6 +49,44 @@
   margin-left: auto;
 }
 
+.warmup-control {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  justify-content: space-between;
+}
+
+.warmup-control > div {
+  flex: 1 1 18rem;
+}
+
+.warmup-control h3,
+.warmup-control p {
+  margin: 0;
+}
+
+.warmup-control p {
+  margin-top: 0.35rem;
+}
+
+.warmup-control .description {
+  flex-basis: 100%;
+}
+
+.warmup-control-switch {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 0.5rem;
+}
+
+.warmup-control-switch input {
+  accent-color: var(--color-primary);
+  block-size: 1.2rem;
+  inline-size: 1.2rem;
+}
+
 .activity-log-filters {
   align-items: end;
   display: grid;

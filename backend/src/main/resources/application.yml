@@ -26,3 +26,6 @@ app:
     password: ${INITIAL_ADMIN_PASSWORD:}
   coupon:
     qr-token-encryption-key: ${QR_TOKEN_ENCRYPTION_KEY:}
+  warmup-control:
+    worker-url: ${WARMUP_CONTROL_WORKER_URL:}
+    token: ${WARMUP_CONTROL_TOKEN:}

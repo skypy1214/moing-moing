@@ -5,9 +5,61 @@ type StaticAssets = {
 type Environment = {
   API_ORIGIN?: string
   ASSETS: StaticAssets
+  WARMUP_CONTROL_TOKEN?: string
+  WARMUP_STATE: KVNamespace
 }
 
 const apiPathPrefix = '/api/'
+const warmupControlPath = '/_internal/warmup-control'
+const warmupEnabledKey = 'enabled'
+
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    status,
+  })
+
+const isWarmupControlAuthorized = (
+  request: Request,
+  environment: Environment,
+): boolean => {
+  const configuredToken = environment.WARMUP_CONTROL_TOKEN?.trim()
+  return (
+    configuredToken !== undefined &&
+    configuredToken !== '' &&
+    request.headers.get('X-Warmup-Control-Token') === configuredToken
+  )
+}
+
+const readWarmupEnabled = async (environment: Environment): Promise<boolean> =>
+  (await environment.WARMUP_STATE.get(warmupEnabledKey)) === 'true'
+
+const handleWarmupControl = async (
+  request: Request,
+  environment: Environment,
+): Promise<Response> => {
+  if (!isWarmupControlAuthorized(request, environment)) {
+    return jsonResponse({ message: 'Unauthorized.' }, 401)
+  }
+
+  if (request.method === 'GET') {
+    return jsonResponse({ enabled: await readWarmupEnabled(environment) })
+  }
+
+  if (request.method !== 'PUT') {
+    return jsonResponse({ message: 'Method not allowed.' }, 405)
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    enabled?: unknown
+  } | null
+  if (typeof body?.enabled !== 'boolean') {
+    return jsonResponse({ message: 'enabled must be a boolean.' }, 400)
+  }
+
+  await environment.WARMUP_STATE.put(warmupEnabledKey, String(body.enabled))
+  return jsonResponse({ enabled: body.enabled })
+}
 
 const warmUpApi = async (environment: Environment): Promise<void> => {
   const configuredOrigin = environment.API_ORIGIN?.trim()
@@ -129,6 +181,10 @@ export default {
   async fetch(request: Request, environment: Environment): Promise<Response> {
     const requestUrl = new URL(request.url)
 
+    if (requestUrl.pathname === warmupControlPath) {
+      return handleWarmupControl(request, environment)
+    }
+
     if (requestUrl.pathname.startsWith(apiPathPrefix)) {
       return proxyApiRequest(request, environment)
     }
@@ -140,6 +196,10 @@ export default {
     _controller: ScheduledController,
     environment: Environment,
   ): Promise<void> {
+    if (!(await readWarmupEnabled(environment))) {
+      console.info('api-warmup-skipped', { reason: 'warmup is disabled.' })
+      return
+    }
     await warmUpApi(environment)
   },
 }

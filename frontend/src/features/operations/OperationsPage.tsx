@@ -7,6 +7,7 @@ import { Modal } from '../../shared/ui/Modal'
 import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { SelectField } from '../../shared/ui/SelectField'
 import type { Account } from './types'
+import { WarmupControl } from './WarmupControl'
 
 const roleLabels: Record<Account['role'], string> = {
   ADMIN: '관리자',
@@ -239,6 +240,8 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
           <button type="submit">계정 발급</button>
         </div>
       </form>
+
+      <WarmupControl />
 
       <section
         className="panel-section"

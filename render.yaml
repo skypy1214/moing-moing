@@ -22,3 +22,7 @@ services:
         sync: false
       - key: INITIAL_ADMIN_PASSWORD
         sync: false
+      - key: WARMUP_CONTROL_WORKER_URL
+        sync: false
+      - key: WARMUP_CONTROL_TOKEN
+        sync: false

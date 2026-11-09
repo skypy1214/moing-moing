@@ -51,6 +51,14 @@ Render 환경변수/secret에 다음 값을 설정한다. `DB_*`, 초기 관리�
 | `QR_TOKEN_ENCRYPTION_KEY` | 기존 쿠폰 QR을 다시 보기 위한 Base64 형식 32바이트 AES 키. PowerShell에서 `[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))`로 한 번 생성해 Render secret으로 저장한다. |
 | `INITIAL_ADMIN_LOGIN` | 최초 배포 때만 필요한 관리자 ID |
 | `INITIAL_ADMIN_PASSWORD` | 최초 배포 때만 필요한 관리자 비밀번호 |
+| `WARMUP_CONTROL_WORKER_URL` | Cloudflare Worker의 `/_internal/warmup-control` URL |
+| `WARMUP_CONTROL_TOKEN` | Cloudflare Worker의 `WARMUP_CONTROL_TOKEN`과 같은 긴 임의 문자열 |
+
+### 관리자 화면의 서버 깨우기 제어
+
+Cloudflare KV 네임스페이스를 생성해 `frontend/wrangler.jsonc`의 `WARMUP_STATE` binding ID에 연결한다. Cloudflare Worker secret `WARMUP_CONTROL_TOKEN`과 Render secret `WARMUP_CONTROL_TOKEN`에는 동일한 긴 임의 문자열을 설정한다. Render의 `WARMUP_CONTROL_WORKER_URL`에는 Worker의 `/_internal/warmup-control` URL을 설정한다.
+
+상태는 KV에서 읽으므로, 서버 깨우기를 끄면 Cron이 Render 또는 Neon을 호출하지 않는다. KV에 값이 없을 때의 기본값은 꺼짐이다.
 
 Render가 `PORT`를 자동 주입하며 Spring Boot는 이를 우선 사용한다. 배포 시 Flyway가 migration을 적용한다. 동시에 여러 인스턴스를 배포하지 않는다. 최초 관리자 계정이 생성된 것을 확인한 뒤에는 `INITIAL_ADMIN_LOGIN`, `INITIAL_ADMIN_PASSWORD`를 Render 환경변수에서 제거한다. 두 값이 모두 없으면 초기화 과정의 계정 조회를 건너뛰므로 이후 cold start의 불필요한 DB 작업도 줄어든다.
 

@@ -7,6 +7,12 @@
   "vars": {
     "API_ORIGIN": "https://moing-moing-api.onrender.com",
   },
+  "kv_namespaces": [
+    {
+      "binding": "WARMUP_STATE",
+      "id": "38d79d10bfc840cfafc71540b5af23ef",
+    },
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
