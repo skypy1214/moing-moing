@@ -119,14 +119,18 @@ export function GatheringForm({
                 <input
                   max="24"
                   min="2"
-                  onChange={(event) => onRecurringWeeksChange?.(event.target.value)}
+                  onChange={(event) =>
+                    onRecurringWeeksChange?.(event.target.value)
+                  }
                   required
                   type="number"
                   value={recurringWeeks}
                 />
               </label>
               <p className="field-hint">
-                {heldOn}부터 매주 같은 요일에 {recurringWeeks || 0}회 수업이 생성됩니다. 선납 회원은 각 수업 출석 시 자동으로 선납 처리됩니다.
+                {heldOn}부터 매주 같은 요일에 {recurringWeeks || 0}회 수업이
+                생성됩니다. 선납 회원은 각 수업 출석 시 자동으로 선납
+                처리됩니다.
               </p>
             </div>
           )}

@@ -1,5 +1,34 @@
 # 운영 로그와 오류 추적
 
+## 운영 인프라와 배포 경로
+
+```text
+사용자 브라우저
+  -> Cloudflare Worker (https://moing-moing.ddrd.workers.dev)
+     - React/Vite 정적 파일 제공
+     - /api/* 요청을 Render로 프록시
+     - Cron 및 KV로 Render warm-up 상태 관리
+  -> Render Web Service (moing-moing-api, Spring Boot)
+  -> Neon PostgreSQL (moing-moing-dev)
+```
+
+- 프런트엔드는 Cloudflare Workers Static Assets로 제공한다. `frontend/worker/index.ts`가 Worker 진입점이고, `frontend/wrangler.jsonc`가 Worker·KV·Cron 설정의 기준이다.
+- 백엔드는 Render의 `moing-moing-api` 서비스에서 동작한다. `main` 브랜치의 백엔드 변경은 Render의 자동 배포 설정에 따라 반영한다.
+- DB는 Neon PostgreSQL이며, Spring Boot가 JDBC로 연결하고 시작 시 Flyway migration을 적용한다.
+- 현재 GitHub Actions(`.github/workflows/ci.yml`)는 `main` 푸시 시 검증만 수행한다. Cloudflare Worker를 배포하지 않으므로, Worker 변경은 `frontend`에서 `npm run deploy:worker`를 실행해야 한다.
+- Worker 배포 후에는 `https://moing-moing.ddrd.workers.dev`와 필요한 제어 API를 실제 HTTP 요청으로 확인한다. 단순 GitHub 푸시만으로 Worker가 바뀌었다고 가정하지 않는다.
+
+## 환경변수·외부 서비스 설정 작업 원칙
+
+- 비밀값은 채팅, Git, 문서, 로그에 저장하지 않는다. 값이 대화에 노출되었으면 작업 완료 후 새 값으로 교체한다.
+- Cloudflare·Render·Neon 설정이 필요하면, 소유자가 최소 권한의 단기 토큰 또는 OAuth 로그인을 제공하고 에이전트가 직접 등록·배포·운영 URL 검증까지 수행한다.
+- Cloudflare Worker의 민감한 값은 일반 Variable이 아니라 Worker Secret으로 등록한다. 예: `npx wrangler secret put WARMUP_CONTROL_TOKEN`.
+- Render와 Worker가 공유하는 값은 이름과 값이 완전히 같아야 한다. 현재 warm-up 제어에는 다음 쌍이 필요하다.
+  - Render `WARMUP_CONTROL_WORKER_URL`: Worker의 `/_internal/warmup-control` URL
+  - Render `WARMUP_CONTROL_TOKEN` = Cloudflare Worker Secret `WARMUP_CONTROL_TOKEN`
+- `WARMUP_STATE` KV 값이 없거나 `false`면 warm-up Cron은 Render와 Neon을 호출하지 않는다. 기본값은 꺼짐이다.
+- 환경변수 변경 뒤에는 해당 플랫폼의 배포를 완료하고 실제 요청으로 검증한다. Render는 **Save, rebuild, and deploy**, Cloudflare Worker는 `wrangler deploy` 또는 Dashboard Deploy가 필요하다.
+
 ## 요청 로그
 
 백엔드는 `/api/v1/health`, `/api/v1/ready`를 제외한 모든 API 요청에 대해 다음 정보만 로그로 남긴다.

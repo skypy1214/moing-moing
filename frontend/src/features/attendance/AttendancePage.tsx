@@ -252,14 +252,22 @@ export function AttendancePage({
   const [defaultParticipationFee, setDefaultParticipationFee] = useState('0')
   const [isRecurringClass, setIsRecurringClass] = useState(false)
   const [recurringWeeks, setRecurringWeeks] = useState('3')
-  const [isExistingClassConversionOpen, setIsExistingClassConversionOpen] = useState(false)
-  const [conversionGatheringIds, setConversionGatheringIds] = useState<string[]>([])
-  const [conversionAttendances, setConversionAttendances] = useState<Attendance[]>([])
-  const [conversionPrepaidMemberIds, setConversionPrepaidMemberIds] = useState<string[]>([])
+  const [isExistingClassConversionOpen, setIsExistingClassConversionOpen] =
+    useState(false)
+  const [conversionGatheringIds, setConversionGatheringIds] = useState<
+    string[]
+  >([])
+  const [conversionAttendances, setConversionAttendances] = useState<
+    Attendance[]
+  >([])
+  const [conversionPrepaidMemberIds, setConversionPrepaidMemberIds] = useState<
+    string[]
+  >([])
   const [conversionTitle, setConversionTitle] = useState('')
   const [conversionSessionFee, setConversionSessionFee] = useState('0')
   const [conversionError, setConversionError] = useState('')
-  const [isConvertingExistingClasses, setIsConvertingExistingClasses] = useState(false)
+  const [isConvertingExistingClasses, setIsConvertingExistingClasses] =
+    useState(false)
   const [isCreateGatheringOpen, setIsCreateGatheringOpen] = useState(false)
   const [isEditGatheringOpen, setIsEditGatheringOpen] = useState(false)
   const [editHeldOn, setEditHeldOn] = useState(today)
@@ -314,13 +322,18 @@ export function AttendancePage({
   const [paymentFee, setPaymentFee] = useState('0')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('PENDING')
   const [isPaymentFeeEditing, setIsPaymentFeeEditing] = useState(false)
-  const [isClassSeriesEnrollmentOpen, setIsClassSeriesEnrollmentOpen] = useState(false)
-  const [classSeriesEnrollments, setClassSeriesEnrollments] = useState<ClassSeriesEnrollment[]>([])
+  const [isClassSeriesEnrollmentOpen, setIsClassSeriesEnrollmentOpen] =
+    useState(false)
+  const [classSeriesEnrollments, setClassSeriesEnrollments] = useState<
+    ClassSeriesEnrollment[]
+  >([])
   const [prepaidMemberId, setPrepaidMemberId] = useState('')
   const [prepaidAmount, setPrepaidAmount] = useState('0')
   const [classSeriesTotalFee, setClassSeriesTotalFee] = useState(0)
-  const [classSeriesEnrollmentError, setClassSeriesEnrollmentError] = useState('')
-  const [isSavingClassSeriesEnrollment, setIsSavingClassSeriesEnrollment] = useState(false)
+  const [classSeriesEnrollmentError, setClassSeriesEnrollmentError] =
+    useState('')
+  const [isSavingClassSeriesEnrollment, setIsSavingClassSeriesEnrollment] =
+    useState(false)
   const [message, setMessage] = useState('')
   const [createGatheringError, setCreateGatheringError] = useState('')
   const [isCreatingGathering, setIsCreatingGathering] = useState(false)
@@ -446,7 +459,8 @@ export function AttendancePage({
     }
 
     document.addEventListener('pointerdown', closeCalendarDrop, true)
-    return () => document.removeEventListener('pointerdown', closeCalendarDrop, true)
+    return () =>
+      document.removeEventListener('pointerdown', closeCalendarDrop, true)
   }, [calendarDrop])
 
   function moveCalendarMonth(amount: number) {
@@ -554,8 +568,7 @@ export function AttendancePage({
         body: JSON.stringify({
           spentOn: expenseDate,
           category: expenseType === 'RENTAL' ? '대관비' : expenseCategory,
-          rentalMonth:
-            expenseType === 'RENTAL' ? expenseRentalMonth : null,
+          rentalMonth: expenseType === 'RENTAL' ? expenseRentalMonth : null,
           description: expenseDescription || null,
           amount,
         }),
@@ -710,7 +723,9 @@ export function AttendancePage({
     setConversionAttendances([])
     setConversionPrepaidMemberIds([])
     setConversionTitle(initialGathering?.title ?? '')
-    setConversionSessionFee(String(initialGathering?.defaultParticipationFee ?? 0))
+    setConversionSessionFee(
+      String(initialGathering?.defaultParticipationFee ?? 0),
+    )
     setConversionError('')
     setIsExistingClassConversionOpen(true)
     if (!initialGathering) {
@@ -723,11 +738,16 @@ export function AttendancePage({
           { credentials: 'include' },
         )
         if (!response.ok) {
-          throw await responseError(response, '기존 출석 기록을 불러오지 못했습니다.')
+          throw await responseError(
+            response,
+            '기존 출석 기록을 불러오지 못했습니다.',
+          )
         }
         setConversionAttendances((await response.json()) as Attendance[])
       } catch (error) {
-        setConversionError(errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'))
+        setConversionError(
+          errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'),
+        )
       }
     })()
   }
@@ -756,14 +776,19 @@ export function AttendancePage({
       )
       const failed = responses.find((response) => !response.ok)
       if (failed) {
-        throw await responseError(failed, '기존 출석 기록을 불러오지 못했습니다.')
+        throw await responseError(
+          failed,
+          '기존 출석 기록을 불러오지 못했습니다.',
+        )
       }
       const loaded = await Promise.all(
         responses.map((response) => response.json() as Promise<Attendance[]>),
       )
       setConversionAttendances(loaded.flat())
     } catch (error) {
-      setConversionError(errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'))
+      setConversionError(
+        errorMessage(error, '기존 출석 기록을 불러오지 못했습니다.'),
+      )
     }
   }
 
@@ -797,21 +822,34 @@ export function AttendancePage({
         }),
       })
       if (!response.ok) {
-        throw await responseError(response, '기존 수업을 연속 수업으로 묶지 못했습니다.')
+        throw await responseError(
+          response,
+          '기존 수업을 연속 수업으로 묶지 못했습니다.',
+        )
       }
       const converted = (await response.json()) as ClassSeriesResponse
       const convertedById = new Map(
-        converted.gatherings.map((gathering) => [gathering.id, normalizeGathering(gathering)]),
+        converted.gatherings.map((gathering) => [
+          gathering.id,
+          normalizeGathering(gathering),
+        ]),
       )
       setGatherings((previous) =>
-        previous.map((gathering) => convertedById.get(gathering.id) ?? gathering),
+        previous.map(
+          (gathering) => convertedById.get(gathering.id) ?? gathering,
+        ),
       )
       setAttendances((previous) =>
         previous.map((attendance) =>
           conversionGatheringIds.includes(attendance.gatheringId) &&
           conversionPrepaidMemberIds.includes(attendance.memberId) &&
           attendance.participationType === 'NORMAL'
-            ? { ...attendance, appliedFee: 0, paymentStatus: 'PREPAID', feeOverridden: false }
+            ? {
+                ...attendance,
+                appliedFee: 0,
+                paymentStatus: 'PREPAID',
+                feeOverridden: false,
+              }
             : attendance,
         ),
       )
@@ -821,14 +859,19 @@ export function AttendancePage({
         0,
       )
     } catch (error) {
-      setConversionError(errorMessage(error, '기존 수업을 연속 수업으로 묶지 못했습니다.'))
+      setConversionError(
+        errorMessage(error, '기존 수업을 연속 수업으로 묶지 못했습니다.'),
+      )
     } finally {
       setIsConvertingExistingClasses(false)
     }
   }
 
   async function openClassSeriesEnrollment() {
-    if (selectedGathering === null || selectedGathering.classSeriesId === null) {
+    if (
+      selectedGathering === null ||
+      selectedGathering.classSeriesId === null
+    ) {
       return
     }
     setClassSeriesEnrollmentError('')
@@ -838,9 +881,12 @@ export function AttendancePage({
         fetch(`/api/v1/class-series/${selectedGathering.classSeriesId}`, {
           credentials: 'include',
         }),
-        fetch(`/api/v1/class-series/${selectedGathering.classSeriesId}/enrollments`, {
-          credentials: 'include',
-        }),
+        fetch(
+          `/api/v1/class-series/${selectedGathering.classSeriesId}/enrollments`,
+          {
+            credentials: 'include',
+          },
+        ),
       ])
       if (!seriesResponse.ok || !enrollmentsResponse.ok) {
         throw await responseError(
@@ -851,7 +897,9 @@ export function AttendancePage({
       const series = (await seriesResponse.json()) as ClassSeriesResponse
       setClassSeriesTotalFee(series.totalFee)
       setPrepaidAmount(String(series.totalFee))
-      setClassSeriesEnrollments((await enrollmentsResponse.json()) as ClassSeriesEnrollment[])
+      setClassSeriesEnrollments(
+        (await enrollmentsResponse.json()) as ClassSeriesEnrollment[],
+      )
       setIsClassSeriesEnrollmentOpen(true)
     } catch (error) {
       setMessage(errorMessage(error, '선납 회원 목록을 불러오지 못했습니다.'))
@@ -860,7 +908,10 @@ export function AttendancePage({
 
   async function saveClassSeriesEnrollment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (selectedGathering === null || selectedGathering.classSeriesId === null) {
+    if (
+      selectedGathering === null ||
+      selectedGathering.classSeriesId === null
+    ) {
       return
     }
     const paidAmount = Number(prepaidAmount)
@@ -869,7 +920,9 @@ export function AttendancePage({
       return
     }
     if (!Number.isInteger(paidAmount) || paidAmount < 0) {
-      setClassSeriesEnrollmentError('선납 금액은 0원 이상의 정수로 입력해 주세요.')
+      setClassSeriesEnrollmentError(
+        '선납 금액은 0원 이상의 정수로 입력해 주세요.',
+      )
       return
     }
     setIsSavingClassSeriesEnrollment(true)
@@ -892,7 +945,9 @@ export function AttendancePage({
       setPrepaidMemberId('')
       setPrepaidAmount(String(classSeriesTotalFee))
     } catch (error) {
-      setClassSeriesEnrollmentError(errorMessage(error, '선납 회원을 등록하지 못했습니다.'))
+      setClassSeriesEnrollmentError(
+        errorMessage(error, '선납 회원을 등록하지 못했습니다.'),
+      )
     } finally {
       setIsSavingClassSeriesEnrollment(false)
     }
@@ -1026,23 +1081,26 @@ export function AttendancePage({
     }
 
     try {
-      const response = await fetch(isRecurringClass ? '/api/v1/class-series' : '/api/v1/gatherings', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isRecurringClass
-            ? {
-                startsOn: heldOn,
-                hostMemberId: hostMemberId || null,
-                title,
-                location: location || null,
-                sessionFee: Number(defaultParticipationFee),
-                sessionCount: Number(recurringWeeks),
-              }
-            : payload,
-        ),
-      })
+      const response = await fetch(
+        isRecurringClass ? '/api/v1/class-series' : '/api/v1/gatherings',
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            isRecurringClass
+              ? {
+                  startsOn: heldOn,
+                  hostMemberId: hostMemberId || null,
+                  title,
+                  location: location || null,
+                  sessionFee: Number(defaultParticipationFee),
+                  sessionCount: Number(recurringWeeks),
+                }
+              : payload,
+          ),
+        },
+      )
       if (!response.ok) {
         throw await responseError(response, '출석부를 만들지 못했습니다.')
       }
@@ -2002,7 +2060,9 @@ export function AttendancePage({
                 form="convert-existing-class-series-form"
                 type="submit"
               >
-                {isConvertingExistingClasses ? '묶는 중…' : '연속 수업으로 묶기'}
+                {isConvertingExistingClasses
+                  ? '묶는 중…'
+                  : '연속 수업으로 묶기'}
               </button>
             </>
           }
@@ -2011,7 +2071,8 @@ export function AttendancePage({
           <div className="modal-heading">
             <h3 id="convert-existing-class-series-heading">수업 묶기</h3>
             <p>
-              선택한 수업과 기존 출석 기록은 보존합니다. 선납 회원으로 선택한 참석자만 기존 출석과 이후 출석이 선납 회원으로 표시됩니다.
+              선택한 수업과 기존 출석 기록은 보존합니다. 선납 회원으로 선택한
+              참석자만 기존 출석과 이후 출석이 선납 회원으로 표시됩니다.
             </p>
           </div>
           <form
@@ -2029,11 +2090,14 @@ export function AttendancePage({
                     <label key={gathering.id}>
                       <input
                         checked={conversionGatheringIds.includes(gathering.id)}
-                        onChange={() => void toggleConversionGathering(gathering)}
+                        onChange={() =>
+                          void toggleConversionGathering(gathering)
+                        }
                         type="checkbox"
                       />
                       <span>
-                        {gathering.heldOn} · {gathering.title ?? '제목 없는 수업'}
+                        {gathering.heldOn} ·{' '}
+                        {gathering.title ?? '제목 없는 수업'}
                       </span>
                     </label>
                   ))}
@@ -2053,7 +2117,9 @@ export function AttendancePage({
               <input
                 min="0"
                 onChange={(event) =>
-                  setConversionSessionFee(normalizeMoneyInput(event.target.value))
+                  setConversionSessionFee(
+                    normalizeMoneyInput(event.target.value),
+                  )
                 }
                 required
                 step="1000"
@@ -2064,10 +2130,13 @@ export function AttendancePage({
             <fieldset className="existing-class-selection">
               <legend>기존 참석자 중 선납 회원 선택</legend>
               <p className="field-hint">
-                선택한 회원의 이미 기록된 일반 출석도 선납 회원으로 전환됩니다. 선택하지 않은 회원의 기존 입금 상태는 유지됩니다.
+                선택한 회원의 이미 기록된 일반 출석도 선납 회원으로 전환됩니다.
+                선택하지 않은 회원의 기존 입금 상태는 유지됩니다.
               </p>
               {conversionMembers.length === 0 ? (
-                <p className="empty-copy">선택한 수업에 일반 출석 기록이 없습니다.</p>
+                <p className="empty-copy">
+                  선택한 수업에 일반 출석 기록이 없습니다.
+                </p>
               ) : (
                 <div className="existing-class-options">
                   {conversionMembers.map((member) => (
@@ -2276,7 +2345,9 @@ export function AttendancePage({
                   {selectedGathering.location ?? '장소 미입력'} ·{' '}
                   {gatheringTypeLabels[selectedGathering.gatheringType]} ·{' '}
                   {selectedGathering.classSeriesId !== null && (
-                    <><ClassSeriesBadge /> · </>
+                    <>
+                      <ClassSeriesBadge /> ·{' '}
+                    </>
                   )}
                   {selectedGathering.gatheringType === 'CLASS' && (
                     <>진행자 {selectedHost ?? '미지정'} · </>
@@ -2702,7 +2773,8 @@ export function AttendancePage({
           <div className="modal-heading">
             <h3 id="class-series-enrollment-heading">선납 회원 관리</h3>
             <p>
-              선납 회원이 출석하면 해당 회차는 입금 관리 없이 선납 회원으로 표시됩니다. 결석분 환불은 자동 처리하지 않습니다.
+              선납 회원이 출석하면 해당 회차는 입금 관리 없이 선납 회원으로
+              표시됩니다. 결석분 환불은 자동 처리하지 않습니다.
             </p>
           </div>
           <form
@@ -2744,7 +2816,10 @@ export function AttendancePage({
               </p>
             )}
           </form>
-          <section className="class-series-enrollment-list" aria-label="등록된 선납 회원">
+          <section
+            className="class-series-enrollment-list"
+            aria-label="등록된 선납 회원"
+          >
             <h4>등록된 선납 회원</h4>
             {classSeriesEnrollments.length === 0 ? (
               <p className="empty-copy">아직 등록된 선납 회원이 없습니다.</p>
@@ -2753,7 +2828,8 @@ export function AttendancePage({
                 {classSeriesEnrollments.map((enrollment) => (
                   <li key={enrollment.id}>
                     <strong>
-                      {membersById.get(enrollment.memberId)?.displayName ?? '이름 미확인'}
+                      {membersById.get(enrollment.memberId)?.displayName ??
+                        '이름 미확인'}
                     </strong>
                     <span>{formatWon(enrollment.paidAmount)}</span>
                   </li>

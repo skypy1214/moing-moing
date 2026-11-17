@@ -1267,6 +1267,11 @@ h2 {
   margin-bottom: 0;
 }
 
+.modal-heading .event-role-confirmation-warning {
+  color: #a44252;
+  font-weight: 600;
+}
+
 .modal-close-button {
   align-items: center;
   background: transparent;
@@ -3616,4 +3621,229 @@ button:not(:disabled):active {
   .unpaid-attendance-grid button {
     grid-column: 1 / -1;
   }
+}
+
+/* Event list → editor → detail uses the same page structure as the board. */
+.event-status {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.24rem 0.55rem;
+  white-space: nowrap;
+}
+
+.event-status-draft {
+  background: #eef1f5;
+  color: #536171;
+}
+.event-status-open {
+  background: #e2f6ea;
+  color: #177245;
+}
+.event-status-closed {
+  background: #fff3cd;
+  color: #855d00;
+}
+
+.event-editor-form {
+  max-width: 52rem;
+}
+.event-role-editor {
+  border-top: 1px solid var(--color-border, #e3e7ed);
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+  padding-top: 1.25rem;
+}
+.event-role-management-list {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+.event-role-management-list li {
+  border: 1px solid var(--color-border, #e3e7ed);
+  border-radius: 0;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.8rem;
+}
+.event-role-management-list p {
+  color: #637083;
+  margin: 0.3rem 0 0;
+  white-space: pre-wrap;
+}
+.event-seat-panel {
+  display: grid;
+  gap: 1rem;
+}
+.event-my-role {
+  border-color: #a9dfbb;
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+.event-my-role h3,
+.event-my-role p {
+  margin: 0;
+}
+
+.event-my-role p:not(.eyebrow) {
+  white-space: pre-wrap;
+}
+.event-seat-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+.event-seat-section {
+  background: #f8fafc;
+  border: 1px solid var(--color-border, #e3e7ed);
+  border-radius: 0.9rem;
+  min-width: 17rem;
+  padding: 1rem;
+}
+.event-section-label {
+  color: #637083;
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 0.7rem;
+}
+.event-seat-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(7rem, 1fr));
+}
+.event-seat {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #cdd6e1;
+  border-radius: 0.55rem;
+  color: #172033;
+  display: grid;
+  gap: 0.2rem;
+  min-height: 4.5rem;
+  padding: 0.65rem;
+  text-align: left;
+}
+.event-seat:not(:disabled):hover {
+  background: #1d528a;
+  border-color: #1d528a;
+  box-shadow: 0 0 0 2px #d7e5f4;
+  color: #ffffff;
+}
+
+.event-seat:not(:disabled):hover small {
+  color: #ffffff;
+}
+.event-seat small {
+  color: #637083;
+}
+.event-seat.is-taken,
+.event-seat:disabled {
+  background: #eef1f5;
+  border-color: #dce2e9;
+  color: #788596;
+  cursor: not-allowed;
+}
+.event-seat.is-taken small {
+  color: #788596;
+}
+
+@media (max-width: 640px) {
+  .event-seat-section {
+    min-width: 100%;
+  }
+  .event-role-management-list li {
+    flex-direction: column;
+  }
+}
+
+.event-role-actions {
+  border-top: 1px solid var(--color-border, #e3e7ed);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+}
+.event-role-confirmed {
+  color: #855d00;
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+.event-role-mission {
+  background: #eef8f1;
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+}
+.event-role-description,
+.event-confirmed-duty {
+  margin: 0;
+}
+
+.event-role-summary {
+  align-items: center;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  color: #172033;
+  display: flex;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.event-role-summary:hover {
+  background: #1d528a;
+  color: #ffffff;
+}
+
+.event-role-summary:hover strong,
+.event-role-summary:hover .event-role-confirmed {
+  color: #ffffff;
+}
+
+.event-role-preview-details {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+
+.event-role-preview-details div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.event-role-preview-details dt {
+  color: #637083;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.event-role-preview-details dd {
+  margin: 0;
+}
+
+.event-role-copy,
+.event-role-markdown,
+.event-role-preview-details dd {
+  overflow-wrap: anywhere;
+}
+
+.event-role-copy > b + :is(h1, h2, h3, h4, h5, h6, p, ul, ol, pre) {
+  margin-top: 0.45rem;
+}
+
+.event-role-copy pre,
+.event-role-markdown pre,
+.event-role-preview-details dd pre {
+  overflow-x: auto;
 }

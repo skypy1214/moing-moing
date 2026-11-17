@@ -21,6 +21,7 @@
 8. `docs/home-setup.md`: 새 Windows PC에서의 개발 도구, GitHub, Cursor, Codex 설정
 9. `docs/ui-ux.md`: 반응형 관리자 화면의 UI/UX 원칙과 화면 전환 기준
 9. `docs/attendance-champion-policy.md`: 출석왕 보상 규칙과 정책 변경 이력 원칙
+10. `docs/event-role-selection-policy.md`: 이벤트 역할 좌석표의 공개 범위, 선착순 확정, 관리자 예외 처리 원칙
 
 문서와 구현이 달라지면 같은 변경에서 문서도 갱신한다. 중요한 결정은 이유와 함께 관련 문서에 기록한다.
 

@@ -10,6 +10,7 @@ import { flushSync } from 'react-dom'
 
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { CouponPage } from './features/coupon/CouponPage'
+import { EventPage } from './features/event/EventPage'
 import {
   MemberProfileForm,
   type MemberRole as MemberProfileRole,
@@ -88,6 +89,7 @@ type PageKey =
   | 'COUPONS'
   | 'STATISTICS'
   | 'MEETING_NOTES'
+  | 'EVENTS'
   | 'OPERATIONS'
   | 'ACTIVITY_LOG'
 
@@ -108,6 +110,7 @@ const pageTitles: Record<PageKey, string> = {
   COUPONS: '쿠폰 관리',
   STATISTICS: '월별 통계',
   MEETING_NOTES: '게시판',
+  EVENTS: '이벤트',
   OPERATIONS: '운영 관리',
   ACTIVITY_LOG: '작업 이력',
 }
@@ -287,6 +290,12 @@ function App() {
       label: '게시판',
       desktopLabel: '게시판',
       icon: '☰',
+    },
+    {
+      value: 'EVENTS',
+      label: '이벤트',
+      desktopLabel: '이벤트',
+      icon: '▦',
     },
     ...(isAdmin
       ? [
@@ -1882,6 +1891,7 @@ function App() {
       {currentPage === 'MEETING_NOTES' && (
         <MeetingNotePage isAdmin={isAdmin} readOnly={!canManage} />
       )}
+      {currentPage === 'EVENTS' && <EventPage isAdmin={isAdmin} />}
       {currentPage === 'OPERATIONS' && isAdmin && (
         <OperationsPage
           onOpenActivityHistory={() => navigateToPage('ACTIVITY_LOG')}

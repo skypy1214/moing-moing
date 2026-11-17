@@ -52,7 +52,11 @@ class SettlementController {
     ResponseEntity<SettlementExpenseResponse> createExpense(
             @Valid @RequestBody CreateSettlementExpenseRequest request) {
         SettlementExpense expense = settlementService.createExpense(
-                request.spentOn(), parseMonth(request.rentalMonth()), request.category(), request.description(), request.amount());
+                request.spentOn(),
+                parseMonth(request.rentalMonth()),
+                request.category(),
+                request.description(),
+                request.amount());
         return ResponseEntity.created(URI.create("/api/v1/settlements/expenses/" + expense.getId()))
                 .body(SettlementExpenseResponse.from(expense));
     }

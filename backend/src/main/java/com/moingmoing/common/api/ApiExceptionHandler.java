@@ -48,6 +48,11 @@ class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("code", "INVALID_REQUEST", "message", exception.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException exception) {
+        return ResponseEntity.status(409).body(Map.of("code", "CONFLICT", "message", exception.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException exception) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();

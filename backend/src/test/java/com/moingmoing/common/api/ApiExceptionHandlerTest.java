@@ -28,4 +28,14 @@ class ApiExceptionHandlerTest {
 
     private void placeholder(Object request) {
     }
+
+    @Test
+    void returnsConflictForAnAlreadyConfirmedRole() {
+        Map<String, Object> body = new ApiExceptionHandler()
+                .handleIllegalState(new IllegalStateException("이미 역할을 확정했습니다."))
+                .getBody();
+
+        assertThat(body).containsEntry("code", "CONFLICT");
+        assertThat(body).containsEntry("message", "이미 역할을 확정했습니다.");
+    }
 }
