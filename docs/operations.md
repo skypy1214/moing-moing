@@ -26,8 +26,20 @@
 - Render와 Worker가 공유하는 값은 이름과 값이 완전히 같아야 한다. 현재 warm-up 제어에는 다음 쌍이 필요하다.
   - Render `WARMUP_CONTROL_WORKER_URL`: Worker의 `/_internal/warmup-control` URL
   - Render `WARMUP_CONTROL_TOKEN` = Cloudflare Worker Secret `WARMUP_CONTROL_TOKEN`
-- `WARMUP_STATE` KV 값이 없거나 `false`면 warm-up Cron은 Render와 Neon을 호출하지 않는다. 기본값은 꺼짐이다.
+- `WARMUP_STATE` KV 값이 없거나 `false`면 warm-up Cron은 Render를 호출하지 않는다. 기본값은 꺼짐이다. Cron이 호출하는 `/api/v1/health`는 DB 쿼리를 하지 않으므로, 켜더라도 Neon을 활성 상태로 유지하지 않는다.
 - 환경변수 변경 뒤에는 해당 플랫폼의 배포를 완료하고 실제 요청으로 검증한다. Render는 **Save, rebuild, and deploy**, Cloudflare Worker는 `wrangler deploy` 또는 Dashboard Deploy가 필요하다.
+
+### 로그인 불가 시 warm-up Cron 제어
+
+Render가 idle 상태라 관리자 로그인이 늦어져도 Cron 상태를 바꾸기 위해 서버 API를 거치지 않는다. 운영 PC의 저장소 루트에서 아래 스크립트를 실행하면 Cloudflare Worker의 토큰 보호 제어 API가 KV의 `enabled` 값만 직접 변경한다. `WARMUP_CONTROL_TOKEN`은 화면에 표시되거나 명령 기록에 남지 않도록 실행 중에만 입력한다.
+
+```powershell
+.\scripts\warmup-control.ps1 -Action status
+.\scripts\warmup-control.ps1 -Action on
+.\scripts\warmup-control.ps1 -Action off
+```
+
+Cloudflare Dashboard에서도 같은 효과를 낼 수 있다. **Workers & Pages > KV > WARMUP_STATE**에서 키 `enabled`를 `true` 또는 `false`로 바꾼다. Cron은 한국 시간 08:00~01:50 동안 10분마다 실행하며, `true`일 때만 Render의 `/api/v1/health`를 호출한다. Render Free Web Service는 15분 동안 inbound request가 없을 때 idle 상태가 되므로, 이 주기는 서비스가 활성 상태인 동안 idle 기준보다 짧다.
 
 ## 요청 로그
 

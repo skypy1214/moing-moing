@@ -24,8 +24,10 @@ server:
   shutdown: graceful
   servlet:
     session:
+      timeout: 24h
       cookie:
         http-only: true
+        max-age: 24h
         same-site: lax
         secure: true
 
