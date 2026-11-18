@@ -509,6 +509,12 @@
   gap: 12px;
 }
 
+.account-profile-button {
+  font-size: 1rem;
+  font-weight: 700;
+  min-height: 44px;
+}
+
 .read-only-badge {
   background: #eff4f8;
   border: 1px solid #cbd8e5;
@@ -3694,16 +3700,18 @@ button:not(:disabled):active {
   white-space: pre-wrap;
 }
 .event-seat-sections {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .event-seat-section {
   background: #f8fafc;
   border: 1px solid var(--color-border, #e3e7ed);
+  box-sizing: border-box;
   border-radius: 0.9rem;
-  min-width: 17rem;
+  min-width: 0;
   padding: 1rem;
+  width: 100%;
 }
 .event-section-label {
   color: #637083;
@@ -3715,7 +3723,7 @@ button:not(:disabled):active {
 .event-seat-grid {
   display: grid;
   gap: 0.5rem;
-  grid-template-columns: repeat(2, minmax(7rem, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .event-seat {
   align-items: flex-start;
@@ -3726,6 +3734,7 @@ button:not(:disabled):active {
   display: grid;
   gap: 0.2rem;
   min-height: 4.5rem;
+  min-width: 0;
   padding: 0.65rem;
   text-align: left;
 }
@@ -3741,6 +3750,11 @@ button:not(:disabled):active {
 }
 .event-seat small {
   color: #637083;
+  overflow-wrap: anywhere;
+}
+
+.event-seat span {
+  overflow-wrap: anywhere;
 }
 .event-seat.is-taken,
 .event-seat:disabled {
@@ -3754,11 +3768,33 @@ button:not(:disabled):active {
 }
 
 @media (max-width: 640px) {
+  .event-seat-sections {
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
   .event-seat-section {
-    min-width: 100%;
+    min-width: 0;
+    padding: 0.75rem;
+    width: 100%;
+  }
+  .event-seat-grid {
+    gap: 0.4rem;
+  }
+  .event-seat {
+    min-height: 4.15rem;
+    padding: 0.5rem;
+  }
+  .event-seat small {
+    font-size: 0.72rem;
   }
   .event-role-management-list li {
     flex-direction: column;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1040px) {
+  .event-seat-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

@@ -39,7 +39,6 @@ import { KoreanDateInput, formatKoreanDate } from './shared/ui/KoreanDateInput'
 import { Modal } from './shared/ui/Modal'
 import { RefreshIcon } from './shared/ui/RefreshIcon'
 import { ScrollTopIcon } from './shared/ui/ScrollTopIcon'
-import { SettingsIcon } from './shared/ui/SettingsIcon'
 import { useEscapeKey } from './shared/ui/useEscapeKey'
 import { Button, Card } from './shared/ui/ui'
 import { SelectField } from './shared/ui/SelectField'
@@ -75,6 +74,7 @@ type ApiErrorResponse = {
 }
 
 type AuthAccount = {
+  canViewEventMissions: boolean
   displayName: string
   isAdmin: boolean
   loginId: string
@@ -203,6 +203,7 @@ function App() {
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
   const [currentDisplayName, setCurrentDisplayName] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [canViewEventMissions, setCanViewEventMissions] = useState(false)
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('CHECKING')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isOwnPasswordModalOpen, setIsOwnPasswordModalOpen] = useState(false)
@@ -261,6 +262,7 @@ function App() {
       setCurrentLoginId(null)
       setCurrentDisplayName('')
       setIsAdmin(false)
+      setCanViewEventMissions(false)
       setMembers([])
       setSelectedMember(null)
       setMessage('서버 세션이 만료되어 자동으로 로그아웃되었습니다.')
@@ -498,6 +500,7 @@ function App() {
       setCurrentLoginId(account.loginId)
       setCurrentDisplayName(account.displayName)
       setIsAdmin(account.isAdmin)
+      setCanViewEventMissions(account.canViewEventMissions)
       setCurrentPage('MEMBERS')
       await loadMembers()
       return true
@@ -996,6 +999,7 @@ function App() {
     setCurrentLoginId(null)
     setCurrentDisplayName('')
     setIsAdmin(false)
+    setCanViewEventMissions(false)
     setMembers([])
     setSelectedMember(null)
     setIsMemberSheetOpen(false)
@@ -1120,14 +1124,14 @@ function App() {
           <h1>{pageTitles[currentPage]}</h1>
         </div>
         <div className="account-actions">
-          <span>{currentDisplayName}</span>
           <Button
             aria-label="내 비밀번호 변경"
+            className="account-profile-button"
             onClick={openOwnProfileModal}
             type="button"
             variant="secondary"
           >
-            <SettingsIcon />
+            {currentDisplayName}
           </Button>
           <Button onClick={handleLogout} type="button" variant="secondary">
             로그아웃
@@ -1891,7 +1895,9 @@ function App() {
       {currentPage === 'MEETING_NOTES' && (
         <MeetingNotePage isAdmin={isAdmin} readOnly={!canManage} />
       )}
-      {currentPage === 'EVENTS' && <EventPage isAdmin={isAdmin} />}
+      {currentPage === 'EVENTS' && (
+        <EventPage canViewMissions={canViewEventMissions} isAdmin={isAdmin} />
+      )}
       {currentPage === 'OPERATIONS' && isAdmin && (
         <OperationsPage
           onOpenActivityHistory={() => navigateToPage('ACTIVITY_LOG')}

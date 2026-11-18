@@ -15,6 +15,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import com.moingmoing.auth.application.OperatorAccountService;
+import com.moingmoing.auth.domain.RoleCode;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -29,10 +30,12 @@ class AuthController {
     ResponseEntity<Map<String, Object>> me(Authentication authentication) {
         OperatorAccountService.AccountProfile account = operatorAccountService.findProfile(authentication.getName());
         boolean isAdmin = account.role().name().equals("ADMIN");
+        boolean canViewEventMissions = account.role() != RoleCode.MEMBER;
         return ResponseEntity.ok(Map.of(
                 "loginId", account.loginId(),
                 "displayName", account.displayName(),
-                "isAdmin", isAdmin));
+                "isAdmin", isAdmin,
+                "canViewEventMissions", canViewEventMissions));
     }
 
     @PatchMapping("/password")

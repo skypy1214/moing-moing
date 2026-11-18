@@ -113,7 +113,7 @@ public class PartyEventService {
   }
 
   @Transactional(readOnly = true)
-  public Detail detail(UUID eventId, String login, boolean admin) {
+  public Detail detail(UUID eventId, String login, boolean admin, boolean canViewMissions) {
     PartyEvent event = findEvent(eventId);
     if (!admin && event.getEventStatus() != PartyEventStatus.OPEN) {
       throw new IllegalStateException("현재 공개된 이벤트가 아닙니다.");
@@ -150,6 +150,7 @@ public class PartyEventService {
                       index % 2 + 1,
                       role.getName(),
                       role.getDescription(),
+                      canViewMissions ? role.getMission() : null,
                       takenRoleIds.contains(role.getId()));
                 })
             .toList();
@@ -199,7 +200,14 @@ public class PartyEventService {
   public record EventSummary(UUID id, String name, PartyEventStatus eventStatus) { }
 
   public record Seat(
-      UUID id, int section, int row, int column, String name, String description, boolean taken) { }
+      UUID id,
+      int section,
+      int row,
+      int column,
+      String name,
+      String description,
+      String mission,
+      boolean taken) { }
 
   public record MyRole(UUID id, String name, String description, String mission) { }
 

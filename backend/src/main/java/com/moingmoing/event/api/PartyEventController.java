@@ -29,7 +29,15 @@ class PartyEventController {
     boolean admin =
         authentication.getAuthorities().stream()
             .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
-    return service.detail(eventId, authentication.getName(), admin);
+    boolean canViewMissions =
+        authentication.getAuthorities().stream()
+            .anyMatch(
+                authority ->
+                    authority.getAuthority().equals("ROLE_ADMIN")
+                        || authority.getAuthority().equals("ROLE_SITE_ADMIN")
+                        || authority.getAuthority().equals("ROLE_GROUP_LEADER")
+                        || authority.getAuthority().equals("ROLE_STAFF"));
+    return service.detail(eventId, authentication.getName(), admin, canViewMissions);
   }
 
   @PostMapping("/{eventId}/roles/{roleId}/claim")

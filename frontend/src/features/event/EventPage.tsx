@@ -21,6 +21,7 @@ type Seat = {
   column: number
   name: string
   description: string
+  mission: string | null
   taken: boolean
 }
 type MyRole = { id: string; name: string; description: string; mission: string }
@@ -55,7 +56,13 @@ async function responseMessage(response: Response, fallback: string) {
     .catch(() => fallback)
 }
 
-export function EventPage({ isAdmin }: { isAdmin: boolean }) {
+export function EventPage({
+  canViewMissions,
+  isAdmin,
+}: {
+  canViewMissions: boolean
+  isAdmin: boolean
+}) {
   const [view, setView] = useState<View>('LIST')
   const [events, setEvents] = useState<PartyEvent[]>([])
   const [selectedEvent, setSelectedEvent] = useState<PartyEvent | null>(null)
@@ -74,6 +81,7 @@ export function EventPage({ isAdmin }: { isAdmin: boolean }) {
   const [previewRole, setPreviewRole] = useState<RolePreview | null>(null)
   const [isRoleEditorOpen, setIsRoleEditorOpen] = useState(false)
   const [claimTarget, setClaimTarget] = useState<Seat | null>(null)
+  const [isClaimMissionVisible, setIsClaimMissionVisible] = useState(false)
   const [confirmedRole, setConfirmedRole] = useState<MyRole | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [roleToUnassign, setRoleToUnassign] = useState<ManagedRole | null>(null)
@@ -734,16 +742,26 @@ export function EventPage({ isAdmin }: { isAdmin: boolean }) {
                       <button
                         className={`event-seat ${seat.taken ? 'is-taken' : ''}`}
                         disabled={
-                          seat.taken ||
-                          eventDetail.myRole !== null ||
-                          eventDetail.eventStatus !== 'OPEN'
+                          !canViewMissions &&
+                          (seat.taken ||
+                            eventDetail.myRole !== null ||
+                            eventDetail.eventStatus !== 'OPEN')
                         }
                         key={seat.id}
-                        onClick={() => setClaimTarget(seat)}
+                        onClick={() => {
+                          setClaimTarget(seat)
+                          setIsClaimMissionVisible(false)
+                        }}
                         type="button"
                       >
                         <span>{seat.name}</span>
-                        <small>{seat.taken ? '선택 완료' : '설명 보기'}</small>
+                        <small>
+                          {seat.taken
+                            ? canViewMissions
+                              ? '설명·미션 보기'
+                              : '선택 완료'
+                            : '설명 보기'}
+                        </small>
                       </button>
                     ))}
                   </div>
@@ -759,17 +777,37 @@ export function EventPage({ isAdmin }: { isAdmin: boolean }) {
               <>
                 <button
                   className="secondary-button"
-                  onClick={() => setClaimTarget(null)}
+                  onClick={() => {
+                    setClaimTarget(null)
+                    setIsClaimMissionVisible(false)
+                  }}
                   type="button"
                 >
                   취소
                 </button>
-                <button onClick={() => void claimRole()} type="button">
-                  이 역할로 확정
-                </button>
+                {canViewMissions && claimTarget.mission !== null && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => setIsClaimMissionVisible(true)}
+                    type="button"
+                  >
+                    미션 확인
+                  </button>
+                )}
+                {!claimTarget.taken &&
+                  eventDetail !== null &&
+                  eventDetail.myRole === null &&
+                  eventDetail.eventStatus === 'OPEN' && (
+                    <button onClick={() => void claimRole()} type="button">
+                      이 역할로 확정
+                    </button>
+                  )}
               </>
             }
-            onClose={() => setClaimTarget(null)}
+            onClose={() => {
+              setClaimTarget(null)
+              setIsClaimMissionVisible(false)
+            }}
             role="alertdialog"
           >
             <div className="modal-heading">
@@ -784,6 +822,14 @@ export function EventPage({ isAdmin }: { isAdmin: boolean }) {
                 {claimTarget.description}
               </Markdown>
             </div>
+            {isClaimMissionVisible && claimTarget.mission !== null && (
+              <div className="event-confirmed-duty event-role-markdown markdown-preview">
+                <b>미션</b>
+                <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} skipHtml>
+                  {claimTarget.mission}
+                </Markdown>
+              </div>
+            )}
           </Modal>
         )}
         {confirmedRole && (
