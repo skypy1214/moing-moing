@@ -71,22 +71,6 @@ public class OperatorAccountService {
     }
 
     @Transactional
-    public void recordFailedLogin(String loginId) {
-        if (loginId == null || loginId.isBlank()) {
-            return;
-        }
-        userAccountRepository.findByLoginId(loginId).ifPresent(UserAccount::recordFailedLogin);
-    }
-
-    @Transactional
-    public void resetFailedLoginCount(String loginId) {
-        if (loginId == null || loginId.isBlank()) {
-            return;
-        }
-        userAccountRepository.findByLoginId(loginId).ifPresent(UserAccount::resetFailedLoginCount);
-    }
-
-    @Transactional
     public void updateRole(UUID accountId, RoleCode role) {
         validateAssignableRole(role);
         UserAccount account = userAccountRepository.findById(accountId)
