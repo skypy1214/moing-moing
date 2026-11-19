@@ -743,9 +743,7 @@ export function EventPage({
                         className={`event-seat ${seat.taken ? 'is-taken' : ''}`}
                         disabled={
                           !canViewMissions &&
-                          (seat.taken ||
-                            eventDetail.myRole !== null ||
-                            eventDetail.eventStatus !== 'OPEN')
+                          (seat.taken || eventDetail.myRole !== null)
                         }
                         key={seat.id}
                         onClick={() => {
@@ -797,7 +795,8 @@ export function EventPage({
                 {!claimTarget.taken &&
                   eventDetail !== null &&
                   eventDetail.myRole === null &&
-                  eventDetail.eventStatus === 'OPEN' && (
+                  eventDetail.eventStatus === 'OPEN' &&
+                  selectedEvent?.eventStatus === 'OPEN' && (
                     <button onClick={() => void claimRole()} type="button">
                       이 역할로 확정
                     </button>
@@ -927,33 +926,22 @@ export function EventPage({
           />
         ) : (
           <ul className="meeting-note-list event-list">
-            {events.map((event) => {
-              const isUnavailableToMember =
-                !isAdmin && event.eventStatus !== 'OPEN'
-
-              return (
-                <li key={event.id}>
-                  <button
-                    aria-label={
-                      isUnavailableToMember
-                        ? `${event.name} (${statusLabels[event.eventStatus]} - 열람 불가)`
-                        : event.name
-                    }
-                    className="meeting-note-row"
-                    disabled={isUnavailableToMember}
-                    onClick={() => void beginDetail(event)}
-                    type="button"
+            {events.map((event) => (
+              <li key={event.id}>
+                <button
+                  className="meeting-note-row"
+                  onClick={() => void beginDetail(event)}
+                  type="button"
+                >
+                  <span
+                    className={`event-status event-status-${event.eventStatus.toLowerCase()}`}
                   >
-                    <span
-                      className={`event-status event-status-${event.eventStatus.toLowerCase()}`}
-                    >
-                      {statusLabels[event.eventStatus]}
-                    </span>
-                    <strong>{event.name}</strong>
-                  </button>
-                </li>
-              )
-            })}
+                    {statusLabels[event.eventStatus]}
+                  </span>
+                  <strong>{event.name}</strong>
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </section>

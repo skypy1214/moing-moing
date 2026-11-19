@@ -9,6 +9,7 @@
 - Use `apply_patch` for edits. Preserve existing worktree changes.
 - Never stage or commit `.env`, `.gradle-agent/`, or `docs/참고용UI (*.png)`.
 - Commit/push only when the user explicitly asks.
+- Deploy only when the user explicitly asks to deploy (for example, `배포해줘`). A completed change, commit, or local verification is not deployment authorization.
 - `git diff --check` is safe and should be run before handoff/commit.
 
 ## Current repository / deployment
@@ -17,6 +18,7 @@
 - Backend: Java 21 + Spring Boot + Gradle, deployed on Render.
 - Database: Neon PostgreSQL. Flyway runs on backend startup.
 - Local environment values are in `.env` and must never be printed or committed.
+- Start or restart the local backend only through `./scripts/run-backend.ps1`. It loads the Neon connection values from the root `.env`; do not invoke `backend/gradlew.bat bootRun` directly unless the required process environment has already been loaded.
 - `apiFetch` handles API base URL and emits a global unauthorized event so stale sessions after backend restart log out automatically.
 
 ## Worktree state at handoff

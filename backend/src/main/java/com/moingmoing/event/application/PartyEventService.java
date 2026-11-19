@@ -113,9 +113,6 @@ public class PartyEventService {
   @Transactional(readOnly = true)
   public Detail detail(UUID eventId, String login, boolean admin, boolean canViewMissions) {
     PartyEvent event = findEvent(eventId);
-    if (!admin && event.getEventStatus() != PartyEventStatus.OPEN) {
-      throw new IllegalStateException("현재 공개된 이벤트가 아닙니다.");
-    }
     UserAccount account = findAccount(login);
     List<PartyRole> eventRoles = roles.findAllByEventIdOrderByDisplayOrderAsc(eventId);
     Set<UUID> takenRoleIds =

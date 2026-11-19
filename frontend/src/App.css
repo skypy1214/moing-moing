@@ -3694,11 +3694,6 @@ button:not(:disabled):active {
   color: #855d00;
 }
 
-.event-list .meeting-note-row:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-
 .event-editor-form {
   max-width: 52rem;
 }
