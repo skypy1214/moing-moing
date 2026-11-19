@@ -1137,19 +1137,15 @@ function App() {
           <h1>{pageTitles[currentPage]}</h1>
         </div>
         <div className="account-actions">
-          {isMember ? (
-            <span className="account-profile-button">{currentDisplayName}</span>
-          ) : (
-            <Button
-              aria-label="내 비밀번호 변경"
-              className="account-profile-button"
-              onClick={openOwnProfileModal}
-              type="button"
-              variant="secondary"
-            >
-              {currentDisplayName}
-            </Button>
-          )}
+          <Button
+            aria-label="내 비밀번호 변경"
+            className="account-profile-button"
+            onClick={openOwnProfileModal}
+            type="button"
+            variant="secondary"
+          >
+            {currentDisplayName}
+          </Button>
           <Button onClick={handleLogout} type="button" variant="secondary">
             로그아웃
           </Button>

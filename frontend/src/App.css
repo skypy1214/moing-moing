@@ -612,7 +612,7 @@ h2 {
   width: 100%;
 }
 
-.primary-navigation-single {
+.primary-navigation.primary-navigation-single {
   grid-template-columns: minmax(0, 8rem);
   width: fit-content;
 }
