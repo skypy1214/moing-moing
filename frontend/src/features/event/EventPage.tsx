@@ -927,22 +927,33 @@ export function EventPage({
           />
         ) : (
           <ul className="meeting-note-list event-list">
-            {events.map((event) => (
-              <li key={event.id}>
-                <button
-                  className="meeting-note-row"
-                  onClick={() => void beginDetail(event)}
-                  type="button"
-                >
-                  <span
-                    className={`event-status event-status-${event.eventStatus.toLowerCase()}`}
+            {events.map((event) => {
+              const isUnavailableToMember =
+                !isAdmin && event.eventStatus !== 'OPEN'
+
+              return (
+                <li key={event.id}>
+                  <button
+                    aria-label={
+                      isUnavailableToMember
+                        ? `${event.name} (${statusLabels[event.eventStatus]} - 열람 불가)`
+                        : event.name
+                    }
+                    className="meeting-note-row"
+                    disabled={isUnavailableToMember}
+                    onClick={() => void beginDetail(event)}
+                    type="button"
                   >
-                    {statusLabels[event.eventStatus]}
-                  </span>
-                  <strong>{event.name}</strong>
-                </button>
-              </li>
-            ))}
+                    <span
+                      className={`event-status event-status-${event.eventStatus.toLowerCase()}`}
+                    >
+                      {statusLabels[event.eventStatus]}
+                    </span>
+                    <strong>{event.name}</strong>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

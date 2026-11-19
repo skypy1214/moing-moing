@@ -39,9 +39,7 @@ public class PartyEventService {
   @Transactional(readOnly = true)
   public List<EventSummary> list(boolean admin) {
     List<PartyEvent> result =
-        admin
-            ? events.findAllByEventStatusNotOrderByCreatedAtDesc(PartyEventStatus.DELETED)
-            : events.findAllByEventStatusOrderByCreatedAtDesc(PartyEventStatus.OPEN);
+        events.findAllByEventStatusNotOrderByCreatedAtDesc(PartyEventStatus.DELETED);
     return result.stream().map(this::summary).toList();
   }
 
