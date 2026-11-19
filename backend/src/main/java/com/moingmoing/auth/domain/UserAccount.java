@@ -25,6 +25,7 @@ public class UserAccount {
     private String passwordHash;
     @Enumerated(EnumType.STRING)
     private AccountStatus accountStatus;
+    private int failedLoginCount;
     @ElementCollection(targetClass = RoleCode.class)
     @CollectionTable(name = "user_account_roles", joinColumns = @JoinColumn(name = "user_account_id"))
     @Column(name = "role_code")
@@ -104,7 +105,23 @@ public class UserAccount {
 
     public void activate() {
         accountStatus = AccountStatus.ACTIVE;
+        failedLoginCount = 0;
         updatedAt = Instant.now();
+    }
+
+    public void recordFailedLogin() {
+        failedLoginCount += 1;
+        if (failedLoginCount >= 10) {
+            accountStatus = AccountStatus.DISABLED;
+        }
+        updatedAt = Instant.now();
+    }
+
+    public void resetFailedLoginCount() {
+        if (failedLoginCount != 0) {
+            failedLoginCount = 0;
+            updatedAt = Instant.now();
+        }
     }
 
     public void resetPassword(String passwordHash) {

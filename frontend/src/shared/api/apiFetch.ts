@@ -35,7 +35,7 @@ export function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
     .fetch(`${apiBaseUrl}${input}`, init)
     .then((response) => {
       if (
-        response.status === 401 &&
+        (response.status === 401 || response.status === 403) &&
         !input.includes('/api/v1/auth/login') &&
         typeof window !== 'undefined'
       ) {

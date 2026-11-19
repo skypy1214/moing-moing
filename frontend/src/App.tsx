@@ -259,21 +259,37 @@ function App() {
   const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
   const canManage = currentLoginId !== null && !isMember
 
+  const clearAuthenticatedState = useCallback(() => {
+    setCurrentLoginId(null)
+    setCurrentDisplayName('')
+    setIsAdmin(false)
+    setIsMember(false)
+    setCanViewEventMissions(false)
+    setMembers([])
+    setSelectedMember(null)
+    setCurrentPage('MEMBERS')
+    setIsMemberSheetOpen(false)
+    setIsMemberDetailPage(false)
+    setIsMemberParticipationPage(false)
+    setIsMemberCreatePage(false)
+    setIsMembershipModalOpen(false)
+    setIsWithdrawnMembersModalOpen(false)
+    setIsActivityExclusionModalOpen(false)
+    setEditingExclusion(null)
+    setIsOwnPasswordModalOpen(false)
+  }, [])
+
   useEffect(() => {
     const handleUnauthorized = () => {
-      setCurrentLoginId(null)
-      setCurrentDisplayName('')
-      setIsAdmin(false)
-      setIsMember(false)
-      setCanViewEventMissions(false)
-      setMembers([])
-      setSelectedMember(null)
-      setMessage('서버 세션이 만료되어 자동으로 로그아웃되었습니다.')
+      clearAuthenticatedState()
+      setMessage(
+        '세션이 만료되었거나 접근 권한이 없습니다. 다시 로그인해 주세요.',
+      )
     }
     window.addEventListener(apiUnauthorizedEvent, handleUnauthorized)
     return () =>
       window.removeEventListener(apiUnauthorizedEvent, handleUnauthorized)
-  }, [])
+  }, [clearAuthenticatedState])
 
   const navigationItems = (
     [
@@ -506,15 +522,15 @@ function App() {
       }
 
       const account = (await response.json()) as AuthAccount
+      if (!account.isMember) {
+        await loadMembers()
+      }
       setCurrentLoginId(account.loginId)
       setCurrentDisplayName(account.displayName)
       setIsAdmin(account.isAdmin)
       setIsMember(account.isMember)
       setCanViewEventMissions(account.canViewEventMissions)
       setCurrentPage(account.isMember ? 'EVENTS' : 'MEMBERS')
-      if (!account.isMember) {
-        await loadMembers()
-      }
       return true
     } catch {
       return false
@@ -597,6 +613,7 @@ function App() {
       // before rendering the app so non-admin accounts never briefly receive admin UI.
       const sessionRestored = await restoreSession()
       if (!sessionRestored) {
+        clearAuthenticatedState()
         setMessage(
           '로그인은 처리됐지만 세션을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
         )
@@ -1008,18 +1025,7 @@ function App() {
       method: 'POST',
       credentials: 'include',
     })
-    setCurrentLoginId(null)
-    setCurrentDisplayName('')
-    setIsAdmin(false)
-    setIsMember(false)
-    setCanViewEventMissions(false)
-    setMembers([])
-    setSelectedMember(null)
-    setIsMemberSheetOpen(false)
-    setIsMemberDetailPage(false)
-    setIsMembershipModalOpen(false)
-    setIsActivityExclusionModalOpen(false)
-    setEditingExclusion(null)
+    clearAuthenticatedState()
     setMessage('로그아웃했습니다.')
   }
 

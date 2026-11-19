@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.moingmoing.audit.application.ActivityLogService;
+import com.moingmoing.auth.application.OperatorAccountService;
 import com.moingmoing.common.api.ApiRequestLoggingFilter;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,9 +30,13 @@ class SecurityConfiguration {
     };
 
     private final ActivityLogService activityLogService;
+    private final OperatorAccountService operatorAccountService;
 
-    SecurityConfiguration(ActivityLogService activityLogService) {
+    SecurityConfiguration(
+            ActivityLogService activityLogService,
+            OperatorAccountService operatorAccountService) {
         this.activityLogService = activityLogService;
+        this.operatorAccountService = operatorAccountService;
     }
 
     @Bean
@@ -86,6 +91,7 @@ class SecurityConfiguration {
                         .hasAnyRole(NON_MEMBER_ROLES))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) -> {
+                            operatorAccountService.resetFailedLoginCount(authentication.getName());
                             activityLogService.record(
                                     authentication.getName(),
                                     "LOGIN_SUCCEEDED",
@@ -98,6 +104,7 @@ class SecurityConfiguration {
                             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                         })
                         .failureHandler((request, response, exception) -> {
+                            operatorAccountService.recordFailedLogin(request.getParameter("username"));
                             activityLogService.record(
                                     null,
                                     "LOGIN_FAILED",
