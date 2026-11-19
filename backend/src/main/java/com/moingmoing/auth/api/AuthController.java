@@ -30,11 +30,13 @@ class AuthController {
     ResponseEntity<Map<String, Object>> me(Authentication authentication) {
         OperatorAccountService.AccountProfile account = operatorAccountService.findProfile(authentication.getName());
         boolean isAdmin = account.role().name().equals("ADMIN");
+        boolean isMember = account.role() == RoleCode.MEMBER;
         boolean canViewEventMissions = account.role() != RoleCode.MEMBER;
         return ResponseEntity.ok(Map.of(
                 "loginId", account.loginId(),
                 "displayName", account.displayName(),
                 "isAdmin", isAdmin,
+                "isMember", isMember,
                 "canViewEventMissions", canViewEventMissions));
     }
 

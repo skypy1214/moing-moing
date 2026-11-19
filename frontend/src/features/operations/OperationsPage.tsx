@@ -3,6 +3,10 @@ import type { FormEvent } from 'react'
 
 import { apiFetch as fetch } from '../../shared/api/apiFetch'
 import { FeedbackMessageDialog } from '../../shared/feedback-dialog/FeedbackMessageDialog'
+import {
+  MemberRoleIcon,
+  type MemberRole,
+} from '../../shared/member/MemberRoleIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { RefreshIcon } from '../../shared/ui/RefreshIcon'
 import { SelectField } from '../../shared/ui/SelectField'
@@ -29,6 +33,24 @@ const assignableRoleOptions = Object.entries(assignableRoleLabels).map(
   ([value, label]) => ({ value, label }),
 )
 
+const accountRoleIcon: Record<Account['role'], MemberRole> = {
+  ADMIN: 'LEADER',
+  GROUP_LEADER: 'LEADER',
+  STAFF: 'STAFF',
+  MEMBER: 'MEMBER',
+}
+
+const accountStatusFilterLabels = {
+  ALL: '전체',
+  ACTIVE: '활성',
+  DISABLED: '비활성',
+} as const
+
+const accountRoleFilterLabels: Record<'ALL' | Account['role'], string> = {
+  ALL: '전체',
+  ...roleLabels,
+}
+
 type OperationsPageProps = {
   onOpenActivityHistory: () => void
 }
@@ -42,6 +64,11 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
   const [editingRole, setEditingRole] = useState<
     (Account & { role: Exclude<Account['role'], 'ADMIN'> }) | null
   >(null)
+  const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false)
+  const [accountStatusFilter, setAccountStatusFilter] =
+    useState<keyof typeof accountStatusFilterLabels>('ALL')
+  const [accountRoleFilter, setAccountRoleFilter] =
+    useState<keyof typeof accountRoleFilterLabels>('ALL')
   const [resetPassword, setResetPassword] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
@@ -85,6 +112,7 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
     setLoginId('')
     setPassword('')
     setRole('MEMBER')
+    setIsCreateAccountOpen(false)
     setMessage('운영 계정을 발급했습니다.')
     await loadAccounts()
   }
@@ -169,6 +197,13 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
     setMessage('임시 비밀번호를 복사했습니다.')
   }
 
+  const visibleAccounts = accounts.filter(
+    (account) =>
+      (accountStatusFilter === 'ALL' ||
+        account.status === accountStatusFilter) &&
+      (accountRoleFilter === 'ALL' || account.role === accountRoleFilter),
+  )
+
   return (
     <section className="panel" aria-labelledby="operations-heading">
       <div className="panel-heading">
@@ -177,6 +212,9 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
           <p>운영 계정 발급과 권한을 관리합니다.</p>
         </div>
         <div className="header-actions">
+          <button onClick={() => setIsCreateAccountOpen(true)} type="button">
+            계정 생성
+          </button>
           <button
             className="secondary-button"
             onClick={onOpenActivityHistory}
@@ -196,50 +234,58 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
         </div>
       </div>
 
-      <form className="form" onSubmit={createAccount}>
-        <h3>운영 계정 발급</h3>
-        <label>
-          표시 이름
-          <input
-            onChange={(event) => setDisplayName(event.target.value)}
-            required
-            value={displayName}
-          />
-        </label>
-        <label>
-          로그인 ID
-          <input
-            maxLength={20}
-            minLength={2}
-            onChange={(event) => setLoginId(event.target.value)}
-            pattern="[A-Za-z0-9._-]{2,20}"
-            required
-            title="영문, 숫자, 점, 밑줄, 하이픈으로 2~20자 입력해 주세요."
-            value={loginId}
-          />
-        </label>
-        <label>
-          초기 비밀번호
-          <input
-            minLength={8}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            type="password"
-            value={password}
-          />
-        </label>
-        <SelectField
-          label="역할"
-          onChange={(value) =>
-            setRole(value as Exclude<Account['role'], 'ADMIN'>)
-          }
-          options={assignableRoleOptions}
-          value={role}
-        />
-        <div className="form-actions">
-          <button type="submit">계정 발급</button>
-        </div>
-      </form>
+      {isCreateAccountOpen && (
+        <Modal
+          ariaLabelledBy="create-operator-account-heading"
+          className="modal-content member-action-modal"
+          onClose={() => setIsCreateAccountOpen(false)}
+        >
+          <form className="form" onSubmit={createAccount}>
+            <h3 id="create-operator-account-heading">계정 생성</h3>
+            <label>
+              표시 이름
+              <input
+                onChange={(event) => setDisplayName(event.target.value)}
+                required
+                value={displayName}
+              />
+            </label>
+            <label>
+              로그인 ID
+              <input
+                maxLength={20}
+                minLength={2}
+                onChange={(event) => setLoginId(event.target.value)}
+                pattern="[A-Za-z0-9._-]{2,20}"
+                required
+                title="영문, 숫자, 점, 밑줄, 하이픈으로 2~20자 입력해 주세요."
+                value={loginId}
+              />
+            </label>
+            <label>
+              초기 비밀번호
+              <input
+                autoComplete="new-password"
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                type="password"
+                value={password}
+              />
+            </label>
+            <SelectField
+              label="역할"
+              onChange={(value) =>
+                setRole(value as Exclude<Account['role'], 'ADMIN'>)
+              }
+              options={assignableRoleOptions}
+              value={role}
+            />
+            <div className="form-actions">
+              <button type="submit">계정 발급</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       <WarmupControl />
 
@@ -248,13 +294,95 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
         aria-labelledby="operator-account-heading"
       >
         <h3 id="operator-account-heading">운영 계정</h3>
+        <div
+          aria-label="계정 상태 필터"
+          className="operator-account-filters"
+          role="group"
+        >
+          {(
+            Object.entries(accountStatusFilterLabels) as [
+              keyof typeof accountStatusFilterLabels,
+              string,
+            ][]
+          ).map(([status, label]) => (
+            <button
+              aria-pressed={accountStatusFilter === status}
+              className={
+                accountStatusFilter === status
+                  ? 'is-active'
+                  : 'secondary-button'
+              }
+              key={status}
+              onClick={() => setAccountStatusFilter(status)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
+          aria-label="계정 권한 필터"
+          className="operator-account-filters"
+          role="group"
+        >
+          {(
+            Object.entries(accountRoleFilterLabels) as [
+              keyof typeof accountRoleFilterLabels,
+              string,
+            ][]
+          ).map(([role, label]) => (
+            <button
+              aria-pressed={accountRoleFilter === role}
+              className={
+                accountRoleFilter === role ? 'is-active' : 'secondary-button'
+              }
+              key={role}
+              onClick={() => setAccountRoleFilter(role)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="operator-account-filter-selects">
+          <SelectField
+            label="상태"
+            onChange={(status) =>
+              setAccountStatusFilter(
+                status as keyof typeof accountStatusFilterLabels,
+              )
+            }
+            options={Object.entries(accountStatusFilterLabels).map(
+              ([value, label]) => ({ value, label }),
+            )}
+            value={accountStatusFilter}
+          />
+          <SelectField
+            label="권한"
+            onChange={(role) =>
+              setAccountRoleFilter(role as keyof typeof accountRoleFilterLabels)
+            }
+            options={Object.entries(accountRoleFilterLabels).map(
+              ([value, label]) => ({ value, label }),
+            )}
+            value={accountRoleFilter}
+          />
+        </div>
         <ul className="plain-list">
-          {accounts.map((account) => (
+          {visibleAccounts.map((account) => (
             <li key={account.id}>
+              <span
+                aria-label={`권한 ${roleLabels[account.role]}`}
+                className={`member-role-badge operator-account-role-badge member-role-${accountRoleIcon[account.role].toLowerCase()}`}
+              >
+                <MemberRoleIcon
+                  decorative
+                  role={accountRoleIcon[account.role]}
+                />
+                {roleLabels[account.role]}
+              </span>
               <strong>{account.displayName}</strong>
               <span>{account.loginId}</span>
-              <span>{roleLabels[account.role]}</span>
-              <span>{account.status === 'ACTIVE' ? '활성' : '비활성'}</span>
               <div className="operator-account-actions">
                 {account.role !== 'ADMIN' && (
                   <button
@@ -279,7 +407,7 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
                 </button>
                 {account.role !== 'ADMIN' && account.status === 'ACTIVE' && (
                   <button
-                    className="secondary-button"
+                    className="secondary-button account-activation-button"
                     onClick={() => void disableAccount(account)}
                     type="button"
                   >
@@ -288,6 +416,7 @@ export function OperationsPage({ onOpenActivityHistory }: OperationsPageProps) {
                 )}
                 {account.role !== 'ADMIN' && account.status === 'DISABLED' && (
                   <button
+                    className="account-activation-button"
                     onClick={() => void activateAccount(account)}
                     type="button"
                   >

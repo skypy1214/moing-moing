@@ -21,8 +21,11 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 class SecurityConfiguration {
-    private static final String[] OPERATOR_ROLES = {
+    private static final String[] EVENT_ROLES = {
             "ADMIN", "MEMBER", "SITE_ADMIN", "GROUP_LEADER", "STAFF"
+    };
+    private static final String[] NON_MEMBER_ROLES = {
+            "ADMIN", "SITE_ADMIN", "GROUP_LEADER", "STAFF"
     };
 
     private final ActivityLogService activityLogService;
@@ -63,20 +66,24 @@ class SecurityConfiguration {
                                 "/api/v1/ready")
                         .permitAll()
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/password")
-                        .hasAnyRole(OPERATOR_ROLES)
+                        .hasAnyRole(NON_MEMBER_ROLES)
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/profile")
-                        .hasAnyRole(OPERATOR_ROLES)
+                        .hasAnyRole(NON_MEMBER_ROLES)
+                        .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
+                        .hasAnyRole(EVENT_ROLES)
                         .requestMatchers("/api/v1/admin/**")
                         .hasRole("ADMIN")
+                        .requestMatchers("/api/v1/events/**")
+                        .hasAnyRole(EVENT_ROLES)
                         // Settlement is an operational screen, not an administrator-only account setting.
                         .requestMatchers("/api/v1/settlements/**")
-                        .hasAnyRole(OPERATOR_ROLES)
+                        .hasAnyRole(NON_MEMBER_ROLES)
                         .requestMatchers(HttpMethod.POST, "/api/v1/meeting-note-categories/**")
                         .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/meeting-note-categories/**")
                         .hasRole("ADMIN")
                         .requestMatchers("/api/v1/**")
-                        .hasAnyRole(OPERATOR_ROLES))
+                        .hasAnyRole(NON_MEMBER_ROLES))
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) -> {
                             activityLogService.record(

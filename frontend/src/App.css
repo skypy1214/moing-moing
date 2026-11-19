@@ -49,6 +49,29 @@
   margin-left: auto;
 }
 
+.operator-account-filters {
+  display: none;
+}
+
+.operator-account-filter-selects {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 8rem));
+  margin-top: 12px;
+}
+
+.account-activation-button {
+  box-sizing: border-box;
+  flex: 0 0 7rem;
+  white-space: nowrap;
+  width: 7rem;
+}
+
+.operator-account-role-badge {
+  justify-content: center;
+  min-width: 5.5rem;
+}
+
 .warmup-control {
   align-items: center;
   display: flex;

@@ -77,6 +77,7 @@ type AuthAccount = {
   canViewEventMissions: boolean
   displayName: string
   isAdmin: boolean
+  isMember: boolean
   loginId: string
 }
 
@@ -203,6 +204,7 @@ function App() {
   const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
   const [currentDisplayName, setCurrentDisplayName] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isMember, setIsMember] = useState(false)
   const [canViewEventMissions, setCanViewEventMissions] = useState(false)
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('CHECKING')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
@@ -255,13 +257,14 @@ function App() {
   const [joinedOnSortDirection, setJoinedOnSortDirection] =
     useState<SortDirection>('DESC')
   const [currentPage, setCurrentPage] = useState<PageKey>('MEMBERS')
-  const canManage = currentLoginId !== null
+  const canManage = currentLoginId !== null && !isMember
 
   useEffect(() => {
     const handleUnauthorized = () => {
       setCurrentLoginId(null)
       setCurrentDisplayName('')
       setIsAdmin(false)
+      setIsMember(false)
       setCanViewEventMissions(false)
       setMembers([])
       setSelectedMember(null)
@@ -272,49 +275,51 @@ function App() {
       window.removeEventListener(apiUnauthorizedEvent, handleUnauthorized)
   }, [])
 
-  const navigationItems = [
-    { value: 'MEMBERS', label: '회원', desktopLabel: '회원 관리', icon: '♙' },
-    {
-      value: 'ATTENDANCE',
-      label: '출석',
-      desktopLabel: '출석 관리',
-      icon: '✓',
-    },
-    { value: 'COUPONS', label: '쿠폰', desktopLabel: '쿠폰 관리', icon: '◇' },
-    {
-      value: 'STATISTICS',
-      label: '통계',
-      desktopLabel: '월별 통계',
-      icon: '▥',
-    },
-    {
-      value: 'MEETING_NOTES',
-      label: '게시판',
-      desktopLabel: '게시판',
-      icon: '☰',
-    },
-    {
-      value: 'EVENTS',
-      label: '이벤트',
-      desktopLabel: '이벤트',
-      icon: '▦',
-    },
-    ...(isAdmin
-      ? [
-          {
-            value: 'OPERATIONS' as const,
-            label: '운영',
-            desktopLabel: '운영 관리',
-            icon: '⚙',
-          },
-        ]
-      : []),
-  ] satisfies {
-    value: PageKey
-    label: string
-    desktopLabel: string
-    icon: string
-  }[]
+  const navigationItems = (
+    [
+      { value: 'MEMBERS', label: '회원', desktopLabel: '회원 관리', icon: '♙' },
+      {
+        value: 'ATTENDANCE',
+        label: '출석',
+        desktopLabel: '출석 관리',
+        icon: '✓',
+      },
+      { value: 'COUPONS', label: '쿠폰', desktopLabel: '쿠폰 관리', icon: '◇' },
+      {
+        value: 'STATISTICS',
+        label: '통계',
+        desktopLabel: '월별 통계',
+        icon: '▥',
+      },
+      {
+        value: 'MEETING_NOTES',
+        label: '게시판',
+        desktopLabel: '게시판',
+        icon: '☰',
+      },
+      {
+        value: 'EVENTS',
+        label: '이벤트',
+        desktopLabel: '이벤트',
+        icon: '▦',
+      },
+      ...(isAdmin
+        ? [
+            {
+              value: 'OPERATIONS' as const,
+              label: '운영',
+              desktopLabel: '운영 관리',
+              icon: '⚙',
+            },
+          ]
+        : []),
+    ] satisfies {
+      value: PageKey
+      label: string
+      desktopLabel: string
+      icon: string
+    }[]
+  ).filter((item) => !isMember || item.value === 'EVENTS')
   const activeNavigationPage =
     currentPage === 'ACTIVITY_LOG' ? 'OPERATIONS' : currentPage
 
@@ -422,6 +427,10 @@ function App() {
   }, [])
 
   function navigateToPage(nextPage: PageKey) {
+    if (isMember && nextPage !== 'EVENTS') {
+      setCurrentPage('EVENTS')
+      return
+    }
     if (nextPage === 'MEMBERS' && currentLoginId !== null) {
       void loadMembers().catch(() =>
         setMessage('회원 목록을 불러오지 못했습니다.'),
@@ -500,9 +509,12 @@ function App() {
       setCurrentLoginId(account.loginId)
       setCurrentDisplayName(account.displayName)
       setIsAdmin(account.isAdmin)
+      setIsMember(account.isMember)
       setCanViewEventMissions(account.canViewEventMissions)
-      setCurrentPage('MEMBERS')
-      await loadMembers()
+      setCurrentPage(account.isMember ? 'EVENTS' : 'MEMBERS')
+      if (!account.isMember) {
+        await loadMembers()
+      }
       return true
     } catch {
       return false
@@ -999,6 +1011,7 @@ function App() {
     setCurrentLoginId(null)
     setCurrentDisplayName('')
     setIsAdmin(false)
+    setIsMember(false)
     setCanViewEventMissions(false)
     setMembers([])
     setSelectedMember(null)
@@ -1124,15 +1137,19 @@ function App() {
           <h1>{pageTitles[currentPage]}</h1>
         </div>
         <div className="account-actions">
-          <Button
-            aria-label="내 비밀번호 변경"
-            className="account-profile-button"
-            onClick={openOwnProfileModal}
-            type="button"
-            variant="secondary"
-          >
-            {currentDisplayName}
-          </Button>
+          {isMember ? (
+            <span className="account-profile-button">{currentDisplayName}</span>
+          ) : (
+            <Button
+              aria-label="내 비밀번호 변경"
+              className="account-profile-button"
+              onClick={openOwnProfileModal}
+              type="button"
+              variant="secondary"
+            >
+              {currentDisplayName}
+            </Button>
+          )}
           <Button onClick={handleLogout} type="button" variant="secondary">
             로그아웃
           </Button>
