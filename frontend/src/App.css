@@ -612,6 +612,15 @@ h2 {
   width: 100%;
 }
 
+.primary-navigation-single {
+  grid-template-columns: minmax(0, 8rem);
+  width: fit-content;
+}
+
+.primary-navigation-single .primary-navigation-indicator {
+  width: calc(100% - 10px);
+}
+
 .coupon-award-panel {
   display: grid;
   gap: 12px;
@@ -3311,6 +3320,17 @@ button:not(:disabled):active {
     position: fixed;
     right: 0;
     z-index: 9;
+  }
+
+  .bottom-navigation-single {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(9rem, calc(100% - 16px));
+  }
+
+  .bottom-navigation-single .bottom-navigation-indicator {
+    width: calc(100% - 16px);
   }
 
   .bottom-navigation-indicator {

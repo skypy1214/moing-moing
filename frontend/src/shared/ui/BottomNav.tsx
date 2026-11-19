@@ -22,7 +22,11 @@ export function BottomNav<T extends string>({
   return (
     <nav
       aria-label="주요 메뉴"
-      className="bottom-navigation"
+      className={
+        items.length === 1
+          ? 'bottom-navigation bottom-navigation-single'
+          : 'bottom-navigation'
+      }
       style={
         {
           '--active-index': activeIndex,

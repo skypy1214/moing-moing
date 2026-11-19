@@ -1158,7 +1158,11 @@ function App() {
 
       <nav
         aria-label="주요 메뉴"
-        className="primary-navigation"
+        className={
+          isMember
+            ? 'primary-navigation primary-navigation-single'
+            : 'primary-navigation'
+        }
         style={
           {
             '--active-index': navigationItems.findIndex(
